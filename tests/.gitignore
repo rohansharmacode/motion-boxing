@@ -1,0 +1,3 @@
+# Playwright output (traces, failure screenshots)
+.e2e-results/
+playwright-report/
