@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 280" width="800" height="280" role="img" aria-label="Victory title card">
+  <defs>
+    <linearGradient id="wn-fill" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="50%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#C8FF00" />
+    </linearGradient>
+    <filter id="wn-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .float { animation: wn-float 2.4s ease-in-out infinite; transform-origin: 400px 140px; }
+    .star { animation: wn-twinkle 1.8s ease-in-out infinite; }
+    @keyframes wn-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    @keyframes wn-twinkle { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .float, .star { animation: none; } }
+  </style>
+
+  <polygon points="74,36 746,36 726,244 54,244" fill="#0A1328" fill-opacity="0.94" stroke="#00F0FF" stroke-width="3" />
+  <polygon points="88,48 732,48 716,232 70,232" fill="none" stroke="#C8FF00" stroke-opacity="0.35" stroke-width="1.5" />
+
+  <!-- Kinetic Spark Stars -->
+  <g class="star" fill="#C8FF00" filter="url(#wn-glow)">
+    <polygon points="124,78 131,94 147,101 131,108 124,124 117,108 101,101 117,94" />
+    <polygon points="676,156 682,170 696,176 682,182 676,196 670,182 656,176 670,170" fill="#00F0FF" />
+  </g>
+
+  <g class="float" filter="url(#wn-glow)">
+    <!-- Geometric Crown Emblem -->
+    <polygon points="366,76 382,56 400,72 418,56 434,76" fill="none" stroke="#C8FF00" stroke-width="4" stroke-linejoin="round" />
+    <text x="400" y="166" text-anchor="middle" fill="url(#wn-fill)" font-family="'Chakra Petch', sans-serif" font-size="108" font-weight="700" font-style="italic" letter-spacing="6">YOU WIN</text>
+    <rect x="210" y="186" width="380" height="5" rx="2.5" fill="#C8FF00" />
+    <text x="400" y="218" text-anchor="middle" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="13.5" font-weight="700" letter-spacing="4">RING CLEARED · SYNCING SNOWFLAKE COACH</text>
+  </g>
+</svg>

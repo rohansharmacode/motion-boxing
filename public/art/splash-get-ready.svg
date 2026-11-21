@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" width="800" height="320" role="img" aria-label="Get Ready splash banner">
+  <defs>
+    <linearGradient id="gr-text" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="50%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#C8FF00" />
+    </linearGradient>
+    <filter id="gr-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .chev-l { animation: gr-l 1.1s ease-in-out infinite; }
+    .chev-r { animation: gr-r 1.1s ease-in-out infinite; }
+    .pulse { animation: gr-scale 1.1s ease-in-out infinite; transform-origin: 400px 158px; }
+    @keyframes gr-l { 0%,100% { transform: translateX(0); opacity: 0.65; } 50% { transform: translateX(14px); opacity: 1; } }
+    @keyframes gr-r { 0%,100% { transform: translateX(0); opacity: 0.65; } 50% { transform: translateX(-14px); opacity: 1; } }
+    @keyframes gr-scale { 0%,100% { transform: scale(0.98); } 50% { transform: scale(1.03); } }
+    @media (prefers-reduced-motion: reduce) { .chev-l, .chev-r, .pulse { animation: none; } }
+  </style>
+
+  <!-- Floating Arcade Ribbon Backdrop -->
+  <polygon points="48,54 776,54 752,266 24,266" fill="#0B1024" fill-opacity="0.92" stroke="#00F0FF" stroke-width="2.5" />
+  <polygon points="64,66 760,66 740,254 44,254" fill="none" stroke="#C8FF00" stroke-opacity="0.3" stroke-width="1.5" />
+
+  <!-- Inward Kinetic Chevrons -->
+  <g class="chev-l" filter="url(#gr-glow)">
+    <polyline points="86,104 128,160 86,216" fill="none" stroke="#00F0FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    <polyline points="118,118 150,160 118,202" fill="none" stroke="#C8FF00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <g class="chev-r" filter="url(#gr-glow)">
+    <polyline points="714,104 672,160 714,216" fill="none" stroke="#FF2A85" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    <polyline points="682,118 650,160 682,202" fill="none" stroke="#FFB800" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Main Callout -->
+  <g class="pulse" filter="url(#gr-glow)">
+    <text x="400" y="106" text-anchor="middle" fill="#FFB800" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="4">ROUND STARTING · HANDS UP</text>
+    <text x="400" y="186" text-anchor="middle" fill="url(#gr-text)" font-family="'Chakra Petch', sans-serif" font-size="82" font-weight="700" font-style="italic" letter-spacing="4">GET READY</text>
+    <rect x="210" y="206" width="380" height="5" rx="2.5" fill="#C8FF00" />
+    <text x="400" y="236" text-anchor="middle" fill="#B6C2E2" font-family="'Space Grotesk', sans-serif" font-size="14" font-weight="600" letter-spacing="1.4">HOLD GUARD · WATCH FOR THE RED TELEGRAPH</text>
+  </g>
+</svg>

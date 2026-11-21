@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 280" width="800" height="280" role="img" aria-label="Knockout title card">
+  <defs>
+    <linearGradient id="ko-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="35%" stop-color="#C8FF00" />
+      <stop offset="100%" stop-color="#FFB800" />
+    </linearGradient>
+    <filter id="ko-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="6" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .burst { animation: ko-burst 1.6s ease-out infinite; transform-origin: 400px 140px; }
+    .slam { animation: ko-slam 1.6s ease-in-out infinite; transform-origin: 400px 140px; }
+    @keyframes ko-burst { 0% { transform: scale(0.88); opacity: 0.9; } 100% { transform: scale(1.16); opacity: 0.15; } }
+    @keyframes ko-slam { 0%,100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.04) rotate(-1deg); } }
+    @media (prefers-reduced-motion: reduce) { .burst, .slam { animation: none; } }
+  </style>
+
+  <!-- Shatter Impact Rays -->
+  <g class="burst" stroke="#FF2A85" stroke-width="4" stroke-linecap="round">
+    <line x1="120" y1="42" x2="210" y2="96" />
+    <line x1="680" y1="42" x2="590" y2="96" />
+    <line x1="88" y1="142" x2="196" y2="142" stroke="#C8FF00" />
+    <line x1="712" y1="142" x2="604" y2="142" stroke="#C8FF00" />
+    <line x1="138" y1="242" x2="226" y2="184" stroke="#00F0FF" />
+    <line x1="662" y1="242" x2="574" y2="184" stroke="#00F0FF" />
+  </g>
+
+  <!-- Jagged Impact Plate -->
+  <polygon points="154,32 674,22 646,248 126,258" fill="#0B1024" fill-opacity="0.94" stroke="#FF2A85" stroke-width="3.5" />
+
+  <!-- Glitch Offset Layer + Main K.O.! -->
+  <g class="slam" filter="url(#ko-glow)">
+    <text x="408" y="182" text-anchor="middle" fill="#FF2A85" fill-opacity="0.72" font-family="'Chakra Petch', sans-serif" font-size="144" font-weight="700" font-style="italic" letter-spacing="8">K.O.!</text>
+    <text x="394" y="176" text-anchor="middle" fill="#00F0FF" fill-opacity="0.55" font-family="'Chakra Petch', sans-serif" font-size="144" font-weight="700" font-style="italic" letter-spacing="8">K.O.!</text>
+    <text x="400" y="178" text-anchor="middle" fill="url(#ko-fill)" stroke="#070913" stroke-width="3" font-family="'Chakra Petch', sans-serif" font-size="144" font-weight="700" font-style="italic" letter-spacing="8">K.O.!</text>
+    <text x="400" y="226" text-anchor="middle" fill="#F4F7FF" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="700" letter-spacing="5">DRONE OFFLINE · KNOCKOUT</text>
+  </g>
+</svg>

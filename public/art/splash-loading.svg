@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" role="img" aria-label="Kinetic Ring loading splash">
+  <defs>
+    <linearGradient id="ld-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C8FF00" />
+      <stop offset="50%" stop-color="#00F0FF" />
+      <stop offset="100%" stop-color="#FF2A85" />
+    </linearGradient>
+    <filter id="ld-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .spin-cw { animation: ld-cw 3.6s linear infinite; transform-origin: 320px 146px; }
+    .spin-ccw { animation: ld-ccw 2.4s linear infinite; transform-origin: 320px 146px; }
+    .core { animation: ld-pulse 1.6s ease-in-out infinite; transform-origin: 320px 146px; }
+    .bar { animation: ld-bar 1.8s ease-in-out infinite; }
+    @keyframes ld-cw { to { transform: rotate(360deg); } }
+    @keyframes ld-ccw { to { transform: rotate(-360deg); } }
+    @keyframes ld-pulse { 0%,100% { transform: scale(0.9); opacity: 0.7; } 50% { transform: scale(1.12); opacity: 1; } }
+    @keyframes ld-bar { 0% { transform: translateX(-160px); } 100% { transform: translateX(300px); } }
+    @media (prefers-reduced-motion: reduce) { .spin-cw, .spin-ccw, .core, .bar { animation: none; } }
+  </style>
+
+  <rect width="640" height="360" rx="22" fill="#070913" stroke="rgba(0,240,255,0.35)" stroke-width="2" />
+
+  <!-- Subtle corner ticks -->
+  <g stroke="#00F0FF" stroke-opacity="0.45" stroke-width="2" fill="none">
+    <path d="M 22 46 L 22 22 L 46 22" />
+    <path d="M 618 46 L 618 22 L 594 22" />
+    <path d="M 22 314 L 22 338 L 46 338" />
+    <path d="M 618 314 L 618 338 L 594 338" />
+  </g>
+
+  <!-- Rotating Octagonal Kinetic Loader -->
+  <g filter="url(#ld-glow)">
+    <g class="spin-cw">
+      <polygon points="292,78 348,78 388,118 388,174 348,214 292,214 252,174 252,118" fill="none" stroke="url(#ld-ring)" stroke-width="4.5" stroke-dasharray="48 18" stroke-linejoin="round" />
+    </g>
+    <g class="spin-ccw">
+      <circle cx="320" cy="146" r="46" fill="none" stroke="#00F0FF" stroke-opacity="0.7" stroke-width="2.5" stroke-dasharray="28 16" />
+    </g>
+    <g class="core">
+      <polygon points="292,132 312,146 292,160 300,146" fill="#00F0FF" />
+      <polygon points="348,132 328,146 348,160 340,146" fill="#FF2A85" />
+      <polygon points="320,134 327,146 320,158 313,146" fill="#C8FF00" />
+    </g>
+  </g>
+
+  <!-- Status Text -->
+  <text x="320" y="258" text-anchor="middle" fill="#F4F7FF" font-family="'Chakra Petch', sans-serif" font-size="24" font-weight="700" font-style="italic" letter-spacing="2.5">BOOTING KINETIC LAB</text>
+  <text x="320" y="282" text-anchor="middle" fill="#8E9BBF" font-family="'JetBrains Mono', monospace" font-size="11.5" letter-spacing="1.6">LOADING WEBCAM POSE ENGINE · ON-DEVICE</text>
+
+  <!-- Animated Progress Track -->
+  <clipPath id="ld-clip"><rect x="170" y="302" width="300" height="8" rx="4" /></clipPath>
+  <rect x="170" y="302" width="300" height="8" rx="4" fill="#131B33" />
+  <g clip-path="url(#ld-clip)">
+    <rect class="bar" x="170" y="302" width="140" height="8" rx="4" fill="url(#ld-ring)" />
+  </g>
+</svg>
