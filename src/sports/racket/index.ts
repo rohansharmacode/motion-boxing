@@ -15,6 +15,7 @@ import { createSfx } from '../../shell/sfx.ts'
 import type { Sfx } from '../../shell/sfx.ts'
 import { createScore } from './rules.ts'
 import type { ScoreKind } from './rules.ts'
+import { buildNeonArena } from '../shared/neonArena.ts'
 import './racket.css'
 
 const CYAN = 0x22e5ff
@@ -113,7 +114,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
   stageEl.append(renderer.domElement)
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(DARK)
-  scene.fog = new THREE.Fog(DARK, cfg.length * 1.6, cfg.length * 4)
+  scene.fog = new THREE.Fog(DARK, cfg.length * 2.5, cfg.length * 6)
   const camera = new THREE.PerspectiveCamera(cfg.camera.fov, 16 / 9, 0.05, 200)
   camera.position.set(0, cfg.camera.y, L2 + cfg.camera.back)
   camera.lookAt(0, top, cfg.camera.lookZ)
@@ -129,14 +130,14 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
   }
   const cyanMat = track(new THREE.MeshBasicMaterial({ color: CYAN }))
   const pinkMat = track(new THREE.MeshBasicMaterial({ color: PINK }))
-  // Floor with a neon grid.
-  const floor = new THREE.Mesh(track(new THREE.PlaneGeometry(cfg.width * 8, cfg.length * 5)), track(new THREE.MeshStandardMaterial({ color: cfg.floorColor, roughness: 0.9 })))
-  floor.rotation.x = -Math.PI / 2
-  scene.add(floor)
-  const grid = new THREE.GridHelper(cfg.length * 5, 40, 0x3a1d5c, 0x1a1640)
-  grid.position.y = 0.002
-  track(grid.geometry)
-  scene.add(grid)
+  // Hall: glossy grid floor, panelled walls, racing light pulses, arches, crowd, back display.
+  const tennis = cfg.id === 'tennis'
+  const arena = buildNeonArena(
+    tennis
+      ? { width: 22, length: 44, centerZ: -2, height: 7, crowd: 320, arches: 7, title: cfg.title }
+      : { width: 8, length: 13, centerZ: -1.2, height: 4.4, crowd: 220, arches: 5, title: cfg.title },
+  )
+  scene.add(arena.group)
   // Surface.
   const surf = new THREE.Mesh(
     track(new THREE.BoxGeometry(cfg.width, cfg.id === 'tennis' ? 0.01 : 0.04, cfg.length)),
@@ -367,6 +368,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
     const word = winner === 1 ? (rally >= 6 ? 'GREAT RALLY!' : why === 'ace' ? 'ACE!' : why === 'miss' ? 'WINNER!' : 'POINT!') : why === 'net' ? 'NET!' : why === 'out' ? 'OUT!' : 'MISSED!'
     callout(res.matchOver ? (winner === 1 ? 'YOU WIN!' : 'CPU WINS') : res.call ?? word, winner === 1 ? 'big' : 'bad')
     tone(winner === 1 ? [523, 659, 784] : [330, 247], winner === 1 ? 0.08 : 0.14)
+    if (winner === 1) arena.pulse(rally >= 6 ? 0xffd166 : 0x22e5ff)
     if (res.matchOver) {
       later(1400, () => matchOver(winner))
       return
@@ -706,6 +708,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
     camera.lookAt(0, top, cfg.camera.lookZ)
     livePower *= 0.92
     powerFill.style.transform = `scaleY(${livePower.toFixed(3)})`
+    arena.update(now / 1000)
     renderer.render(scene, camera)
   }
   raf = requestAnimationFrame(frame)
@@ -723,6 +726,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
   function dispose(): void {
     if (disposed) return
     disposed = true
+    arena.dispose()
     cancelAnimationFrame(raf)
     for (const id of timers) window.clearTimeout(id)
     window.clearTimeout(calloutTimer)

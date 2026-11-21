@@ -28,6 +28,7 @@ import {
   stepLane,
 } from './game.ts'
 import type { Ball, Frames } from './game.ts'
+import { buildNeonArena } from '../shared/neonArena.ts'
 import './bowling.css'
 
 const CYAN = 0x22e5ff
@@ -173,6 +174,21 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     b.position.set(0, y, wallZ + 0.05)
     scene.add(b)
   }
+  // Hall: neon-grid walls, racing light pulses, arches, crowd, back display.
+  const arena = buildNeonArena({ width: 7.4, length: 27, centerZ: -9, height: 4.2, crowd: 180, arches: 7, title: 'NEON LANES', floorY: -0.09 })
+  scene.add(arena.group)
+  // Two cosmetic neighbour lanes with their own pins.
+  for (const x of [-2.15, 2.15]) {
+    const nl = lane.clone()
+    nl.position.x = x
+    scene.add(nl)
+    for (const s of [-1, 1]) {
+      const r = new THREE.Mesh(railGeo, s < 0 ? cyanMat : pinkMat)
+      r.position.set(x + s * LANE_HALF, 0.005, laneMid)
+      scene.add(r)
+    }
+  }
+
   // Pins: lathe profile, white body with a pink neck band.
   const pinPts = [
     [0, 0], [0.03, 0], [0.05, 0.05], [0.06, 0.13], [0.055, 0.2], [0.03, 0.26], [0.022, 0.29], [0.028, 0.33], [0.032, 0.36], [0.02, 0.38], [0, 0.385],
@@ -402,12 +418,15 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     strikeRun = res.kind === 'strike' ? strikeRun + 1 : 0
     if (res.kind === 'strike' && strikeRun >= 3) {
       callout(`TURKEY! ${strikeRun}X`, 'amber')
+      arena.pulse(0xffd166)
       blip([659, 831, 988, 1319, 988, 1319], 0.1)
     } else if (res.kind === 'strike') {
       callout('STRIKE!')
+      arena.pulse(0xff2e88)
       blip([659, 831, 988, 1319], 0.12)
     } else if (res.kind === 'spare') {
       callout('SPARE!', 'amber')
+      arena.pulse(0xffd166)
       blip([523, 784, 1047])
     } else if (res.kind === 'gutter') {
       callout('GUTTER', 'bad')
@@ -711,6 +730,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     camLook.lerp(tmpLook, k)
     camera.position.copy(camPos)
     camera.lookAt(camLook)
+    arena.update(now / 1000)
     renderer.render(scene, camera)
   }
   raf = requestAnimationFrame(frame)
@@ -728,6 +748,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   function dispose(): void {
     if (disposed) return
     disposed = true
+    arena.dispose()
     cancelAnimationFrame(raf)
     for (const id of timers) window.clearTimeout(id)
     window.clearTimeout(calloutTimer)
