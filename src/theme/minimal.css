@@ -652,6 +652,8 @@
 }
 :root:not(#_)[data-theme='neon'] .gk-pip { width: 32px; height: 32px; border-radius: 0; background: var(--k-slate); border-color: var(--k-steel); }
 :root:not(#_)[data-theme='neon'] .gk-pip[data-state='current'] { border-color: var(--k-amber); box-shadow: none; transform: none; animation: k-pip 0.5s steps(2) infinite; }
+:root:not(#_)[data-theme='neon'] .gk-pip[data-state='save'] { background: #22e5ff; border-color: #22e5ff; color: #070a17; font-size: 18px; }
+:root:not(#_)[data-theme='neon'] .gk-pip[data-state='goal'] { background: #ff2e88; border-color: #ff2e88; color: #fff; font-size: 18px; }
 @keyframes k-pip { 50% { border-color: var(--k-white); } }
 
 /* Archery pips: square score boxes. Gold amber, X/hot lime, hit cyan, miss pink. */

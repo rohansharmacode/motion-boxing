@@ -830,7 +830,7 @@ body.gk-page {
 .gk-kickrow { display: flex; align-items: center; gap: 10px; }
 .gk-topbar .gk-counter { font-size: 20px; }
 .gk-topbar .gk-pips { gap: 5px; }
-.gk-topbar .gk-pip { width: 14px; height: 14px; border-width: 2px; font-size: 0; }
+.gk-topbar .gk-pip { width: 18px; height: 18px; border-width: 2px; font-size: 12px; color: #070a17; }
 .gk-topbar .gk-pip[data-state='current'] { transform: none; box-shadow: 0 0 6px var(--gk-accent); }
 .gk-meta { display: flex; align-items: center; gap: 8px; font: 700 11px/1 var(--gk-body); letter-spacing: 0.14em; text-transform: uppercase; }
 .gk-combo-tag { color: #ffb23a; }
