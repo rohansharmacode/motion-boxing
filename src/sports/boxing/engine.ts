@@ -11,6 +11,7 @@ import type {
   BoxingPhase,
   BoxingScene,
   BoxingSfx,
+  HitResult,
   Punch,
   PunchCounts,
   PunchKind,
@@ -19,6 +20,9 @@ import type {
   RoundResult,
   SlipKind,
   Telemetry,
+  VersusDefence,
+  VersusLink,
+  VersusPunch,
 } from './types.ts'
 
 const ROUND_MS = 60_000
@@ -55,12 +59,25 @@ const MAX_DT_MS = 250
 
 const BASE_DAMAGE: Record<PunchKind, number> = { jab: 3, cross: 5, hook: 6, uppercut: 7 }
 
+/** Online 1v1: a punch telegraphs this long on the other laptop, so it can be read and slipped. */
+const VERSUS_TELEGRAPH_MS = 750
+/** Online 1v1: landed damage scale (a round of player punches is much slower than drone attacks). */
+const VERSUS_DAMAGE_SCALE = 1.6
+/** Online 1v1: one punch in flight at a time; forget it after this long without an answer. */
+const VERSUS_FLIGHT_MS = 2500
+/** What the defender has to do for each punch: straights slip or duck, hooks duck, uppercuts slip. */
+const VERSUS_PATTERN: Record<PunchKind, AttackPattern> = { jab: 'straight', cross: 'straight', hook: 'hook', uppercut: 'slam' }
+
 interface Attack {
   pattern: AttackPattern
   /** Round ms of the telegraph start. */
   startMs: number
   /** First guard or slip after the telegraph started, ms after it. */
   reactionMs: number | null
+  /** Online 1v1: the opponent's punch behind this attack. */
+  remote?: VersusPunch
+  /** Telegraph length, ms. */
+  telegraphMs: number
 }
 
 const round1 = (v: number): number => Math.round(v * 10) / 10
@@ -135,6 +152,12 @@ export function createBoxingEngine(deps: {
   let counterOpenedMs = 0
   let counterAnnounced = false
 
+  // Online 1v1.
+  let versus: VersusLink | null = null
+  let nextPunchId = 1
+  /** Our punch waiting for the other laptop's answer, with the local hit for the impact effect. */
+  let inFlight: { punch: VersusPunch; thrown: Punch; hit: HitResult; sentMs: number } | null = null
+
   // Combo chain of landed punches.
   let combo = 0
   let maxCombo = 0
@@ -172,6 +195,7 @@ export function createBoxingEngine(deps: {
     combo = 0
     maxCombo = 0
     lastLandedMs = 0
+    inFlight = null
   }
 
   function buildResult(outcome: RoundOutcome): RoundResult {
@@ -266,7 +290,22 @@ export function createBoxingEngine(deps: {
     bestSpeed = Math.max(bestSpeed, punch.peakVelocity)
     sfx?.punch(punch.kind, landed, counter)
 
-    if (hit) {
+    if (hit && versus) {
+      // Online: the opponent decides on their laptop whether it lands. One punch in flight at a time.
+      if (!inFlight) {
+        const accuracyMult = 0.6 + (0.4 * hit.accuracy) / 100
+        const sent: VersusPunch = {
+          id: nextPunchId++,
+          kind: punch.kind,
+          hand: punch.hand,
+          damage: round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * VERSUS_DAMAGE_SCALE),
+          counter,
+        }
+        inFlight = { punch: sent, thrown: punch, hit, sentMs: roundMs }
+        versus.sendPunch(sent)
+      }
+      // The HIT or MISS flash waits for the other laptop's answer (punchResolved).
+    } else if (hit) {
       setCombo(combo > 0 && roundMs - lastLandedMs < COMBO_GAP_MS ? combo + 1 : 1)
       lastLandedMs = roundMs
       counts.landed++
@@ -352,7 +391,7 @@ export function createBoxingEngine(deps: {
 
   function telegraph(): void {
     const pattern = pickPattern()
-    attack = { pattern, startMs: roundMs, reactionMs: null }
+    attack = { pattern, startMs: roundMs, reactionMs: null, telegraphMs: TELEGRAPH_MS }
     scene?.droneTelegraph(TELEGRAPH_MS, pattern)
     hud.setTelegraph(pattern)
     sfx?.telegraph(pattern)
@@ -365,6 +404,8 @@ export function createBoxingEngine(deps: {
     scene?.droneStrike(a.pattern)
     hud.setTelegraph(null)
     let outcome: RoundLog['defences'][number]['outcome']
+    const full = a.remote ? a.remote.damage : STRIKE_DAMAGE[a.pattern]
+    const hpBefore = playerHp
     if (isDodge(a.pattern, slip)) {
       outcome = 'dodged'
       dodges++
@@ -376,7 +417,7 @@ export function createBoxingEngine(deps: {
       counterAnnounced = false
     } else if (guard) {
       outcome = 'blocked'
-      const damage = round1(STRIKE_DAMAGE[a.pattern] * BLOCK_FACTOR)
+      const damage = round1(full * BLOCK_FACTOR)
       blocks++
       playerHp = Math.max(0, round1(playerHp - damage))
       telemetry.emit({ event_type: 'BLOCK', reaction_ms: a.reactionMs, metrics: { pattern: a.pattern, damage } })
@@ -386,7 +427,7 @@ export function createBoxingEngine(deps: {
     } else {
       outcome = 'hit'
       hitsTaken++
-      playerHp = Math.max(0, round1(playerHp - STRIKE_DAMAGE[a.pattern]))
+      playerHp = Math.max(0, round1(playerHp - full))
       scene?.playerHit(false)
       scene?.hitstop(HITSTOP_MS)
       hud.callout(slip ? WRONG_DODGE[a.pattern] : 'HIT', 'bad')
@@ -395,12 +436,16 @@ export function createBoxingEngine(deps: {
     }
     hud.setHp(playerHp, droneHp)
     defenceLog.push({ pattern: a.pattern, t: Math.round(roundMs), outcome, reactionMs: a.reactionMs })
+    if (a.remote) versus?.sendDefence({ id: a.remote.id, outcome, damage: round1(hpBefore - playerHp), hp: playerHp })
     if (playerHp <= 0) endRound('ko-loss')
   }
 
   function runDrone(): void {
     if (attack) {
-      if (roundMs >= attack.startMs + TELEGRAPH_MS) strike(attack)
+      if (roundMs >= attack.startMs + attack.telegraphMs) strike(attack)
+    } else if (versus) {
+      // Online: attacks come only from the other laptop.
+      if (inFlight && roundMs - inFlight.sentMs > VERSUS_FLIGHT_MS) inFlight = null
     } else if (roundMs >= nextAttackMs && roundMs + TELEGRAPH_MS <= ROUND_MS) {
       telegraph()
     }
@@ -519,7 +564,55 @@ export function createBoxingEngine(deps: {
       setCombo(0)
     },
 
+    setVersus(link: VersusLink | null) {
+      versus = link
+      inFlight = null
+    },
+
+    incomingPunch(p: VersusPunch) {
+      if (!versus || !live()) return
+      // Only one punch is ever in flight per side; resolve a stale one at once rather than drop it.
+      if (attack) strike(attack)
+      if (!live()) return
+      const pattern = VERSUS_PATTERN[p.kind] ?? 'straight'
+      attack = { pattern, startMs: roundMs, reactionMs: null, remote: p, telegraphMs: VERSUS_TELEGRAPH_MS }
+      scene?.droneTelegraph(VERSUS_TELEGRAPH_MS, pattern)
+      hud.setTelegraph(pattern)
+      sfx?.telegraph(pattern)
+    },
+
+    punchResolved(d: VersusDefence) {
+      if (!versus || phase !== 'fighting') return
+      const sent = inFlight && inFlight.punch.id === d.id ? inFlight : null
+      if (sent) inFlight = null
+      droneHp = Math.max(0, Math.min(MAX_HP, d.hp))
+      if (koLeftMs > 0) return
+      if (d.outcome === 'hit') {
+        setCombo(combo > 0 && roundMs - lastLandedMs < COMBO_GAP_MS * 2 ? combo + 1 : 1)
+        lastLandedMs = roundMs
+        counts.landed++
+        if (sent) {
+          scene?.droneHit(sent.hit, d.damage, sent.punch.counter)
+          scene?.hitstop(HITSTOP_MS)
+          sfx?.punch(sent.punch.kind, true, sent.punch.counter)
+          hud.flashPunch(sent.thrown, true, sent.punch.counter)
+          const last = punchLog.findLast((x) => x.kind === sent.punch.kind && !x.landed)
+          if (last) last.landed = true
+        }
+        if (COMBO_CALLOUTS.includes(combo)) hud.callout(`${combo} HIT COMBO`, 'good')
+        else hud.callout(sent?.punch.counter ? 'COUNTER' : 'LANDED', 'good')
+      } else {
+        setCombo(0)
+        if (sent) hud.flashPunch(sent.thrown, false, false)
+        hud.callout(d.outcome === 'blocked' ? 'THEY BLOCKED' : 'THEY DODGED', 'info')
+      }
+      hud.setHp(playerHp, droneHp)
+      hud.setCounts({ ...counts })
+      if (droneHp <= 0) startKo()
+    },
+
     dispose() {
+      versus = null
       if (koLeftMs > 0) scene?.setTimeScale(1)
       endCallbacks = []
       resetRoundState()

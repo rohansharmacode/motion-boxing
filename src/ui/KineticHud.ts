@@ -59,6 +59,8 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
   let hud: BoxingHUD | null = null;
   let post: PostMatchScreen | null = null;
   let keyboardMode = false;
+  /** Online 1v1: the friend's name replaces the drone's on the health bar. */
+  let opponentName: string | null = null;
   let combo = 0;
   let guardOn = false;
   let guardSamples = 0;
@@ -183,7 +185,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       post?.destroy();
       post = null;
       hud?.destroy();
-      hud = new BoxingHUD(layer, { playerName: playerName || 'Player', opponentName: DRONE_NAME, roundMs: ROUND_MS });
+      hud = new BoxingHUD(layer, { playerName: playerName || 'Player', opponentName: opponentName ?? DRONE_NAME, roundMs: ROUND_MS });
       hud.element.classList.add('kr-big');
       hud.update({ playerHp: 100, opponentHp: 100, timeLeftMs: ROUND_MS, round: 1, combo: 0 });
       hud.setMode(keyboardMode ? KEYBOARD_HINT : null);
@@ -284,6 +286,10 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
 
     setCoachCard(_card) {
       // No-op: the post-match screen fetches its coach card from the backend.
+    },
+
+    setOpponentName(name) {
+      opponentName = name;
     },
 
     setCameraActive(on) {
