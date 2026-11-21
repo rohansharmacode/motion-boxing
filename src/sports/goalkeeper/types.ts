@@ -13,6 +13,7 @@ import type { BodyFrame, Calibration, CalibrationStatus } from '../../pose/types
 import type { Difficulty } from './difficulty.ts'
 import type { ShotType } from './shots.ts'
 import type { ResultGrade, SaveGrade } from './grading.ts'
+import type { RoundMode } from './modes.ts'
 
 export type { BodyFrame, Calibration, CalibrationStatus }
 
@@ -179,6 +180,11 @@ export interface ShootoutResult {
   perfects?: number
   /** True when this was the guided practice, not a scored shootout. */
   practice?: boolean
+  mode?: RoundMode
+  /** Fastest reaction among real saves this round, ms. */
+  bestReactionMs?: number | null
+  /** Daily challenge only: the date key the 10 shots came from. */
+  dailyKey?: string
 }
 
 export type KeeperPhase = 'idle' | 'playing' | 'ended'
@@ -188,8 +194,13 @@ export interface KeeperEngine extends SportEngine<KeeperScene> {
   /** Kicks taken so far this shootout (0..KICKS_PER_SHOOTOUT). */
   readonly kickIndex: number
   readonly results: readonly KickResult[]
-  /** Start a 5-kick shootout, or with practice: true the 3 slow guided practice shots (no telemetry). */
-  startShootout(opts?: { practice?: boolean }): void
+  /**
+   * Start a round. mode: 'classic' (5 kicks, default), 'sudden' (until the first goal), 'daily' (the
+   * day's 10 seeded shots) or 'practice' (3 slow shots, no telemetry; practice: true is the same).
+   * countdownMs stretches the first kick's wait so a kickoff countdown can play over it.
+   */
+  startShootout(opts?: { practice?: boolean; mode?: RoundMode; countdownMs?: number; date?: Date }): void
+  readonly mode: RoundMode
   /** True while the guided practice runs. */
   readonly practice: boolean
   /** Level for the next shootout (and the rest of the current one). */
@@ -283,7 +294,16 @@ export interface KeeperHud {
   setDifficulty(level: Difficulty, onChange: (level: Difficulty) => void): void
   /** Faint edge pulse while the striker telegraphs (the 0.5 s stance tell). */
   setTelegraph(on: boolean): void
-  showEnd(result: ShootoutResult, onAgain: () => void): void
+  /** extra: daily challenge best for today and whether this round set it. */
+  showEnd(result: ShootoutResult, onAgain: () => void, extra?: { dailyBest?: number | null; newBest?: boolean }): void
+  /** Big kickoff countdown label (3, 2, 1, GO!); null hides it. */
+  countdown(label: string | null): void
+  /** Quick neon screen-edge flash: green on a save, red on a goal. */
+  flash(tone: 'save' | 'goal'): void
+  /** Classic / Sudden death / Daily picker on the start and end screens, with today's daily best. */
+  setModeChoice(mode: RoundMode, onChange: (mode: RoundMode) => void, dailyBest: number | null): void
+  /** Corner HUD style for the running round (sudden death shows the streak, daily shows n/10). */
+  setRoundMode(mode: RoundMode): void
   setDebug(values: Record<string, number | string>): void
   toggleDebug(): void
   dispose(): void

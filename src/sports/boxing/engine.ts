@@ -78,6 +78,16 @@ const MAX_DT_MS = 250
 
 const BASE_DAMAGE: Record<PunchKind, number> = { jab: 3, cross: 5, hook: 6, uppercut: 7 }
 
+/** Heavy punches (main.ts turns this on): each glove needs this long to come back before it can throw again. */
+const PUNCH_RECOVERY_MS: Record<PunchKind, number> = { jab: 300, cross: 450, hook: 500, uppercut: 550 }
+/** Punch stamina (0 to 100): each punch costs this, so a flurry runs dry and hits soft. */
+const PUNCH_COST: Record<PunchKind, number> = { jab: 13, cross: 17, hook: 19, uppercut: 21 }
+const STAMINA_REGEN_PER_S = 30
+/** Regen waits this long after the last punch. */
+const STAMINA_REST_MS = 450
+/** Damage at 0 stamina, as a share of full damage. */
+const TIRED_DAMAGE = 0.4
+
 /** Online 1v1: a punch telegraphs this long on the other laptop, so it can be read and slipped. */
 const VERSUS_TELEGRAPH_MS = 1000
 /** Online 1v1: landed damage scale (a round of player punches is much slower than drone attacks). */
@@ -124,6 +134,8 @@ export function createBoxingEngine(deps: {
   countdownBeats?: number
   /** Shows the countdown: 3, 2, 1, 0 = FIGHT, null = hide. */
   showCountdown?: (n: number | null) => void
+  /** Per-glove recovery and punch stamina, so punches cannot be spammed. Off by default for tests. */
+  heavyPunches?: boolean
 }): BoxingEngine {
   const { hud, telemetry, detector, sfx } = deps
   const random = deps.random ?? Math.random
@@ -158,6 +170,11 @@ export function createBoxingEngine(deps: {
   /** Countdown ms left before the bell; the fight clock and drone wait while it runs. */
   let countdownMs = 0
   let countdownShown = -1
+  /** Heavy punches: round ms each glove is free again, stamina and the last punch time. */
+  const gloveFreeMs = { left: 0, right: 0 }
+  let stamina = 100
+  let lastPunchMs = -1e9
+  let tiredShown = false
 
   // Defence, per source, combined into guard and slip.
   let poseGuard = false
@@ -219,6 +236,10 @@ export function createBoxingEngine(deps: {
     koLeftMs = 0
     countdownMs = 0
     countdownShown = -1
+    gloveFreeMs.left = gloveFreeMs.right = 0
+    stamina = 100
+    lastPunchMs = -1e9
+    tiredShown = false
     attack = null
     nextAttackMs = FIRST_ATTACK_MS
     lastPattern = null
@@ -330,6 +351,19 @@ export function createBoxingEngine(deps: {
 
   function applyPunch(punch: Punch): void {
     if (!scene) return
+    let staminaMult = 1
+    if (deps.heavyPunches) {
+      // The glove is still coming back from its last punch: this one does not happen.
+      if (roundMs < gloveFreeMs[punch.hand]) return
+      gloveFreeMs[punch.hand] = roundMs + PUNCH_RECOVERY_MS[punch.kind]
+      staminaMult = TIRED_DAMAGE + (1 - TIRED_DAMAGE) * (stamina / 100)
+      stamina = Math.max(0, stamina - PUNCH_COST[punch.kind])
+      lastPunchMs = roundMs
+      if (stamina < 20 && !tiredShown) {
+        tiredShown = true
+        hud.callout('TIRED · SLOW DOWN', 'info')
+      } else if (stamina > 60) tiredShown = false
+    }
     scene.punch(punch.hand, punch.kind)
     const stunned = bot.guard.broken
     const aimed = scene.resolveHit(punch.hand, punch.kind)
@@ -385,7 +419,7 @@ export function createBoxingEngine(deps: {
       const comboMult = Math.min(COMBO_MULT_MAX, 1 + COMBO_STEP * (combo - 1))
       const accuracyMult = 0.6 + (0.4 * hit.accuracy) / 100
       const stunMult = stunned ? BOT_STUN_MULT : 1
-      damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult)
+      damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult * staminaMult)
       droneHp = Math.max(0, round1(droneHp - damage))
       scene.droneHit(hit, damage, counter)
       scene.hitstop(counter ? COUNTER_HITSTOP_MS : HITSTOP_MS)
@@ -539,6 +573,7 @@ export function createBoxingEngine(deps: {
   function fight(dt: number): void {
     roundMs += dt
     if (guard) guardMs += dt
+    if (roundMs - lastPunchMs > STAMINA_REST_MS) stamina = Math.min(100, stamina + (STAMINA_REGEN_PER_S * dt) / 1000)
     if (counterMs > 0) counterMs = Math.max(0, counterMs - dt)
     if (combo > 0 && roundMs - lastLandedMs >= COMBO_GAP_MS) setCombo(0)
     playerGuard.update(dt, guard)
@@ -573,7 +608,10 @@ export function createBoxingEngine(deps: {
     countdownShown = n
     deps.showCountdown?.(n)
     sfx?.countdown?.(n)
-    if (n === 0) sfx?.bell()
+    if (n === 0) {
+      sfx?.bell()
+      scene?.setShot?.('fight')
+    }
   }
 
   function step(dtMs: number): void {
@@ -613,6 +651,7 @@ export function createBoxingEngine(deps: {
         playerGuard: Math.round(playerGuard.value),
         botGuard: Math.round(bot.guard.value),
         botStance: bot.stance.dodge ?? bot.stance.guard,
+        stamina: Math.round(stamina),
         shoulderWidth: calibration ? round1(calibration.shoulderWidth * 100) / 100 : 0,
       }
     },
@@ -635,6 +674,7 @@ export function createBoxingEngine(deps: {
       const beats = deps.countdownBeats ?? 0
       countdownMs = beats * COUNTDOWN_BEAT_MS
       if (countdownMs === 0) sfx?.bell()
+      scene?.setShot?.(countdownMs > 0 ? 'wide' : 'fight')
       phase = 'fighting'
       tickCountdown()
     },

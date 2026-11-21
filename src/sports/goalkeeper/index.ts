@@ -22,6 +22,8 @@ import { createKeeperSfx } from './sfx.ts'
 import { KICKS_PER_SHOOTOUT } from './types.ts'
 import { loadDifficulty, saveDifficulty } from './difficulty.ts'
 import { PRACTICE_KICKS } from './shots.ts'
+import { COUNTDOWN_LABELS, COUNTDOWN_MS, COUNTDOWN_STEP_MS, dailyKey, loadDailyBest, plannedKicks, saveDailyBest } from './modes.ts'
+import type { RoundMode } from './modes.ts'
 import type { Calibration, KickResult } from './types.ts'
 
 /** Goalkeeper 1-euro tuning from the doc (minimal lag for reflex lunges). body.ts filters in pixels. */
@@ -166,10 +168,40 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     hud.setPractice(null)
     startShootout()
   }
-  const kicksNow = (): number => (engine.practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT)
+  // ---------- round mode (classic / sudden death / daily) ----------
+  const MODE_KEY = 'gk.mode'
+  let roundMode: RoundMode = (() => {
+    try {
+      const v = localStorage.getItem(MODE_KEY)
+      return v === 'sudden' || v === 'daily' ? v : 'classic'
+    } catch {
+      return 'classic'
+    }
+  })()
+  const refreshModeChoice = (): void =>
+    hud.setModeChoice(
+      roundMode,
+      (m) => {
+        roundMode = m
+        try {
+          localStorage.setItem(MODE_KEY, m)
+        } catch {
+          /* storage blocked */
+        }
+      },
+      loadDailyBest(dailyKey(new Date())),
+    )
+  refreshModeChoice()
+
+  const kicksNow = (): number => {
+    if (engine.practice) return PRACTICE_KICKS
+    return plannedKicks(engine.mode) ?? engine.results.length + 1
+  }
 
   engine.onKickResult((r) => {
     hud.setTelegraph(false)
+    if (r.outcome === 'goal') hud.flash('goal')
+    else if (r.part !== null) hud.flash('save')
     hud.setScoreboard(engine.results, kicksNow())
     if (engine.practice) {
       hud.setPractice(r.outcome === 'goal' ? 'Close! Reach a little further next time.' : 'Nice save! That is all there is to it.')
@@ -182,7 +214,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     } else {
       if (r.part !== null) sfx.save(r.punch)
       if (r.grade && r.grade !== 'miss') sfx.grade(r.grade, r.combo ?? 1)
-      sfx.roar()
+      sfx.roar(r.grade === 'perfect' ? 1.4 : engine.mode === 'sudden' ? 1.2 : 1)
     }
   })
 
@@ -191,6 +223,9 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
       case 'idle':
         hud.setScoreboard(engine.results, kicksNow())
         if (engine.practice) hud.setPractice(practicePrompt('idle', kick))
+        else if (kick === 0) break // the kickoff countdown covers kick 1
+        else if (engine.mode === 'sudden') hud.callout('SUDDEN DEATH', 'bad')
+        else if (engine.mode === 'daily') hud.callout(`SHOT ${kick + 1}/${kicksNow()}`, 'info')
         else hud.callout(kick === KICKS_PER_SHOOTOUT - 1 ? 'LAST KICK' : `KICK ${kick + 1}`, 'info')
         sfx.setTension(0.25)
         break
@@ -224,9 +259,16 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
       return
     }
     sfx.setTension(0)
-    sfx.fullTime(result.saves > result.goals)
+    const good = result.mode === 'sudden' ? result.saves >= 3 : result.saves > result.goals
+    sfx.fullTime(good)
     trackingHint.setActive(false)
-    hud.showEnd(result, () => startShootout())
+    let extra: { dailyBest: number | null; newBest: boolean } | undefined
+    if (result.mode === 'daily' && result.dailyKey) {
+      const newBest = saveDailyBest(result.dailyKey, result.score)
+      extra = { dailyBest: loadDailyBest(result.dailyKey), newBest }
+      refreshModeChoice()
+    }
+    hud.showEnd(result, () => startShootout(), extra)
   })
 
   function begin(calibration: Calibration | null): void {
@@ -236,13 +278,47 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     startShootout(practiceWanted)
   }
 
+  const countdownTimers: number[] = []
+  function cancelCountdown(): void {
+    for (const id of countdownTimers) {
+      window.clearTimeout(id)
+      timers.delete(id)
+    }
+    countdownTimers.length = 0
+    hud.countdown(null)
+  }
+  function runCountdown(): void {
+    cancelCountdown()
+    COUNTDOWN_LABELS.forEach((label, i) => {
+      const id = window.setTimeout(() => {
+        timers.delete(id)
+        if (disposed) return
+        hud.countdown(label)
+        sfx.countdown(i, i === COUNTDOWN_LABELS.length - 1)
+      }, i * COUNTDOWN_STEP_MS)
+      timers.add(id)
+      countdownTimers.push(id)
+    })
+    const done = window.setTimeout(() => {
+      timers.delete(done)
+      if (!disposed) hud.countdown(null)
+    }, COUNTDOWN_MS)
+    timers.add(done)
+    countdownTimers.push(done)
+  }
+
   function startShootout(practice = false): void {
+    const mode: RoundMode = practice ? 'practice' : roundMode
     sfx.startCrowd()
-    hud.setScoreboard([], practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT)
+    hud.setRoundMode(mode)
+    hud.setScoreboard([], practice ? PRACTICE_KICKS : (plannedKicks(mode) ?? 1))
     hud.setPractice(practice ? 'Practice: 3 slow shots to learn the arrow.' : null, skipPractice)
     hud.showPlay()
     trackingHint.setActive(tracker !== null && !input.mouseOn)
-    engine.startShootout({ practice })
+    if (practice) cancelCountdown()
+    else runCountdown()
+    // The engine runs at once (so telemetry ticks flow) but holds the first kick until the countdown ends.
+    engine.startShootout({ mode, countdownMs: practice ? 0 : COUNTDOWN_MS })
   }
 
   // ---------- camera path (shared PosePipeline) ----------

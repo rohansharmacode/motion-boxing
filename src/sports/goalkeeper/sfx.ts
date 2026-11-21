@@ -13,12 +13,14 @@ export interface KeeperSfx {
   save(punch: boolean): void
   /** Ball hits the net. */
   net(): void
-  /** Big home-crowd cheer (save). */
-  roar(): void
+  /** Big home-crowd cheer (save). intensity 1 = normal, up to 1.6 for a perfect or sudden-death save. */
+  roar(intensity?: number): void
   /** Disappointed crowd (goal). */
   groan(): void
   /** Save-grade sting: perfect = bright rising chime, good = two notes, fingertip = soft tick. Combo lifts the pitch. */
   grade(grade: 'perfect' | 'good' | 'fingertip', combo: number): void
+  /** Kickoff countdown beep: steps 0..2 are the 3-2-1 blips, the last step is the higher GO tone. */
+  countdown(step: number, last: boolean): void
   /** End-of-shootout fanfare, good = more saves than goals. */
   fullTime(good: boolean): void
   setMuted(muted: boolean): void
@@ -203,8 +205,14 @@ export function createKeeperSfx(): KeeperSfx {
       tone('sine', 110, 60, 180, 0.2)
     },
 
-    roar() {
-      crowdSwell(500, 900, 0.12, 1.6, 0.5)
+    roar(intensity = 1) {
+      const k = Math.min(1.6, Math.max(0.5, intensity))
+      crowdSwell(500 * (0.9 + 0.1 * k), 900 * (0.9 + 0.1 * k), 0.12, 1.3 + 0.5 * k, 0.5 * k)
+    },
+
+    countdown(step, last) {
+      if (last) tone('square', 880, 880, 260, 0.07)
+      else tone('square', 440, 440, 110, 0.06 + 0.005 * step)
     },
 
     groan() {
@@ -217,6 +225,7 @@ export function createKeeperSfx(): KeeperSfx {
       const notes = good ? [523, 659, 784, 1047] : [392, 349, 311]
       notes.forEach((f, i) => tone('triangle', f, f, 220, 0.08, 0.8 + i * 0.16))
       if (good) crowdSwell(500, 950, 0.3, 2.2, 0.45)
+      else crowdSwell(600, 240, 0.1, 1.4, 0.3) // full-time groan
     },
 
     setMuted(m) {
