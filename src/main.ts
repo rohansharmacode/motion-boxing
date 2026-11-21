@@ -391,8 +391,34 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   return { dispose }
 }
 
-const goalkeeper = (ctx: GameContext): Promise<GameSession> =>
-  import('./sports/goalkeeper/index.ts').then((m) => m.startGoalkeeper(ctx))
+// The goalkeeper's SAVE/GOAL events reach the server through src/api/goalkeeperLink.ts (mock mode
+// without VITE_API_URL), like boxing's through boxingLink.ts; the game itself is unchanged.
+async function goalkeeper(ctx: GameContext): Promise<GameSession> {
+  const [{ startGoalkeeper }, { createGoalkeeperLink }] = await Promise.all([
+    import('./sports/goalkeeper/index.ts'),
+    import('./api/goalkeeperLink.ts'),
+  ])
+  if (ctx.signal.aborted) return NOOP_SESSION
+  const link = createGoalkeeperLink()
+  ctx.signal.addEventListener('abort', () => link.dispose(), { once: true })
+  link.onShootoutEnd((s) => {
+    void s.data.then((res) => {
+      if (import.meta.env.DEV) console.debug('[goalkeeper] coach card', res.source, res.coach.headline)
+    })
+  })
+  try {
+    const session = await startGoalkeeper(ctx)
+    return {
+      dispose() {
+        session.dispose()
+        link.dispose()
+      },
+    }
+  } catch (err) {
+    link.dispose()
+    throw err
+  }
+}
 
 const leaderboard = (ctx: GameContext): Promise<GameSession> =>
   import('./ui/LeaderboardScreen.ts').then((m) => m.startLeaderboard(ctx))

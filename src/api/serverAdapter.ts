@@ -4,21 +4,24 @@
 //
 // Server shape summary:
 //   POST /api/players        { name }                         -> { player_id }
-//   POST /api/session/start  { player_id, sport: 'boxing' }   -> { session_id }
+//   POST /api/session/start  { player_id, sport: 'boxing' | 'goalkeeper' | 'archery' } -> { session_id }
 //   POST /api/events         [ ServerEvent, ... ] (bare array) -> 202 { accepted, queued }
 //   POST /api/session/end    { session_id }                   -> { session_id, stats, coach: { tips[3], drill, badge, summary }, fallback }
-//   GET  /api/leaderboard                                      -> [ { rank, player_id, name, score, fastest_punch, best_reaction_ms } ]
+//   GET  /api/leaderboard?sport=boxing|goalkeeper|archery      -> [ { rank, player_id, name, score, fastest_punch, best_reaction_ms } ]
+//
+// Goalkeeper SAVE/GOAL -> event_type 'save' | 'goal' (sport 'goalkeeper'); archery ARROW_RELEASE ->
+// 'arrow' (sport 'archery'). metrics go into payload as for boxing (zone, ring, dx, dy read by SQL).
 
 import type { CoachCard, LeaderboardEntry, MotionEvent, Sport } from './types';
 
 /** Sports the server accepts, keyed by client sport. Others are kept local-only. */
-const SERVER_SPORT: Partial<Record<Sport, string>> = { BOXING: 'boxing' };
+const SERVER_SPORT: Partial<Record<Sport, string>> = { BOXING: 'boxing', GOALKEEPER: 'goalkeeper', ARCHERY: 'archery' };
 
 export function serverSport(sport: Sport): string | null {
   return SERVER_SPORT[sport] ?? null;
 }
 
-type ServerEventType = 'jab' | 'cross' | 'hook' | 'uppercut' | 'block';
+type ServerEventType = 'jab' | 'cross' | 'hook' | 'uppercut' | 'block' | 'save' | 'goal' | 'arrow';
 const PUNCH_TYPES: readonly ServerEventType[] = ['jab', 'cross', 'hook', 'uppercut'];
 
 export interface ServerEvent {
@@ -27,7 +30,8 @@ export interface ServerEvent {
   sport: string;
   event_ts: string;
   event_type: ServerEventType;
-  hand: 'L' | 'R';
+  /** Always set for boxing; null for a goalkeeper torso save / goal or an archery event without a hand. */
+  hand: 'L' | 'R' | null;
   /** The server calls it speed_mps; we send shoulder-widths/s (see payload.speed_unit). */
   speed_mps: number;
   accuracy: number | null;
@@ -48,6 +52,7 @@ export function toServerEvent(ev: MotionEvent): ServerEvent | null {
   const sport = serverSport(ev.sport);
   if (!sport) return null;
   const m = ev.metrics;
+  if (ev.event_type === 'SAVE' || ev.event_type === 'GOAL' || ev.event_type === 'ARROW_RELEASE') return toMultiSportEvent(ev, sport);
 
   let type: ServerEventType;
   if (ev.event_type === 'PUNCH') {
@@ -80,13 +85,58 @@ export function toServerEvent(ev: MotionEvent): ServerEvent | null {
   };
 }
 
+const sideHand = (v: unknown): 'L' | 'R' | null =>
+  v === 'L' || v === 'left' ? 'L' : v === 'R' || v === 'right' ? 'R' : null;
+
+/** Goalkeeper SAVE/GOAL and archery ARROW_RELEASE (server: sql/PLUS_CONTRACT.md "Multi-sport"). */
+function toMultiSportEvent(ev: MotionEvent, sport: string): ServerEvent | null {
+  const m = ev.metrics;
+  const keeper = ev.event_type === 'SAVE' || ev.event_type === 'GOAL';
+  if ((keeper && sport !== 'goalkeeper') || (!keeper && sport !== 'archery')) return null;
+  const speed = clamp(Number(ev.peak_velocity ?? 0) || 0, 0, 100);
+  return {
+    session_id: ev.session_id,
+    player_id: ev.player_id,
+    sport,
+    event_ts: ev.event_ts,
+    event_type: ev.event_type === 'SAVE' ? 'save' : ev.event_type === 'GOAL' ? 'goal' : 'arrow',
+    // Keeper: the glove that saved it (metrics.part); archery: the bow hand when the game reports it.
+    hand: keeper ? sideHand(m.part) : sideHand(m.bowHand ?? m.hand),
+    speed_mps: Math.round(speed * 100) / 100,
+    accuracy: ev.accuracy_score == null ? null : clamp(ev.accuracy_score / 100, 0, 1),
+    reaction_ms: ev.reaction_ms == null ? null : clamp(ev.reaction_ms, 0, 60_000),
+    guard_up: null,
+    points: pointsFor(ev),
+    payload: { ...m, client_event_id: ev.event_id, round_ms: ev.round_ms, symmetry_ratio: ev.symmetry_ratio, speed_unit: 'SW/s' },
+  };
+}
+
+/** Archery ring 0..10 from the first of these metrics within range, else accuracy_score / 10. */
+function archeryRing(ev: MotionEvent): number | null {
+  for (const k of ['ring', 'ringScore', 'rings', 'arrowScore', 'score']) {
+    const v = ev.metrics[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 10) return v;
+  }
+  return ev.accuracy_score == null ? null : Math.round(clamp(ev.accuracy_score, 0, 100) / 10);
+}
+
 /**
  * Points for one event. The server's score is the sum of these, so the game uses the same
  * function for the score it shows: header and leaderboard always agree.
+ * Goalkeeper: the engine's arcade score per kick (save 1000, +250 reaction < 450 ms, +150 punch
+ * clearance, + accuracy/2; goal 0). Archery: the ring score 0..10.
  */
 export function pointsFor(ev: MotionEvent): number {
   const m = ev.metrics;
   if (typeof m.points === 'number') return Math.round(clamp(m.points, -10_000, 10_000));
+  if (ev.event_type === 'SAVE') {
+    let p = 1000;
+    if (ev.reaction_ms != null && ev.reaction_ms < 450) p += 250;
+    if (m.punch === true) p += 150;
+    return p + Math.round(clamp(Number(ev.accuracy_score ?? 0) || 0, 0, 100) / 2);
+  }
+  if (ev.event_type === 'GOAL') return 0;
+  if (ev.event_type === 'ARROW_RELEASE') return Math.round(archeryRing(ev) ?? 0);
   if (ev.event_type === 'BLOCK') return 25;
   if (ev.event_type !== 'PUNCH' || m.landed === false) return 0;
   const speed = clamp(Number(ev.peak_velocity ?? 0) || 0, 0, 100);
