@@ -64,9 +64,9 @@ const COMBO_CALLOUTS = [3, 5, 8]
 /** Real ms the KO finisher (head off, takedown) plays before the round ends. Full speed, no slow motion. */
 const KO_FINISH_MS = 2600
 /** Impact frames: the scene freezes this long on contact (about 4 frames at 60 fps; counters 6). */
-const HITSTOP_MS = 65
+const HITSTOP_MS = 80
 /** Style guide: heavy punches (cross, hook, uppercut) freeze 100-130 ms, counters longer. */
-const HEAVY_HITSTOP_MS = 110
+const HEAVY_HITSTOP_MS = 130
 const COUNTER_HITSTOP_MS = 200
 const PLAYER_HITSTOP_MS = 70
 /** The finishing blow holds longest, so the head pop reads. */
