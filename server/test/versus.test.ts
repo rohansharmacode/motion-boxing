@@ -98,3 +98,21 @@ describe('versus relay', () => {
     expect(await a.next()).toEqual({ t: 'pong', at: 123 });
   });
 });
+
+describe('versus relay reconnect', () => {
+  it('re-creates a lost room on rejoin and keeps the requested seat', async () => {
+    const a = await client();
+    a.send({ t: 'join', room: 'QW3R', name: 'A', seat: 1, orCreate: true });
+    expect(await a.next()).toMatchObject({ t: 'joined', room: 'QW3R', seat: 1, peer: null });
+    const b = await client();
+    b.send({ t: 'join', room: 'QW3R', name: 'B', seat: 0, orCreate: true });
+    expect(await b.next()).toMatchObject({ t: 'joined', seat: 0, peer: 'A' });
+    expect(await a.next()).toEqual({ t: 'peer-joined', name: 'B' });
+  });
+
+  it('still rejects a plain join to a missing room', async () => {
+    const a = await client();
+    a.send({ t: 'join', room: 'QW3R' });
+    expect(await a.next()).toEqual({ t: 'error', reason: 'not-found' });
+  });
+});

@@ -1035,7 +1035,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   function applyPuppet(dt: number): void {
     const p = puppet
     if (!p) return
-    const k = puppetShown.fresh ? 1 : 1 - Math.exp(-dt * 22)
+    const k = puppetShown.fresh ? 1 : 1 - Math.exp(-dt * 30) // 30 Hz updates: catch up within ~3 frames
     puppetShown.fresh = false
     // Their right glove is on our left: pod 0 (screen left) is their right hand, pod 1 their left.
     const target = (g: [number, number, number], out: Vector3): Vector3 =>
