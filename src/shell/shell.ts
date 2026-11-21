@@ -80,7 +80,7 @@ const BRIGHT_HOME = `
 </footer>
 
 <section class="ch-preview" role="dialog" aria-modal="true" aria-label="Channel preview" hidden>
-  <div class="ch-preview-art"><img class="ch-preview-img" alt="" decoding="async" /></div>
+  <div class="ch-preview-art"><img class="ch-preview-img" alt="" decoding="async" hidden /><span class="ch-preview-icon"></span></div>
   <div class="ch-preview-info">
     <h2 class="ch-preview-title"></h2>
     <p class="ch-preview-how"></p>
@@ -205,7 +205,7 @@ const EXTRA: readonly ExtraChannel[] = [
     id: 'settings',
     title: 'Settings',
     howTo: 'Pick a look and switch sounds on or off.',
-    glyph: `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="11" fill="none" stroke="#5c6066" stroke-width="6"/><path d="M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M15 49l6-6M43 21l6-6" stroke="#5c6066" stroke-width="6" stroke-linecap="round"/></svg>`,
+    glyph: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="32" cy="32" r="9"/><path d="M32 10v7M32 47v7M10 32h7M47 32h7M16.4 16.4l5 5M42.6 42.6l5 5M16.4 47.6l5-5M42.6 21.4l5-5"/></svg>`,
     accent: '#dfe7ef',
   },
 ]
@@ -341,7 +341,9 @@ export function mountShell(options: ShellOptions): Shell {
   if (channels) {
     for (const info of TILES) {
       const ready = options.launchers[info.id] !== undefined
-      const img = artImg(info.art, 'ch-tile-img', neon)
+      // One consistent line-icon set on every tile (catalogue icons), no illustrations.
+      const img = span('ch-tile-glyph ch-tile-icon')
+      img.innerHTML = info.icon // static catalogue SVG
       const b = buildChannel(info.id, info.title, ready, img)
       b.style.setProperty('--a', info.accent)
       tileEls.set(info.id, b)
@@ -351,7 +353,7 @@ export function mountShell(options: ShellOptions): Shell {
     for (const x of EXTRA) {
       const glyph = span('ch-tile-glyph')
       glyph.innerHTML = x.glyph // static markup
-      glyph.style.setProperty('--tint', x.accent)
+      glyph.classList.add('ch-tile-icon')
       const b = buildChannel(x.id, x.title, true, glyph)
       b.style.setProperty('--a', '#a98bff')
       channelEls.set(x.id, b)
@@ -452,9 +454,8 @@ export function mountShell(options: ShellOptions): Shell {
     if (info) {
       const ready = options.launchers[info.id] !== undefined
       // Neon: reuse the tile's still bitmap (animated SVGs are the costliest thing to draw).
-      const still = channelEls.get(info.id)?.querySelector<HTMLImageElement>('img')?.dataset.still
-      img.src = neon && still ? still : info.art
-      img.hidden = false
+      img.hidden = true
+      q('.ch-preview-icon').innerHTML = info.icon // static catalogue SVG
       preview.style.setProperty('--a', info.accent)
       title.textContent = info.title
       how.textContent = info.howTo
@@ -466,6 +467,7 @@ export function mountShell(options: ShellOptions): Shell {
     }
     const x = EXTRA.find((e) => e.id === id)
     img.hidden = true
+    q('.ch-preview-icon').innerHTML = x?.glyph ?? '' // static markup
     title.textContent = x?.title ?? ''
     how.textContent = x?.howTo ?? ''
     best.textContent = ''
