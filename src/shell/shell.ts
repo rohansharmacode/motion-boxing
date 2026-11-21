@@ -2,6 +2,7 @@
 // Mount once: mountShell({ launchers: { boxing: startBoxing } }).
 // Neon theme: the hero-tile dashboard. Bright theme: a 4 x 3 channel grid with a preview panel.
 import '../theme/index.ts'
+import { mountHighlightsTicker } from '../ui/HighlightsTicker.ts'
 import './shell.css'
 import './channels.css'
 import '../theme/bright/shell.css'
@@ -47,6 +48,8 @@ const NEON_HOME = `
 
 <p class="shell-greeting">Pick a sport</p>
 <nav class="shell-grid" aria-label="Sports"></nav>
+
+<div class="shell-ticker"></div>
 
 <footer class="shell-hints">
   <span><kbd>Hover</kbd> a tile with your hand to pick it</span>
@@ -426,9 +429,18 @@ export function mountShell(options: ShellOptions): Shell {
   let lastFocused: ChannelId = 'boxing'
   let toastTimer = 0
 
+  // "Live from Snowflake" highlights ticker. Created once; paused (no requests, no rotation) whenever
+  // the home view is not showing, so it never polls during a game.
+  const tickerSlot = wrap.querySelector<HTMLElement>('.shell-ticker')
+  let ticker: { setPaused(paused: boolean): void; dispose(): void } | null = tickerSlot ? mountHighlightsTicker(tickerSlot) : null
+  function syncTicker(v: View): void {
+    ticker?.setPaused(v !== 'home')
+  }
+
   function setView(v: View): void {
     view = v
     wrap.dataset.view = v
+    syncTicker(v)
     if (v !== 'home') setCursorVisible(false)
   }
   setView('home')
@@ -839,6 +851,8 @@ export function mountShell(options: ShellOptions): Shell {
       cancelAnimationFrame(cursorRaf)
       clearTimeout(toastTimer)
       records.dispose()
+      ticker?.dispose()
+      ticker = null
       for (const img of wrap.querySelectorAll<HTMLImageElement>('img[data-still]')) URL.revokeObjectURL(img.dataset.still ?? '')
       wrap.remove()
     },

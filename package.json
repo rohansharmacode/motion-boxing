@@ -10,7 +10,8 @@
     "server": "node scripts/server.mjs",
     "server:mock": "node scripts/server.mjs --mock",
     "test": "vitest run --config tests/vitest.config.ts",
-    "test:e2e": "playwright test --config tests/playwright.config.ts"
+    "test:e2e": "playwright test --config tests/playwright.config.ts",
+    "replay": "node tools/replay-detectors.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",
