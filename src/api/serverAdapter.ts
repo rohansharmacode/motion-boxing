@@ -60,11 +60,9 @@ export function toServerEvent(ev: MotionEvent): ServerEvent | null {
     return null; // server has no slip/duck/tick type yet
   }
 
-  const hand: 'L' | 'R' = m.hand === 'L' ? 'L' : 'R';
+  const hand: 'L' | 'R' = m.hand === 'L' || m.hand === 'left' ? 'L' : 'R';
   const speed = clamp(Number(ev.peak_velocity ?? 0) || 0, 0, 100);
-  const landed = m.landed !== false;
-  const points =
-    typeof m.points === 'number' ? Math.round(clamp(m.points, -10_000, 10_000)) : type === 'block' ? 5 : landed ? Math.round(10 + speed * 10) : 0;
+  const points = pointsFor(ev);
 
   return {
     session_id: ev.session_id,
@@ -80,6 +78,19 @@ export function toServerEvent(ev: MotionEvent): ServerEvent | null {
     points,
     payload: { ...m, client_event_id: ev.event_id, round_ms: ev.round_ms, symmetry_ratio: ev.symmetry_ratio, speed_unit: 'SW/s' },
   };
+}
+
+/**
+ * Points for one event. The server's score is the sum of these, so the game uses the same
+ * function for the score it shows: header and leaderboard always agree.
+ */
+export function pointsFor(ev: MotionEvent): number {
+  const m = ev.metrics;
+  if (typeof m.points === 'number') return Math.round(clamp(m.points, -10_000, 10_000));
+  if (ev.event_type === 'BLOCK') return 25;
+  if (ev.event_type !== 'PUNCH' || m.landed === false) return 0;
+  const speed = clamp(Number(ev.peak_velocity ?? 0) || 0, 0, 100);
+  return Math.round(50 + speed * 10 + (m.counter === true ? 50 : 0));
 }
 
 /** Server coach card -> client coach card. Also accepts the client's own shape. */

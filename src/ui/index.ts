@@ -20,3 +20,7 @@ export type { PostMatchScreenOptions } from './PostMatchScreen';
 export { LeaderboardScreen, startLeaderboard } from './LeaderboardScreen';
 export type { LeaderboardScreenOptions } from './LeaderboardScreen';
 export type { GameContext, GameSession } from './shellTypes';
+
+// Drop-in for the real game: implements src/sports/boxing/types.ts BoxingHud.
+export { createKineticHud } from './KineticHud';
+export type { KineticHudOptions } from './KineticHud';

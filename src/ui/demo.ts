@@ -1,6 +1,7 @@
 // DEV ONLY: component gallery. `npm run dev`, then open http://localhost:5173/src/ui/demo.html
 // Every component runs on inline mock data (Leaderboard uses getLeaderboard, which falls back to mock).
 
+import './demo.css';
 import type { CoachCard, LeaderboardEntry, RoundResult, RoundStats, SessionEndResponse } from '../api/types';
 import { BoxingHUD, CalibrationOverlay, PostMatchScreen, startLeaderboard } from './index';
 import type { CalibrationWarning, GameContext } from './index';
@@ -221,7 +222,7 @@ function showPostDemo(result: RoundResult, outcome: 'resolve' | 'reject' | 'live
       else resolve({ coach: MOCK_COACH, leaderboard: mockLeaderboard(score), form_score: 74, source: outcome === 'live' ? 'live' : 'mock' });
     }, 1800),
   );
-  const ctx: GameContext = { root: ui, exit: showMenu, player: PLAYER };
+  const ctx: GameContext = { host: ui, signal: new AbortController().signal, exit: showMenu };
   const screen = new PostMatchScreen(ui, {
     ctx,
     result,
@@ -249,8 +250,8 @@ function showLeaderboardDemo() {
   renderBar();
   let session: { dispose(): void } | null = null;
   const ctx: GameContext = {
-    root: ui,
-    player: PLAYER,
+    host: ui,
+    signal: new AbortController().signal,
     exit: () => {
       session?.dispose();
       // Deep link: demo.html?view=calibration|hud|post|post-offline|leaderboard

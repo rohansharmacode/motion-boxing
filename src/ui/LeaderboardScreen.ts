@@ -7,7 +7,7 @@
 //   // Or directly:
 //   const board = new LeaderboardScreen(container, { playerId, onBack: () => goHome() });
 
-import { getLeaderboard } from '../api/client';
+import { getLastPlayer, getLeaderboard } from '../api/client';
 import type { LeaderboardEntry, LeaderboardResponse, Sport } from '../api/types';
 import { el, ensurePositioned, html, isTyping, prefersReducedMotion } from './dom';
 import { ICONS } from './icons';
@@ -243,10 +243,13 @@ export class LeaderboardScreen {
 
 /** Entry point for the home dashboard's Leaderboard tile. */
 export function startLeaderboard(ctx: GameContext): GameSession {
-  const board = new LeaderboardScreen(ctx.root, {
-    playerId: ctx.player?.id,
-    playerName: ctx.player?.name,
+  const me = getLastPlayer();
+  const board = new LeaderboardScreen(ctx.host, {
+    playerId: me?.player_id,
+    playerName: me?.display_name,
     onBack: () => ctx.exit(),
   });
-  return { dispose: () => board.destroy() };
+  const dispose = () => board.destroy();
+  ctx.signal.addEventListener('abort', dispose, { once: true });
+  return { dispose };
 }
