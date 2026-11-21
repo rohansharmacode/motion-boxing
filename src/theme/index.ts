@@ -1,13 +1,15 @@
-// Theme switch. ?theme=bright|neon picks a theme and remembers it; the default is bright.
+// Theme switch. ?theme=bright|neon picks a theme and remembers it; the default is neon.
 // Importing this module applies the theme to <html data-theme> and loads its fonts and CSS.
 import './bright/theme.css'
+import './minimal.css'
 import { DEFAULT_THEME, THEME_IDS } from './types.ts'
 import type { ThemeId } from './types.ts'
 
 export type { ThemeId } from './types.ts'
 export { DEFAULT_THEME, THEME_IDS } from './types.ts'
 
-const STORAGE_KEY = 'kinetic.theme'
+/** v2: the default moved back to neon, so choices stored under the old key are dropped. */
+const STORAGE_KEY = 'kinetic.theme.v2'
 const BRIGHT_FONTS = 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&family=Jersey+10&family=Manrope:wght@400;500;600;700;800&display=swap'
 
 const isThemeId = (v: unknown): v is ThemeId => typeof v === 'string' && (THEME_IDS as readonly string[]).includes(v)

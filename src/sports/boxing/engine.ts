@@ -23,11 +23,12 @@ import type {
 
 const ROUND_MS = 60_000
 const MAX_HP = 100
-const TELEGRAPH_MS = 600
+/** Wind-up before each opponent punch: long enough to read it and dodge. */
+const TELEGRAPH_MS = 1000
 const FIRST_ATTACK_MS = 2000
 /** Idle gap from a strike to the next telegraph: shrinks from START to END over RAMP, then holds for the last 15 s. */
-const GAP_START_MS = 2600
-const GAP_END_MS = 1500
+const GAP_START_MS = 3400
+const GAP_END_MS = 2200
 const GAP_RAMP_MS = 45_000
 /** Gap jitter, plus or minus 10 percent. */
 const GAP_JITTER = 0.1

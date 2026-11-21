@@ -43,6 +43,29 @@
   --glow-pink: 0 6px 18px rgba(255, 90, 78, 0.25);
 }
 
+/* ---------- minimal in-game HUD skin (layout lives in src/theme/minimal.css) ---------- */
+:root[data-theme='bright'] {
+  --mh-pill-bg: #fff;
+  --mh-pill-fg: var(--bu-ink);
+  --mh-pill-line: rgba(40, 80, 140, 0.12);
+  --mh-shadow: 0 3px 10px rgba(40, 80, 140, 0.18);
+  --mh-muted: var(--bu-muted);
+  --mh-track: rgba(255, 255, 255, 0.85);
+  --mh-p1: var(--bu-good);
+  --mh-p2: var(--bu-danger);
+  --mh-low: var(--bu-accent);
+  --mh-good: var(--bu-primary-dark);
+  --mh-bad: var(--bu-danger);
+  --mh-warn-bg: var(--bu-accent);
+  --mh-warn-fg: #fff;
+  --mh-name-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.8);
+  --mh-font-num: var(--bu-display);
+  --mh-font-text: var(--bu-display);
+  --mh-num-size: 20px;
+  --mh-num-weight: 600;
+  --mh-pop-shadow: 0 2px 0 #fff, 0 0 10px rgba(255, 255, 255, 0.9), 0 4px 12px rgba(40, 80, 140, 0.25);
+}
+
 /* ---------- shared ---------- */
 :root[data-theme='bright'] .kr-screen,
 :root[data-theme='bright'] .kr-kinetic { color: var(--bu-ink); font-family: var(--bu-body); }
