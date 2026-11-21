@@ -11,11 +11,13 @@ import {
   CapsuleGeometry,
   CylinderGeometry,
   DynamicDrawUsage,
+  EdgesGeometry,
   GridHelper,
   Group,
   IcosahedronGeometry,
   LatheGeometry,
   LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
@@ -81,10 +83,10 @@ const OPPONENT_ACCENT_HEX = 0x8b7cf6
 
 /** Neon colours the scene animates from. Copy them, never mutate them. */
 export const NEON = {
-  accent: hdr(isBright() ? COLORS.drone : OPPONENT_ACCENT_HEX, 1),
-  core: hdr(isBright() ? COLORS.droneCore : 0xf2f2f5, 1),
+  accent: hdr(COLORS.drone, 2.2),
+  core: hdr(COLORS.droneCore, 1.5),
   telegraph: hdr(COLORS.telegraph, 3),
-  white: hdr(0xffffff, 1.5),
+  white: hdr(0xffffff, 1.8),
 } as const
 
 function radialTexture(stops: ReadonlyArray<readonly [number, string]>): CanvasTexture {
@@ -138,7 +140,7 @@ function ringCanvasTexture(): CanvasTexture {
   c.width = c.height = size
   const ctx = c.getContext('2d')
   if (ctx) {
-    ctx.fillStyle = '#1b1d24'
+    ctx.fillStyle = '#161a2e'
     ctx.fillRect(0, 0, size, size)
     // Weave: faint crossing threads.
     for (let i = 0; i < size; i += 4) {
@@ -147,24 +149,30 @@ function ringCanvasTexture(): CanvasTexture {
       ctx.fillRect(0, i, size, 2)
     }
     // Border band.
-    ctx.strokeStyle = '#262931'
+    ctx.strokeStyle = '#2b3770'
     ctx.lineWidth = 44
     ctx.strokeRect(22, 22, size - 44, size - 44)
-    ctx.strokeStyle = '#3a3e48'
-    ctx.lineWidth = 3
+    ctx.strokeStyle = '#6f88f0'
+    ctx.lineWidth = 5
     ctx.strokeRect(52, 52, size - 104, size - 104)
     // Centre logo: two rings and the name.
     const mid = size / 2
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(56,200,255,0.55)'
+    ctx.lineWidth = 8
     ctx.beginPath()
     ctx.arc(mid, mid, 170, 0, Math.PI * 2)
     ctx.stroke()
-    ctx.fillStyle = 'rgba(255,255,255,0.14)'
-    ctx.font = '600 64px "Geist Sans", system-ui, sans-serif'
+    ctx.strokeStyle = 'rgba(255,61,154,0.45)'
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.arc(mid, mid, 150, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(216,220,255,0.5)'
+    ctx.font = '700 76px "Bebas Neue", "Outfit", system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('Kinetic Ring', mid, mid)
+    ctx.fillText('KINETIC', mid, mid - 34)
+    ctx.fillText('RING', mid, mid + 40)
   }
   const tex = new CanvasTexture(c)
   tex.colorSpace = SRGBColorSpace
@@ -197,10 +205,10 @@ export function buildArena(): Group {
 
   const floor = new Mesh(new PlaneGeometry(40, 40), new MeshStandardMaterial({ color: 0x0a0c13, roughness: 0.95 }))
   floor.rotation.x = -Math.PI / 2
-  const grid = new GridHelper(40, 80, 0x2a2d36, 0x1a1c22)
+  const grid = new GridHelper(40, 80, 0x3a4f8f, 0x1c2540)
   grid.position.y = 0.003
   grid.material.transparent = true
-  grid.material.opacity = 0.45
+  grid.material.opacity = 0.75
   arena.add(floor, grid)
 
   // Canvas: woven dark-navy mat with a padded border band and a centre ring logo.
@@ -213,7 +221,7 @@ export function buildArena(): Group {
   arena.add(canvas)
   // Raised apron edge around the canvas with a neon trim line.
   const apronMat = armour()
-  const trimMat = new MeshBasicMaterial({ color: 0x3a3e48 })
+  const trimMat = new MeshBasicMaterial({ color: hdr(0x6f88f0, 1.4) })
   const ax = hw + 0.32
   const az0 = near + 0.32
   const az1 = far - 0.32
@@ -231,21 +239,22 @@ export function buildArena(): Group {
     arena.add(edge)
   }
 
-  // Round ropes on three sides (the fourth is behind the camera): off-white, with the top rope in
-  // the player's accent. Matte, shaded by the key light, with only a faint emissive lift.
-  const ropeTint = [0xd9dbe1, 0xd9dbe1, COLORS.left]
+  // Round ropes on three sides (the fourth is behind the camera): cyan, white, pink from the bottom.
+  // Standard material so the key light shades them as tubes; emissive keeps the neon glow.
+  const ropeTint = [0x38c8ff, 0xd8dcff, 0xff3d9a]
   const sideGeo = new CylinderGeometry(0.024, 0.024, near - far, 10)
   sideGeo.rotateX(Math.PI / 2)
   const backGeo = new CylinderGeometry(0.024, 0.024, hw * 2, 10)
   backGeo.rotateZ(Math.PI / 2)
   const tieGeo = new CylinderGeometry(0.032, 0.032, 0.05, 10)
-  const tieMat = new MeshStandardMaterial({ color: 0x3a3e48, roughness: 0.8 })
+  const tieMat = new MeshStandardMaterial({ color: 0xf2f2f8, roughness: 0.6 })
   RING.ropes.forEach((y, i) => {
     const mat = new MeshStandardMaterial({
-      color: ropeTint[i],
-      emissive: new Color(ropeTint[i]).multiplyScalar(0.12),
-      roughness: 0.75,
-      metalness: 0,
+      color: new Color(ropeTint[i]).multiplyScalar(0.35),
+      emissive: hdr(ropeTint[i], 0.9),
+      emissiveIntensity: 1,
+      roughness: 0.3,
+      metalness: 0.2,
     })
     for (const x of [-hw, hw]) {
       const rope = new Mesh(sideGeo, mat)
@@ -280,8 +289,8 @@ export function buildArena(): Group {
   for (const [x, z, color] of [
     [-hw, far, COLORS.left],
     [hw, far, COLORS.right],
-    [-hw, near, 0x3a3e48],
-    [hw, near, 0x3a3e48],
+    [-hw, near, 0xd8dcff],
+    [hw, near, 0xd8dcff],
   ] as const) {
     const post = new Mesh(postGeo, steel)
     post.position.set(x, 0.725, z)
@@ -289,7 +298,7 @@ export function buildArena(): Group {
     cap.position.set(x, 1.45, z)
     const pad = new Mesh(
       padGeo,
-      new MeshStandardMaterial({ color, emissive: new Color(color).multiplyScalar(0.08), roughness: 0.8 }),
+      new MeshStandardMaterial({ color: new Color(color).multiplyScalar(0.5), emissive: hdr(color, 0.8), roughness: 0.55 }),
     )
     pad.position.set(x, 0.85, z)
     arena.add(post, cap, pad)
@@ -328,15 +337,20 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
   /** +1 when +x points toward the body midline (true for the left glove). */
   const inward = hand === 'left' ? 1 : -1
 
-  // Matte glove in the hand's colour; a low emissive keeps the guard and punch pulses subtle.
   const shell = new MeshStandardMaterial({
-    color: color.clone().multiplyScalar(0.8),
-    emissive: color.clone().multiplyScalar(0.3),
+    color: color.clone().multiplyScalar(0.45),
+    emissive: color,
     emissiveIntensity: 0.5,
-    roughness: 0.7,
-    metalness: 0,
+    roughness: 0.35,
+    metalness: 0.2,
+    flatShading: true,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   })
-  const trim = new MeshBasicMaterial({ color: trimColor })
+  // Neon trim: the facet lines and cuff band carry the bloom glow.
+  const neonTrim = trimColor.clone().multiplyScalar(1.3)
+  const trim = new MeshBasicMaterial({ color: neonTrim })
   const glow = new MeshBasicMaterial({
     color,
     transparent: true,
@@ -347,16 +361,26 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
     visible: false, // solid gloves read cleaner than a see-through glow shell
   })
 
-  const fistGeo = new SphereGeometry(0.085, 24, 16)
+  const fistGeo = new IcosahedronGeometry(0.085, 1)
   const fist = new Mesh(fistGeo, shell)
   fist.scale.set(1, 0.88, 1.15)
+  const facets = new LineSegments(
+    new EdgesGeometry(fistGeo, 1),
+    new LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.6 }),
+  )
+  facets.scale.copy(fist.scale)
 
-  const thumb = new Mesh(new SphereGeometry(0.034, 12, 8), shell)
+  const thumb = new Mesh(new IcosahedronGeometry(0.034, 0), shell)
   thumb.position.set(inward * 0.068, 0.018, -0.03)
   thumb.scale.set(0.9, 1, 1.5)
 
-  const cuffMat = new MeshStandardMaterial({ color: 0xeeeef0, roughness: 0.8 })
-  const cuff = new Mesh(new CylinderGeometry(0.056, 0.062, 0.06, 16), cuffMat)
+  const cuffMat = new MeshStandardMaterial({
+    color: color.clone().multiplyScalar(0.25),
+    emissive: color.clone().multiplyScalar(0.12),
+    roughness: 0.5,
+    flatShading: true,
+  })
+  const cuff = new Mesh(new CylinderGeometry(0.056, 0.062, 0.06, 8), cuffMat)
   cuff.rotation.x = Math.PI / 2
   cuff.position.z = 0.1
   const band = new Mesh(new TorusGeometry(0.062, 0.008, 6, 20), trim)
@@ -366,8 +390,8 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
   halo.scale.copy(fist.scale)
 
   const model = new Group()
-  model.add(fist, thumb, cuff, band, halo)
-  model.scale.setScalar(1.2) // oversized, cartoon proportions to match the big heads
+  model.add(fist, facets, thumb, cuff, band, halo)
+  model.scale.setScalar(0.95) // oversized gloves
   const group = new Group()
   group.add(model)
   return { group, shell, glow }
