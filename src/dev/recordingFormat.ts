@@ -11,11 +11,11 @@ export const RECORDING_VERSION = 1
 /** Labels the recorder can mark. 'idle' means: no detector should fire. */
 export const MOTION_LABELS = [
   'jab-L', 'jab-R', 'hook', 'uppercut', 'block', 'dodge-L', 'dodge-R', 'duck',
-  'keeper-dive-L', 'keeper-dive-R', 'archery-draw', 'archery-release', 'bowl-swing', 'idle',
+  'keeper-dive-L', 'keeper-dive-R', 'archery-draw', 'archery-release', 'bowl-swing', 'tt-swing', 'idle',
 ] as const
 export type MotionLabel = (typeof MOTION_LABELS)[number]
 
-export type GameId = 'boxing' | 'goalkeeper' | 'archery' | 'bowling'
+export type GameId = 'boxing' | 'goalkeeper' | 'archery' | 'bowling' | 'tabletennis'
 
 /** Games on the record/train page, the motions to record for each, and whether a detector exists to train. */
 export const GAMES: Record<GameId, { name: string; labels: MotionLabel[]; detector: boolean; howTo: Partial<Record<MotionLabel, string>> }> = {
@@ -55,6 +55,15 @@ export const GAMES: Record<GameId, { name: string; labels: MotionLabel[]; detect
       idle: '30 to 60 s of arms moving normally, no drawing',
     },
   },
+  tabletennis: {
+    name: 'Table tennis',
+    labels: ['tt-swing', 'idle'],
+    detector: true,
+    howTo: {
+      'tt-swing': 'Swing your hand through the green box like a table-tennis stroke (forehand or backhand)',
+      idle: '30 to 60 s of moving your hands normally (reaching, adjusting, talking) without swinging',
+    },
+  },
   bowling: {
     name: 'Bowling',
     labels: ['bowl-swing', 'idle'],
@@ -82,8 +91,21 @@ export interface RecordingSegment {
   endT: number
   /** Reps the person actually did (typed in at the end of the segment). 0 for idle. */
   reps: number
-  /** Optional rep moments (ms), marked with a key right as each rep happens. */
+  /** Optional rep moments (ms), marked with a key right as each rep happens (or by a green-box target hit). */
   marks: number[]
+  /** Green-box target mode: each target shown, in frame coordinates (0..1, mirrored like the preview). */
+  targets?: RecordingTarget[]
+}
+
+/** One green box in target mode. hitT is null when it timed out without a hit. */
+export interface RecordingTarget {
+  shownT: number
+  hitT: number | null
+  x: number
+  y: number
+  w: number
+  h: number
+  hand: 'left' | 'right' | null
 }
 
 export interface Recording {

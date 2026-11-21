@@ -8,8 +8,9 @@ import type { PosePipeline } from '../../pose/pipeline.ts'
 import { createCalibrator } from '../../pose/calibration.ts'
 import { createBodyTracker } from '../../pose/body.ts'
 import type { BodyTracker } from '../../pose/body.ts'
-import { LM, StartupError } from '../../pose/types.ts'
+import { StartupError } from '../../pose/types.ts'
 import type { BodyFrame } from '../../pose/types.ts'
+import { RACKET_TRACKER_FILTER, createSwingDetector } from './swing.ts'
 import type { GameContext, GameSession } from '../../shell/types.ts'
 import { createSfx } from '../../shell/sfx.ts'
 import type { Sfx } from '../../shell/sfx.ts'
@@ -514,36 +515,14 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
   }
 
   // ---------- camera input ----------
-  let lastW: Record<'left' | 'right', { x: number; y: number; t: number } | null> = { left: null, right: null }
-  let hand: 'left' | 'right' = 'right'
-  let lastSwingT = 0
+  // Swing detection lives in swing.ts (pure, replayed and tuned in the motion lab).
+  const swingDetector = createSwingDetector()
   function onBody(b: BodyFrame): void {
-    let best = 0
-    let bestV = { x: 0, y: 0 }
-    for (const side of ['left', 'right'] as const) {
-      const w = b.body[side === 'left' ? LM.L_WRIST : LM.R_WRIST]
-      const prev = lastW[side]
-      lastW[side] = { x: w.x, y: w.y, t: b.t }
-      if (!prev || w.visibility < 0.3) continue
-      const dt = (b.t - prev.t) / 1000
-      if (dt <= 0 || dt > 0.2) continue
-      const vx = (w.x - prev.x) / dt
-      const vy = (w.y - prev.y) / dt
-      const sp = Math.hypot(vx, vy)
-      if (sp > best) {
-        best = sp
-        bestV = { x: vx, y: vy }
-        if (sp > 3) hand = side
-      }
-    }
-    const w = b.body[hand === 'left' ? LM.L_WRIST : LM.R_WRIST]
+    const r = swingDetector.push(b)
     // Hand x in body units (about -2.5..2.5 across a normal frame) maps onto the racket travel.
-    targetX = Math.max(-1, Math.min(1, w.x / 2)) * cfg.travel
-    livePower = Math.max(livePower, Math.min(1, (best - 3) / 9))
-    if (best > 4.5 && b.t - lastSwingT > 350) {
-      lastSwingT = b.t
-      swing(Math.min(1, (best - 3) / 9), Math.max(-1, Math.min(1, bestV.x / Math.max(best, 1))))
-    }
+    targetX = Math.max(-1, Math.min(1, r.handX / 2)) * cfg.travel
+    livePower = Math.max(livePower, r.livePower)
+    if (r.swing) swing(r.swing.power, r.swing.aim)
   }
 
   function stopCamera(): void {
@@ -589,7 +568,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
         const bar = cardEl.querySelector('.rk-meter i') as HTMLElement | null
         if (bar) bar.style.width = `${Math.round(c.progress * 100)}%`
         if (c.status === 'done' && c.calibration) {
-          tracker = createBodyTracker(c.calibration, { minCutoff: 1.8, beta: 0.25, dCutoff: 1.5 })
+          tracker = createBodyTracker(c.calibration, RACKET_TRACKER_FILTER)
           newMatch()
         }
       })
