@@ -325,3 +325,11 @@
 /* ---------- start / end screens: calmer, fewer badges ---------- */
 
 :root:not(#_) .kr-k-start :is(.kr-live, .kr-chip) { display: none; }
+
+/* Neon start screen: synthwave title art (public/art/neon) under the moving grid. */
+:root[data-theme='neon'] .kr-backdrop {
+  background:
+    linear-gradient(rgba(7, 8, 12, 0.35), rgba(7, 8, 12, 0.55)),
+    url('/art/neon/title-screen-bg.svg') center / cover no-repeat,
+    var(--navy);
+}
