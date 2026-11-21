@@ -36,3 +36,4 @@ recordings/**/*.mov
 recordings/**/*.mkv
 *.p8
 *.pem
+sim-out/
