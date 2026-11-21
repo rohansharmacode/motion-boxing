@@ -1,0 +1,24 @@
+# Render Blueprint: one web service hosts the game, the API and the 1v1 relay on one HTTPS origin.
+# Deploy: https://render.com/deploy?repo=https://github.com/rohansharmacode/motion-boxing
+# Snowflake runs in mock mode here. To use real Snowflake, set the SNOWFLAKE_* vars from
+# server/.env.example in the Render dashboard (as secrets) and set SNOWFLAKE_MOCK to 0.
+services:
+  - type: web
+    name: motion-boxing
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci --no-audit --no-fund && VITE_API_URL=same-origin npm run build && cd server && npm ci --no-audit --no-fund && npm run build
+    startCommand: cd server && node dist/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SNOWFLAKE_MOCK
+        value: "1"
+      - key: STATIC_DIR
+        value: ../dist
+      - key: CORS_ORIGIN
+        value: http://localhost:5173
