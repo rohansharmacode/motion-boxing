@@ -11,7 +11,7 @@
 // then calls onRematch / onHome (or ctx.exit() when onHome is omitted).
 
 import type { CoachCard, LeaderboardEntry, RoundResult, RoundStats, SessionEndResponse } from '../api/types';
-import { el, ensurePositioned, html, isTyping, leave, prefersReducedMotion } from './dom';
+import { artImg, el, ensurePositioned, html, isTyping, leave, prefersReducedMotion } from './dom';
 import { ICONS } from './icons';
 import type { GameContext } from './shellTypes';
 
@@ -34,6 +34,14 @@ const RESULT_TEXT: Record<RoundResult, string> = {
   DRAW: 'Draw',
   LOSS: 'Out-pointed',
   KO_LOSS: 'Knocked down',
+};
+
+/** Title-card art per result (public/art/). DRAW has none and keeps the plain text title. */
+const RESULT_ART: Partial<Record<RoundResult, string>> = {
+  KO_WIN: 'title-ko.svg',
+  WIN: 'title-win.svg',
+  LOSS: 'title-lose.svg',
+  KO_LOSS: 'title-lose.svg',
 };
 
 const LOADING_LINES = [
@@ -77,7 +85,7 @@ export class PostMatchScreen {
             'div',
             {},
             el('div', { class: 'kr-post-chips' }, el('span', { class: 'kr-live' }, el('span', {}, 'Final')), this.source),
-            el('h1', { class: `kr-result-title ${won ? '' : 'kr-loss'}` }, RESULT_TEXT[opts.result]),
+            resultTitle(opts.result, won),
           ),
           el('div', { class: 'kr-result-score' }, el('span', { class: 'kr-label' }, 'Score'), scoreNum),
         ),
@@ -229,6 +237,20 @@ export class PostMatchScreen {
     this.source.className = `kr-src kr-src-${s}`;
     this.source.textContent = s === 'live' ? 'Live · Snowflake' : s === 'mock' ? 'Mock data' : 'Offline';
   }
+}
+
+/** The h1 keeps the text for screen readers; the title-card art (if any) replaces it visually. */
+function resultTitle(result: RoundResult, won: boolean) {
+  const h1 = el('h1', { class: `kr-result-title ${won ? '' : 'kr-loss'}` });
+  const text = el('span', { class: 'kr-result-text' }, RESULT_TEXT[result]);
+  const file = RESULT_ART[result];
+  if (!file) {
+    h1.append(text);
+    return h1;
+  }
+  h1.classList.add('kr-result-has-art');
+  h1.append(text, artImg(file, 'kr-result-art', () => h1.classList.remove('kr-result-has-art')));
+  return h1;
 }
 
 function coachView(c: CoachCard, form: number | null | undefined) {

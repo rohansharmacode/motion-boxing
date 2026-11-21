@@ -12,7 +12,7 @@ import type { CalibrationStatus, StartupErrorKind } from '../pose/types.ts';
 import type { BoxingHud, Punch, PunchCounts, RoundResult } from '../sports/boxing/types.ts';
 import { BoxingHUD } from './BoxingHUD';
 import { CalibrationOverlay } from './CalibrationOverlay';
-import { el } from './dom';
+import { artImg, el } from './dom';
 import { PostMatchScreen } from './PostMatchScreen';
 import type { GameContext } from './shellTypes';
 import './styles.css';
@@ -129,7 +129,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       phase = 'loading';
       showPanel(
         el('section', { class: 'kr-screen kr-backdrop kr-k-start', role: 'status' },
-          el('div', { class: 'kr-k-col' }, el('div', { class: 'kr-loading-bars' }, ...Array.from({ length: 5 }, () => el('i'))), el('p', { class: 'kr-k-sub' }, text))),
+          el('div', { class: 'kr-k-col' }, artImg('splash-loading.svg', 'kr-k-splash'), el('div', { class: 'kr-loading-bars' }, ...Array.from({ length: 5 }, () => el('i'))), el('p', { class: 'kr-k-sub' }, text))),
       );
     },
 

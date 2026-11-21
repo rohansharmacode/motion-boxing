@@ -32,6 +32,8 @@ export interface TileInfo {
   accent2: string
   /** Inline SVG markup (static, original art). */
   icon: string
+  /** Background artwork URL (public/art, already prefixed with the Vite base). */
+  art: string
   /** Big hero tile. */
   featured?: boolean
 }

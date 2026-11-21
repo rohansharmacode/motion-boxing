@@ -61,3 +61,20 @@ export function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   return !!t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
 }
+
+/** URL of a file in public/art/, honouring Vite's base path. */
+export const artUrl = (file: string) => `${import.meta.env.BASE_URL}art/${file}`;
+
+/** Decorative <img> for public/art/ assets. Removes itself (and runs onFail) if the file fails to load. */
+export function artImg(file: string, cls: string, onFail?: () => void): HTMLImageElement {
+  const img = el('img', { class: cls, src: artUrl(file), alt: '', 'aria-hidden': 'true', decoding: 'async', draggable: 'false' });
+  img.addEventListener(
+    'error',
+    () => {
+      img.remove();
+      onFail?.();
+    },
+    { once: true },
+  );
+  return img;
+}
