@@ -12,12 +12,15 @@ import type { CalibrationStatus, StartupErrorKind } from '../pose/types.ts';
 import type { BoxingHud, Punch, PunchCounts, RoundResult } from '../sports/boxing/types.ts';
 import { BoxingHUD } from './BoxingHUD';
 import { CalibrationOverlay } from './CalibrationOverlay';
-import { el } from './dom';
+import { artImg, el } from './dom';
 import { PostMatchScreen } from './PostMatchScreen';
 import type { GameContext } from './shellTypes';
 import './styles.css';
 import './components.css';
 import './kinetic.css';
+
+/** Shown under the timer in keyboard mode, so nobody has to guess the keys. */
+const KEYBOARD_HINT = 'Keyboard · J jab · K cross · H hook · U uppercut · Shift guard · ← → dodge';
 
 const DRONE_NAME = 'HEX-7';
 const ROUND_MS = 60_000;
@@ -56,6 +59,8 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
   let hud: BoxingHUD | null = null;
   let post: PostMatchScreen | null = null;
   let keyboardMode = false;
+  /** Online 1v1: the friend's name replaces the drone's on the health bar. */
+  let opponentName: string | null = null;
   let combo = 0;
   let guardOn = false;
   let guardSamples = 0;
@@ -129,7 +134,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       phase = 'loading';
       showPanel(
         el('section', { class: 'kr-screen kr-backdrop kr-k-start', role: 'status' },
-          el('div', { class: 'kr-k-col' }, el('div', { class: 'kr-loading-bars' }, ...Array.from({ length: 5 }, () => el('i'))), el('p', { class: 'kr-k-sub' }, text))),
+          el('div', { class: 'kr-k-col' }, artImg('splash-loading.svg', 'kr-k-splash'), el('div', { class: 'kr-loading-bars' }, ...Array.from({ length: 5 }, () => el('i'))), el('p', { class: 'kr-k-sub' }, text))),
       );
     },
 
@@ -157,7 +162,13 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
         void c.complete();
         return;
       }
-      calib.setWarning(status === 'no-pose' ? 'no_person' : status === 'shoulders-hidden' ? 'too_close' : null);
+      calib.setWarning(
+        status === 'no-pose' ? 'no_person'
+        : status === 'too-close' ? 'too_close'
+        : status === 'shoulders-hidden' ? 'shoulders_hidden'
+        : status === 'hands-hidden' ? 'hands_hidden'
+        : null,
+      );
       calib.setProgress(status === 'holding' ? progress : 0);
     },
 
@@ -174,10 +185,10 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       post?.destroy();
       post = null;
       hud?.destroy();
-      hud = new BoxingHUD(layer, { playerName: playerName || 'Player', opponentName: DRONE_NAME, roundMs: ROUND_MS });
+      hud = new BoxingHUD(layer, { playerName: playerName || 'Player', opponentName: opponentName ?? DRONE_NAME, roundMs: ROUND_MS });
       hud.element.classList.add('kr-big');
       hud.update({ playerHp: 100, opponentHp: 100, timeLeftMs: ROUND_MS, round: 1, combo: 0 });
-      hud.setMode(keyboardMode ? 'Keyboard mode' : null);
+      hud.setMode(keyboardMode ? KEYBOARD_HINT : null);
       combo = 0;
       guardSamples = 0;
       guardHits = 0;
@@ -221,16 +232,16 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       guardOn = on;
     },
 
-    setTelegraph(on) {
-      telegraph.classList.toggle('kr-on', on && phase === 'fight');
+    setTelegraph(pattern) {
+      telegraph.classList.toggle('kr-on', pattern !== null && phase === 'fight');
     },
 
     setKeyboardMode(on) {
       keyboardMode = on;
-      hud?.setMode(on ? 'Keyboard mode' : null);
+      hud?.setMode(on ? KEYBOARD_HINT : null);
     },
 
-    showRoundEnd(result: RoundResult, onAgain) {
+    showRoundEnd(result: RoundResult, onAgain, onHome) {
       if (phase === 'ended') return;
       phase = 'ended';
       telegraph.classList.remove('kr-on');
@@ -253,7 +264,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
           onRematch: () => {
             if (phase === 'ended') onAgain();
           },
-          onHome: opts.onHome ?? (opts.ctx ? undefined : () => location.reload()),
+          onHome: onHome ?? opts.onHome ?? (opts.ctx ? undefined : () => location.reload()),
         });
       }, 1500);
     },
@@ -267,6 +278,27 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
 
     toggleDebug() {
       debug.hidden = !debug.hidden;
+    },
+
+    setCombo(_count: number) {
+      // No-op: KineticHud already drives its combo meter from flashPunch/callout.
+    },
+
+    setCoachCard(_card) {
+      // No-op: the post-match screen fetches its coach card from the backend.
+    },
+
+    setOpponentName(name) {
+      opponentName = name;
+    },
+
+    setCameraActive(on) {
+      const stage = document.getElementById('stage');
+      if (stage) stage.style.display = on ? '' : 'none';
+    },
+
+    get playerName() {
+      return playerName;
     },
 
     dispose() {

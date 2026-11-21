@@ -1,8 +1,27 @@
 import { randomUUID } from 'node:crypto';
+import { mockDrillSearch, type DrillSearchOptions, type DrillSearchResult } from '../drills';
 import { aggregatePlayer, aggregateSession, isPunch } from '../metrics';
+import {
+  classifyStyle,
+  cosine,
+  deriveHighlights,
+  proComponents,
+  regrSlope,
+  roundComponents,
+  scoutingReport,
+  sessionSummaries,
+  similarityPct,
+  styleComponents,
+  styleVector,
+} from '../style';
 import type {
   Benchmark,
+  HighlightsFeed,
   LeaderboardRow,
+  PlayerProgress,
+  PlayerStyle,
+  RepoFeatureProbes,
+  StyleComponents,
   MotionEvent,
   Player,
   PlayerMetrics,
@@ -124,7 +143,8 @@ export class MemoryRepo implements Repo {
   }
 
   /** Mirrors V_LEADERBOARD: best single-session score per player, top N. */
-  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
+  async leaderboard(limit: number, sport: string = 'boxing'): Promise<LeaderboardRow[]> {
+    if (sport.toLowerCase() !== 'boxing') return this.sportLeaderboard(limit, sport.toLowerCase());
     const perSession = new Map<string, { player_id: string; score: number }>();
     const perPlayer = new Map<string, { fastest: number | null; bestRt: number | null }>();
     for (const e of this.events) {
@@ -161,9 +181,52 @@ export class MemoryRepo implements Repo {
     return rows.slice(0, limit).map((r, i) => ({ rank: i + 1, ...r }));
   }
 
+  /** Mirrors V_LEADERBOARD_BY_SPORT (sql/multisport.sql) for one non-boxing sport. */
+  private sportLeaderboard(limit: number, sport: string): LeaderboardRow[] {
+    const perSession = new Map<string, { player_id: string; score: number }>();
+    const perPlayer = new Map<string, { fastest: number | null; bestRt: number | null }>();
+    for (const e of this.events) {
+      if (String(e.sport ?? 'boxing').toLowerCase() !== sport || !e.player_id) continue;
+      const s = perSession.get(e.session_id) ?? { player_id: e.player_id, score: 0 };
+      s.score += e.points ?? 0;
+      perSession.set(e.session_id, s);
+      const p = perPlayer.get(e.player_id) ?? { fastest: null, bestRt: null };
+      if (typeof e.speed_mps === 'number' && e.speed_mps > 0) p.fastest = p.fastest === null ? e.speed_mps : Math.max(p.fastest, e.speed_mps);
+      if (typeof e.reaction_ms === 'number' && e.reaction_ms > 0) p.bestRt = p.bestRt === null ? e.reaction_ms : Math.min(p.bestRt, e.reaction_ms);
+      perPlayer.set(e.player_id, p);
+    }
+    const best = new Map<string, number>();
+    for (const s of perSession.values()) best.set(s.player_id, Math.max(best.get(s.player_id) ?? -Infinity, s.score));
+    const rows = [...best.entries()].map(([player_id, score]) => ({
+      player_id,
+      name: this.players.get(player_id)?.name ?? 'Unknown',
+      score,
+      fastest_punch: round(perPlayer.get(player_id)?.fastest ?? null, 2),
+      best_reaction_ms: round(perPlayer.get(player_id)?.bestRt ?? null, 1),
+    }));
+    const desc = (a: number | null, b: number | null) => (b ?? -Infinity) - (a ?? -Infinity);
+    const asc = (a: number | null, b: number | null) => (a ?? Infinity) - (b ?? Infinity);
+    rows.sort(
+      (a, b) =>
+        desc(a.score, b.score) ||
+        desc(a.fastest_punch, b.fastest_punch) ||
+        asc(a.best_reaction_ms, b.best_reaction_ms) ||
+        (a.player_id < b.player_id ? -1 : 1),
+    );
+    return rows.slice(0, limit).map((r, i) => ({ rank: i + 1, ...r }));
+  }
+
+  async sessionEvents(sessionId: string): Promise<MotionEvent[]> {
+    return this.events
+      .filter((e) => e.session_id === sessionId)
+      .sort((a, b) => a.event_ts.localeCompare(b.event_ts) || (a.event_id < b.event_id ? -1 : 1))
+      .map((e) => structuredClone(e));
+  }
+
   async playerSessions(playerId: string, limit: number): Promise<SessionSummary[]> {
     return [...this.sessions.values()]
-      .filter((s) => s.player_id === playerId)
+      // Boxing only, like SQL.playerSessions: /api/player/:id/stats percentiles are boxing-shaped.
+      .filter((s) => s.player_id === playerId && String(s.sport || 'boxing').toLowerCase() === 'boxing')
       .sort((a, b) => b.started_at.localeCompare(a.started_at))
       .slice(0, limit)
       .map((s) => ({
@@ -187,6 +250,108 @@ export class MemoryRepo implements Repo {
 
   async benchmarks(sport: string): Promise<Benchmark[]> {
     return this.benchmarkRows.filter((b) => b.sport === sport).map((b) => ({ ...b }));
+  }
+
+  /** Rounded components per player with punches (V_PLAYER_STYLE rows). */
+  private styleRows(): Map<string, StyleComponents> {
+    const byPlayer = new Map<string, MotionEvent[]>();
+    for (const e of this.events) {
+      const list = byPlayer.get(e.player_id) ?? [];
+      list.push(e);
+      byPlayer.set(e.player_id, list);
+    }
+    const out = new Map<string, StyleComponents>();
+    for (const [pid, evs] of byPlayer) {
+      if (!evs.some((e) => isPunch(e) && String(e.sport ?? 'boxing').toLowerCase() === 'boxing')) continue;
+      out.set(pid, roundComponents(styleComponents(aggregatePlayer(evs))));
+    }
+    return out;
+  }
+
+  async playerStyle(playerId: string): Promise<PlayerStyle> {
+    const rows = this.styleRows();
+    const c = rows.get(playerId);
+    const empty: PlayerStyle = { player_id: playerId, available: true, components: null, pro_similarity_pct: null, twin: null, scouting: null };
+    if (!c) return empty;
+    const vec = styleVector(c);
+    const proSim = cosine(vec, styleVector(proComponents(await this.benchmarks('boxing'))));
+    let twin: PlayerStyle['twin'] = null;
+    let bestSim = -Infinity;
+    const isNeutral = (v: number[]) => v.every((x) => x === 0);
+    if (!isNeutral(vec)) {
+      for (const [other, oc] of [...rows.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+        const ov = styleVector(oc);
+        if (other === playerId || isNeutral(ov)) continue;
+        const sim = cosine(vec, ov);
+        if (sim !== null && sim > bestSim) {
+          bestSim = sim;
+          twin = { player_id: other, name: this.players.get(other)?.name ?? 'Unknown', similarity_pct: similarityPct(sim) };
+        }
+      }
+    }
+    const name = this.players.get(playerId)?.name ?? 'Unknown';
+    const punches = this.events.filter((e) => e.player_id === playerId && isPunch(e)).length;
+    const style = classifyStyle(c);
+    return {
+      ...empty,
+      components: c,
+      pro_similarity_pct: proSim === null ? null : similarityPct(proSim),
+      twin,
+      // T_SCOUTING only scans players with >= 10 punches.
+      scouting: punches >= 10 ? { fighting_style: style, scouting_report: scoutingReport(name, style, c), updated_at: new Date().toISOString() } : null,
+    };
+  }
+
+  async playerProgress(playerId: string, historyLimit: number): Promise<PlayerProgress> {
+    const rows = sessionSummaries(
+      this.events.filter((e) => e.player_id === playerId),
+      (sid) => this.sessions.get(sid)?.started_at ?? null,
+    );
+    const n = rows.length;
+    const trend = (pick: (r: (typeof rows)[number]) => number | null, dp: number) =>
+      n >= 2 ? round(regrSlope(rows.map((r) => ({ x: r.session_index, y: pick(r) }))), dp) : null;
+    const scoreTrend = trend((r) => r.score, 2);
+    return {
+      player_id: playerId,
+      available: true,
+      sessions: n,
+      best_score: n ? Math.max(...rows.map((r) => r.score ?? -Infinity)) : null,
+      last_score: n ? rows[n - 1]!.score : null,
+      speed_trend_mps_per_session: trend((r) => r.avg_speed, 3),
+      score_trend_per_session: scoreTrend,
+      accuracy_trend_pct_per_session: trend((r) => r.accuracy_pct, 2),
+      reaction_trend_ms_per_session: trend((r) => r.avg_reaction_ms, 2),
+      improving: n >= 2 && (scoreTrend ?? 0) > 0,
+      history: rows.slice(-Math.max(1, historyLimit)).map(({ session_index, session_id, score, avg_speed, accuracy_pct }) => ({
+        session_index,
+        session_id,
+        score,
+        avg_speed,
+        accuracy_pct,
+      })),
+    };
+  }
+
+  async highlights(limit: number): Promise<HighlightsFeed> {
+    // T_HIGHLIGHTS only reads boxing events (pipelines.sql); goalkeeper/archery rows must not count.
+    const boxing = this.events.filter((e) => String(e.sport ?? 'boxing').toLowerCase() === 'boxing');
+    const all = deriveHighlights(boxing, (pid) => this.players.get(pid)?.name ?? 'Unknown');
+    return { available: true, highlights: all.slice(0, Math.min(50, Math.max(1, limit))) };
+  }
+
+  async probeFeatures(): Promise<RepoFeatureProbes> {
+    const detail = 'mock mode (in-memory equivalent)';
+    return {
+      dynamic_tables: { status: 'mock', detail },
+      cortex_search: { status: 'mock', detail: 'keyword search over the drill catalogue' },
+      streams_tasks: { status: 'mock', detail: 'highlights derived from events on read' },
+      vectors: { status: 'mock', detail: 'cosine similarity in JavaScript' },
+      player_form_last_refresh: null,
+    };
+  }
+
+  async searchDrills(query: string, opts: DrillSearchOptions): Promise<DrillSearchResult> {
+    return { available: true, source: 'mock', results: mockDrillSearch(query, opts) };
   }
 
   /**

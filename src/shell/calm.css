@@ -1,0 +1,158 @@
+/* Calm home: one 3 x 2 grid, equal gaps, equal tiles, one text style, no glow or idle motion.
+   Loaded after channels.css; the `:root:not(#_)` prefix wins over both theme skins without !important.
+   Big targets on purpose: menus are picked with the hand cursor (src/handnav). */
+
+:root:not(#_) .shell.shell--channels {
+  --bar-h: 88px;
+  --calm-gap: 24px;
+  --calm-radius: 14px;
+  --calm-border: 2px;
+  --calm-title: 600 clamp(16px, 1.5vw, 22px) / 1 var(--ch-body);
+}
+
+:root:not(#_) .shell--channels .ch-bg { background: var(--ch-canvas); }
+
+/* ---------- grid ---------- */
+
+:root:not(#_) .shell--channels .ch-grid {
+  top: calc((100% - var(--bar-h)) / 2);
+  width: min(88vw, calc((100vh - var(--bar-h) - 12vh) * 1.95));
+  aspect-ratio: 1.95;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--calm-gap);
+}
+
+:root:not(#_) .shell--channels .ch-tile {
+  border: var(--calm-border) solid var(--ch-ring);
+  border-radius: var(--calm-radius);
+  box-shadow: none;
+  animation: none;
+  transition: border-color 120ms linear;
+  scale: none;
+}
+
+:root:not(#_) .shell--channels .ch-tile::after { display: none; }
+
+:root:not(#_) .shell--channels .ch-tile:is(:hover, :focus-visible, :focus) {
+  scale: none;
+  border-color: var(--a, var(--ch-accent));
+}
+
+/* The hand cursor's own outline replaces the tile border highlight. */
+:root:not(#_) .shell--channels .ch-tile.hn-target { outline-offset: 6px; }
+
+:root:not(#_) .shell--channels .ch-tile-art {
+  inset: 0 0 22% 0;
+  border-radius: calc(var(--calm-radius) - var(--calm-border)) calc(var(--calm-radius) - var(--calm-border)) 0 0;
+}
+
+:root:not(#_) .shell--channels .ch-tile-img,
+:root:not(#_) .shell--channels .ch-preview-img { animation: none; }
+
+:root:not(#_) .shell--channels .ch-tile-glyph svg { width: 30%; height: 60%; }
+
+:root:not(#_) .shell--channels .ch-tile-title {
+  height: 22%;
+  padding: 0 12px;
+  font: var(--calm-title);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  border-top: 1px solid var(--ch-ring);
+}
+
+:root:not(#_) .shell--channels .ch-tile-soon {
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  font: 600 11px / 1.2 var(--ch-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Progress shows on the hand cursor ring, not on the tile. */
+:root:not(#_) .shell--channels .ch-tile .ch-tile-dwell { display: none; }
+
+/* ---------- bottom bar: flat, clock centred ---------- */
+
+:root:not(#_) .shell--channels .ch-bar {
+  height: var(--bar-h);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ch-card);
+  border-top: 1px solid var(--ch-ring);
+}
+
+:root:not(#_) .shell--channels .ch-bar-shape { display: none; }
+:root:not(#_) .shell--channels .ch-time { margin: 0; gap: 4px; }
+:root:not(#_) .shell--channels .ch-clock { font-size: 40px; line-height: 1; }
+:root:not(#_) .shell--channels .ch-colon { animation: none; }
+:root:not(#_) .shell--channels .ch-date { font: 600 12px / 1 var(--ch-body); letter-spacing: 0.16em; }
+
+/* ---------- preview ---------- */
+
+:root:not(#_) .shell--channels .ch-preview {
+  inset: var(--calm-gap);
+  bottom: calc(var(--bar-h) + var(--calm-gap));
+  gap: var(--calm-gap);
+  padding: calc(var(--calm-gap) * 1.5);
+  border: var(--calm-border) solid var(--ch-ring);
+  border-radius: var(--calm-radius);
+  box-shadow: none;
+}
+
+:root:not(#_) .shell--channels .ch-preview-art {
+  border: 1px solid var(--ch-ring);
+  border-radius: calc(var(--calm-radius) - 4px);
+  box-shadow: none;
+}
+
+:root:not(#_) .shell--channels .ch-preview-info { gap: 16px; align-content: center; }
+:root:not(#_) .shell--channels .ch-preview-title { font-size: clamp(48px, 6vw, 88px); line-height: 0.95; }
+:root:not(#_) .shell--channels .ch-preview-how { font: 500 clamp(16px, 1.4vw, 20px) / 1.45 var(--ch-body); }
+:root:not(#_) .shell--channels .ch-preview-best { font: 600 13px / 1.3 var(--ch-body); letter-spacing: 0.1em; }
+
+/* Back and Start: same size, same shape, centred as a pair. */
+:root:not(#_) .shell--channels .ch-preview-actions { justify-content: center; gap: var(--calm-gap); }
+
+:root:not(#_) .shell--channels .ch-btn {
+  min-width: 0;
+  width: clamp(200px, 20vw, 280px);
+  height: 72px;
+  padding: 0 24px;
+  border-radius: 12px;
+  font: 700 22px / 1 var(--ch-body);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  box-shadow: none;
+  transition: border-color 120ms linear, background-color 120ms linear;
+}
+
+:root:not(#_) .shell--channels .ch-btn--back {
+  background: transparent;
+  border: var(--calm-border) solid var(--ch-ring);
+}
+
+:root:not(#_) .shell--channels .ch-btn--start { border: var(--calm-border) solid var(--ch-accent); }
+:root:not(#_) .shell--channels .ch-btn--start:disabled { border-color: var(--ch-ash); }
+
+:root:not(#_) .shell--channels .ch-btn:not(:disabled):is(:hover, :focus-visible, :focus) {
+  scale: none;
+  outline: var(--calm-border) solid var(--ch-ink);
+  outline-offset: 4px;
+}
+
+/* Settings: equal chips on one baseline. */
+:root:not(#_) .shell--channels .ch-preview-extra { gap: 16px; }
+:root:not(#_) .shell--channels .ch-setting { display: grid; grid-template-columns: 96px 1fr 1fr; align-items: center; gap: 16px; }
+:root:not(#_) .shell--channels .ch-setting-label { font: 600 16px / 1 var(--ch-body); }
+:root:not(#_) .shell--channels .ch-chip {
+  height: 64px;
+  border-radius: 12px;
+  font: 600 18px / 1 var(--ch-body);
+  border-width: var(--calm-border);
+}
+
+:root:not(#_) .shell--channels :is(.ch-btn, .ch-chip)::after { display: none; }

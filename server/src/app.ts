@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import express, { type Express } from 'express';
 import { createAskRouter } from './ask';
+import { createPlusRouter } from './plusRoutes';
 import type { AppConfig } from './config';
 import type { Cortex } from './cortex';
 import { HttpError, db, errorHandler, notFoundHandler, zodDetails } from './errors';
@@ -9,7 +11,8 @@ import { EventQueue, QueueFullError } from './eventQueue';
 import type { Logger } from './logger';
 import { computePercentiles } from './percentile';
 import type { Repo } from './repo/types';
-import { CreatePlayerBody, EndSessionBody, EventBatch, IdSchema, StartSessionBody } from './schemas';
+import { CreatePlayerBody, EndSessionBody, EventBatch, IdSchema, LeaderboardQuery, MixedEventBatch, StartSessionBody } from './schemas';
+import { defaultSportPoints, isMultiSport, parseSport, sportOf, withSportPayload } from './multisport';
 import { BenchmarkCache, SessionService } from './sessionService';
 import {
   FrontendEndBody,
@@ -83,6 +86,9 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     coachTimeoutMs: config.coachTimeoutMs,
     flushWaitMs: config.sessionEndFlushWaitMs,
     coachFastMs: config.coachFastMs,
+    coachStructured: config.cortexStructured,
+    coachGrounding: config.coachGrounding,
+    coachSearchTimeoutMs: config.coachSearchTimeoutMs,
   });
 
   // --- Front-end flow (client-generated ids, see src/frontend.ts) ----------------------------
@@ -101,7 +107,7 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
       if (ensuredSessions.has(sid) || ensuring.has(sid)) continue;
       const p = (async () => {
         await repo.ensurePlayer(e.player_id, null);
-        await repo.ensureSession(sid, e.player_id, SPORT, e.event_ts);
+        await repo.ensureSession(sid, e.player_id, sportOf(e.sport), e.event_ts);
         ensuredSessions.add(sid);
       })()
         .catch((err) => log.warn('could not create player/session rows (retried at session end)', { sid, error: errorMessage(err) }))
@@ -200,7 +206,10 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
       res.status(202).json({ accepted: rows.length, queued: outcome !== 'written', ignored, rejected, duplicates });
       return;
     }
-    const parsed = EventBatch.safeParse(body);
+    // Goalkeeper / archery items (sport 'goalkeeper' | 'archery') use MultiSportEventBody; a batch
+    // without them is validated exactly as before.
+    const hasMulti = body.some((e) => Boolean(e && typeof e === 'object' && isMultiSport(parseSport((e as { sport?: unknown }).sport))));
+    const parsed = hasMulti ? MixedEventBatch.safeParse(body) : EventBatch.safeParse(body);
     if (!parsed.success) {
       throw new HttpError(400, 'validation_error', 'One or more events are invalid', zodDetails(parsed.error));
     }
@@ -220,21 +229,31 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
       }
       // payload.speed_unit 'SW/s' = shoulder-widths per second; benchmarks are in m/s.
       const sw = e.payload?.speed_unit === 'SW/s';
-      events.push({
+      const speed = e.speed_mps ?? 0;
+      const row: MotionEvent = {
         event_id: clientId.success ? clientId.data : randomUUID(),
         session_id: e.session_id,
         player_id: e.player_id,
         sport: e.sport,
         event_ts: new Date(e.event_ts).toISOString(),
-        event_type: e.event_type,
-        hand: e.hand,
-        speed_mps: sw ? Math.round(Math.min(100, e.speed_mps * config.shoulderWidthM) * 1000) / 1000 : e.speed_mps,
+        event_type: e.event_type as MotionEvent['event_type'],
+        hand: e.hand ?? null,
+        speed_mps: sw ? Math.round(Math.min(100, speed * config.shoulderWidthM) * 1000) / 1000 : speed,
         accuracy: e.accuracy ?? null,
         reaction_ms: e.reaction_ms ?? null,
         guard_up: e.guard_up ?? null,
         points: e.points ?? 0,
-        payload: sw ? { ...e.payload, speed_sw_s: e.speed_mps } : (e.payload ?? null),
-      });
+        payload: sw ? { ...e.payload, speed_sw_s: speed } : (e.payload ?? null),
+      };
+      if (isMultiSport(e.sport)) {
+        // Top-level payload:zone / payload:ring / payload:dx / payload:dy for sql/multisport.sql.
+        row.payload = withSportPayload(e.sport, row.payload, row.accuracy);
+        if (e.points == null) {
+          const p = row.payload;
+          row.points = defaultSportPoints(e.sport, row.event_type, { reaction_ms: row.reaction_ms, accuracy_score: row.accuracy === null ? null : Math.round(row.accuracy * 1e4) / 100 }, p);
+        }
+      }
+      events.push(row);
     }
     if (events.length === 0) {
       res.status(202).json({ accepted: 0, queued: false, duplicates });
@@ -260,15 +279,18 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     const body = readBody(req.body);
     if (!isFrontendEndBody(body)) {
       const { session_id } = EndSessionBody.parse(body);
-      res.json(await sessions.end(session_id));
+      // The original response shape stays exactly as documented in sql/CONTRACT.md.
+      const { coach_meta: _meta, ...original } = await sessions.end(session_id);
+      res.json(original);
       return;
     }
     // Front-end shape: upsert PLAYERS + SESSIONS, run the coach, return coach + leaderboard + form score.
     const b = FrontendEndBody.parse(body);
     await ensuring.get(b.session_id);
     await db(repo.ensurePlayer(b.player_id, cleanDisplayName(b.display_name)));
+    const sport = parseSport(b.sport) ?? SPORT;
     if (!ensuredSessions.has(b.session_id)) {
-      await db(repo.ensureSession(b.session_id, b.player_id, SPORT, b.started_at ?? null));
+      await db(repo.ensureSession(b.session_id, b.player_id, sport, b.started_at ?? null));
       ensuredSessions.add(b.session_id);
     }
     const result = await sessions.end(b.session_id, {
@@ -279,7 +301,7 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
       stats: b.stats ?? null,
     });
     const [leaderboard, form_score] = await Promise.all([
-      repo.leaderboard(10).then((rows) => rows.map(toLeaderboardRow)).catch((err) => {
+      (sport === SPORT ? repo.leaderboard(10) : repo.leaderboard(10, sport)).then((rows) => rows.map((r) => toLeaderboardRow(r, sport))).catch((err) => {
         log.warn('session end: leaderboard unavailable', { error: errorMessage(err) });
         return [];
       }),
@@ -288,7 +310,8 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
         return null;
       }),
     ]);
-    res.json({ ...result, coach: toFrontendCoach(result.coach, result.stats), leaderboard, form_score });
+    const { coach_meta, ...rest } = result;
+    res.json({ ...rest, coach: toFrontendCoach(result.coach, result.stats, coach_meta), leaderboard, form_score });
   });
 
   /** Poll after a session end answered warming_up:true. */
@@ -296,11 +319,21 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     const id = IdSchema.safeParse(req.params.id);
     if (!id.success) throw new HttpError(400, 'validation_error', 'Invalid session id', zodDetails(id.error));
     const status = await sessions.coachStatus(id.data);
-    res.json(status.ready ? { ...status, coach_card: toFrontendCoach(status.coach, status.stats) } : status);
+    if (!status.ready) {
+      res.json(status);
+      return;
+    }
+    const { coach_meta, ...rest } = status;
+    res.json({ ...rest, coach_card: toFrontendCoach(status.coach, status.stats, coach_meta) });
   });
 
-  app.get('/api/leaderboard', async (_req, res) => {
-    res.json((await db(repo.leaderboard(10))).map(toLeaderboardRow));
+  /** ?sport=boxing|goalkeeper|archery (default boxing, case-insensitive); same row shape for every sport. */
+  app.get('/api/leaderboard', async (req, res) => {
+    const q = LeaderboardQuery.safeParse({ sport: typeof req.query.sport === 'string' && req.query.sport ? req.query.sport : undefined });
+    if (!q.success) throw new HttpError(400, 'validation_error', 'sport must be boxing, goalkeeper or archery', zodDetails(q.error));
+    const sport = q.data.sport;
+    const rows = sport === SPORT ? await db(repo.leaderboard(10)) : await db(repo.leaderboard(10, sport));
+    res.json(rows.map((r) => toLeaderboardRow(r, sport)));
   });
 
   app.get('/api/player/:id/stats', async (req, res) => {
@@ -320,7 +353,14 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     });
   });
 
+  app.use(createPlusRouter({ repo, cortex, config, log }));
   app.use(createAskRouter({ repo, cortex, config, log }));
+
+  // Hosted mode: serve the built front end (../dist) from the same origin as the API and relay.
+  const staticDir = process.env.STATIC_DIR?.trim();
+  if (staticDir) {
+    app.use(express.static(path.resolve(staticDir), { maxAge: '1h', index: 'index.html' }));
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler(log));

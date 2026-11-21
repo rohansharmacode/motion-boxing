@@ -1,6 +1,6 @@
 import './hud.css'
 import type { CalibrationStatus, StartupErrorKind } from '../../pose/types.ts'
-import type { BoxingHud, PunchCounts, PunchKind, RoundResult } from './types.ts'
+import type { AttackPattern, BoxingHud, CoachCard, PunchCounts, PunchKind, RoundResult } from './types.ts'
 
 type View = 'start' | 'loading' | 'error' | 'calibrating' | 'fighting' | 'ended'
 
@@ -35,9 +35,45 @@ const ERROR_COPY: Record<StartupErrorKind, { title: string; help: string }> = {
 
 const CALIBRATION_COPY: Record<CalibrationStatus, string> = {
   'no-pose': 'Step into frame so we can see you',
-  'shoulders-hidden': 'Show both shoulders. Step back a little',
-  holding: 'Hold still. Guard up',
+  'shoulders-hidden': 'Show both shoulders. Face the camera',
+  'too-close': 'Too close! Take a big step back',
+  'hands-hidden': 'Raise both fists so we can see them',
+  holding: 'Nice! Hold your guard up',
   done: 'Locked in. Fight!',
+}
+
+const NAME_KEY = 'motion-sports.player-name'
+const NAME_MAX = 16
+const NO_CAM_CLASS = 'bx-no-cam'
+
+/** Defence hint per attack pattern, shown during the 600 ms charge. */
+const DEFENCE_COPY: Record<AttackPattern, { label: string; move: string }> = {
+  straight: { label: 'Straight incoming', move: 'Slip or duck' },
+  hook: { label: 'Hook incoming', move: 'Duck' },
+  slam: { label: 'Slam incoming', move: 'Slip' },
+}
+
+const SOURCE_TAG: Record<CoachCard['source'], string> = {
+  cortex: 'Coach AI',
+  local: 'Local coach',
+  demo: 'Demo',
+}
+
+function readName(): string {
+  try {
+    return (localStorage.getItem(NAME_KEY) ?? '').trim().slice(0, NAME_MAX)
+  } catch {
+    return ''
+  }
+}
+
+function saveName(name: string): void {
+  try {
+    if (name) localStorage.setItem(NAME_KEY, name)
+    else localStorage.removeItem(NAME_KEY)
+  } catch {
+    // Storage blocked: the name just lasts for this page.
+  }
 }
 
 const COUNT_KEYS: (PunchKind | 'landed')[] = ['jab', 'cross', 'hook', 'uppercut', 'landed']
@@ -55,6 +91,10 @@ const TEMPLATE = `
     <li><span class="bx-step-n">2</span><span>Hold your guard for 2 seconds to calibrate.</span></li>
     <li><span class="bx-step-n">3</span><span>Punch, block, slip. When the drone glows red, guard up or move.</span></li>
   </ol>
+  <label class="bx-name">
+    <span class="bx-name-label">Your name</span>
+    <input class="bx-name-input" type="text" maxlength="${NAME_MAX}" autocomplete="nickname" spellcheck="false" placeholder="Optional" />
+  </label>
   <button type="button" class="bx-btn" id="start-btn">Start camera</button>
   <div class="bx-kb-slot bx-kb-slot--start"></div>
   <p class="bx-privacy">Video stays on this device. Nothing is uploaded.</p>
@@ -82,6 +122,20 @@ const TEMPLATE = `
 <div class="bx-fight">
   <div class="bx-telegraph" aria-hidden="true"></div>
 
+  <div class="bx-warn" role="alert">
+    <p class="bx-warn-label"></p>
+    <div class="bx-warn-main">
+      <svg class="bx-warn-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="bx-ico-head" cx="32" cy="22" r="10" />
+        <path class="bx-ico-slip" d="M6 22h10M6 22l5-5M6 22l5 5M58 22H48M58 22l-5-5M58 22l-5 5" />
+        <path class="bx-ico-duck" d="M32 40v18M32 58l-6-6M32 58l6-6" />
+      </svg>
+      <span class="bx-warn-move"></span>
+    </div>
+    <p class="bx-warn-alt">or block</p>
+    <div class="bx-warn-charge"></div>
+  </div>
+
   <div class="bx-top">
     <div class="bx-timer" role="timer" aria-label="Time left">60</div>
     <div class="bx-hp bx-hp--drone">
@@ -90,6 +144,7 @@ const TEMPLATE = `
     </div>
   </div>
 
+  <div class="bx-left">
   <div class="bx-score">
     <div class="bx-score-main" aria-live="polite" aria-atomic="true">
       <span class="bx-total">0</span>
@@ -103,13 +158,15 @@ const TEMPLATE = `
       <div class="bx-sub bx-sub--landed"><span class="bx-sub-label">Landed</span><span class="bx-sub-n" data-k="landed">0</span></div>
     </div>
   </div>
+  <div class="bx-combo" aria-live="polite"><span class="bx-combo-n">2</span><span class="bx-combo-label">hit<br />combo</span></div>
+  </div>
 
   <div class="bx-badges">
     <div class="bx-guard"><span class="bx-dot"></span>Guard</div>
     <div class="bx-kbmode">
       <p class="bx-kbmode-title"><span class="bx-dot"></span>Keyboard</p>
       <p class="bx-kbmode-keys"><kbd>J</kbd> jab <kbd>K</kbd> cross <kbd>H</kbd> hook <kbd>U</kbd> upper</p>
-      <p class="bx-kbmode-keys"><kbd>Shift</kbd> guard <kbd>&larr;</kbd><kbd>&rarr;</kbd> slip <kbd>&darr;</kbd> duck</p>
+      <p class="bx-kbmode-keys"><kbd>Shift</kbd> or <kbd>&uarr;</kbd> guard <kbd>&larr;</kbd><kbd>&rarr;</kbd> slip <kbd>&darr;</kbd> duck</p>
     </div>
   </div>
 
@@ -128,12 +185,29 @@ const TEMPLATE = `
 </div>
 
 <section class="bx-panel bx-end" aria-labelledby="bx-end-title">
-  <p class="bx-kicker bx-end-kicker">Round over</p>
-  <h2 class="bx-end-title" id="bx-end-title"></h2>
-  <p class="bx-end-line"></p>
-  <dl class="bx-stats"></dl>
-  <button type="button" class="bx-btn" id="again-btn">Fight again</button>
-  <p class="bx-privacy">or press R</p>
+  <div class="bx-end-main">
+    <p class="bx-kicker bx-end-kicker">Round over</p>
+    <h2 class="bx-end-title" id="bx-end-title"></h2>
+    <p class="bx-end-line"></p>
+    <dl class="bx-stats"></dl>
+    <div class="bx-end-actions">
+      <button type="button" class="bx-btn" id="again-btn">Fight again</button>
+      <button type="button" class="bx-btn bx-btn--ghost" id="home-btn">Home</button>
+    </div>
+    <p class="bx-privacy">or press R</p>
+  </div>
+  <article class="bx-coach" aria-live="polite">
+    <div class="bx-coach-wait">
+      <span class="bx-coach-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p>Coach is reviewing your round</p>
+    </div>
+    <div class="bx-coach-card">
+      <div class="bx-coach-top"><span class="bx-coach-badge"></span><span class="bx-coach-src"></span></div>
+      <h3 class="bx-coach-headline"></h3>
+      <ol class="bx-coach-tips"><li></li><li></li><li></li></ol>
+      <p class="bx-coach-drill"><span>Drill</span><span class="bx-coach-drill-text"></span></p>
+    </div>
+  </article>
 </section>
 
 <div class="bx-debug" hidden>
@@ -157,6 +231,9 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
   const startBtn = q<HTMLButtonElement>('#start-btn')
   const retryBtn = q<HTMLButtonElement>('#retry-btn')
   const againBtn = q<HTMLButtonElement>('#again-btn')
+  const homeBtn = q<HTMLButtonElement>('#home-btn')
+  const nameInput = q<HTMLInputElement>('.bx-name-input')
+  nameInput.value = readName()
   // One keyboard button, moved between the start and error panels so the id stays unique.
   const kbBtn = document.createElement('button')
   kbBtn.type = 'button'
@@ -186,6 +263,17 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
   const guardEl = q('.bx-guard')
   const kbModeEl = q('.bx-kbmode')
   const telegraphEl = q('.bx-telegraph')
+  const warnEl = q('.bx-warn')
+  const warnLabel = q('.bx-warn-label')
+  const warnMove = q('.bx-warn-move')
+  const comboEl = q('.bx-combo')
+  const comboN = q('.bx-combo-n')
+  const coachEl = q('.bx-coach')
+  const coachBadge = q('.bx-coach-badge')
+  const coachSrc = q('.bx-coach-src')
+  const coachHeadline = q('.bx-coach-headline')
+  const coachTips = Array.from(wrap.querySelectorAll<HTMLElement>('.bx-coach-tips li'))
+  const coachDrill = q('.bx-coach-drill-text')
   const flash = q('.bx-flash')
   const flashType = q('.bx-flash-type')
   const flashMeta = q('.bx-flash-meta')
@@ -201,6 +289,7 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
   let onKbFn: (() => void) | null = null
   let onRetryFn: (() => void) | null = null
   let onAgainFn: (() => void) | null = null
+  let onHomeFn: (() => void) | null = null
 
   // Last rendered values, so per-frame setters only touch the DOM on change.
   let calibPct = -1
@@ -211,7 +300,8 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
   let droneHp = -1
   const shownCounts: Record<string, number> = { total: -1 }
   let guardOn = false
-  let telegraphOn = false
+  let telegraph: AttackPattern | null = null
+  let combo = 0
   let kbOn = false
   let debugVisible = false
   let lastDebugAt = -Infinity
@@ -242,8 +332,23 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
   })
   once(againBtn, () => {
     const fn = onAgainFn
-    onAgainFn = null
+    onAgainFn = onHomeFn = null
     return fn
+  })
+  once(homeBtn, () => {
+    const fn = onHomeFn
+    onAgainFn = onHomeFn = null
+    return fn
+  })
+
+  // Typing a name must not punch, toggle debug or move shell tiles. Escape still reaches the shell.
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') e.stopPropagation()
+    if (e.key === 'Enter') nameInput.blur()
+  })
+  nameInput.addEventListener('input', () => saveName(nameInput.value.trim()))
+  nameInput.addEventListener('change', () => {
+    nameInput.value = nameInput.value.trim()
   })
 
   function setView(view: View): void {
@@ -321,6 +426,8 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
     },
 
     showFight() {
+      // A new round: the next round end starts from the coach's waiting state.
+      coachEl.classList.remove('bx-coach--ready')
       setView('fighting')
     },
 
@@ -388,10 +495,29 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
       guardEl.classList.toggle('bx-guard--on', on)
     },
 
-    setTelegraph(on) {
-      if (on === telegraphOn) return
-      telegraphOn = on
-      telegraphEl.classList.toggle('bx-telegraph--on', on)
+    setTelegraph(pattern) {
+      if (pattern === telegraph) return
+      telegraph = pattern
+      telegraphEl.classList.toggle('bx-telegraph--on', pattern !== null)
+      if (pattern) {
+        const copy = DEFENCE_COPY[pattern]
+        warnLabel.textContent = copy.label
+        warnMove.textContent = copy.move
+        warnEl.dataset.pattern = pattern
+      }
+      // Removing then re-adding the class restarts the pop and charge animations.
+      warnEl.classList.remove('bx-warn--on')
+      if (pattern) replay(warnEl, 'bx-warn--on')
+    },
+
+    setCombo(count) {
+      if (count === combo) return
+      const up = count > combo
+      combo = count
+      const on = count >= 2
+      if (on) comboN.textContent = String(count)
+      comboEl.classList.toggle('bx-combo--on', on)
+      if (on && up) replay(comboEl, 'bx-combo--pop')
     },
 
     setKeyboardMode(on) {
@@ -400,7 +526,7 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
       kbModeEl.classList.toggle('bx-kbmode--on', on)
     },
 
-    showRoundEnd(result: RoundResult, onAgain) {
+    showRoundEnd(result: RoundResult, onAgain, onHome) {
       const { outcome, counts } = result
       endKicker.textContent = outcome === 'time' ? 'Final bell' : 'Knockout'
       endTitle.textContent = outcome === 'ko-win' ? 'KO!' : outcome === 'ko-loss' ? 'Down!' : 'Time'
@@ -419,11 +545,44 @@ export function createBoxingHud(root: HTMLElement): BoxingHud {
       stat('Blocks', String(result.blocks))
       stat('Dodges', String(result.dodges))
       stat('Hits taken', String(result.hitsTaken))
+      stat('Best combo', String(result.maxCombo))
 
       onAgainFn = onAgain
+      onHomeFn = onHome
       againBtn.disabled = false
+      homeBtn.disabled = false
+      homeBtn.hidden = onHome === null
       setView('ended')
       againBtn.focus({ preventScroll: true })
+    },
+
+    setCoachCard(card) {
+      coachEl.classList.toggle('bx-coach--ready', card !== null)
+      if (!card) return
+      coachBadge.textContent = card.badge
+      coachSrc.textContent = SOURCE_TAG[card.source]
+      coachEl.dataset.source = card.source
+      coachHeadline.textContent = card.headline
+      card.tips.forEach((tip, i) => {
+        const li = coachTips[i]
+        if (li) li.textContent = tip
+      })
+      coachDrill.textContent = card.drill
+    },
+
+    setCameraActive(on) {
+      document.body.classList.toggle(NO_CAM_CLASS, !on)
+    },
+
+    get playerName() {
+      return nameInput.value.trim().slice(0, NAME_MAX)
+    },
+
+    dispose() {
+      onStartFn = onKbFn = onRetryFn = onAgainFn = onHomeFn = null
+      document.body.classList.remove(NO_CAM_CLASS)
+      // Every listener lives on an element inside wrap, so removing it drops them all.
+      wrap.remove()
     },
 
     setDebug(values) {

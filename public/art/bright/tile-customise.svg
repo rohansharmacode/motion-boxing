@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Customise your fighter tile artwork">
+  <defs>
+    <linearGradient id="cu-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaf6ff"/>
+      <stop offset="1" stop-color="#d6ecfb"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#cu-bg)"/>
+  <g fill="none" stroke="#2f9bff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="320" cy="120" r="42"/>
+    <path d="M240 340v-80c0-44 36-74 80-74s80 30 80 74v80"/>
+  </g>
+  <g>
+    <rect x="200" y="300" width="56" height="40" rx="14" fill="#22e5ff"/>
+    <rect x="384" y="300" width="56" height="40" rx="14" fill="#ff5a6e"/>
+  </g>
+  <g>
+    <circle cx="500" cy="110" r="18" fill="#22e5ff"/>
+    <circle cx="500" cy="170" r="18" fill="#ff5a6e"/>
+    <circle cx="500" cy="230" r="18" fill="#ffd23c"/>
+    <circle cx="500" cy="290" r="18" fill="#a98bff"/>
+  </g>
+</svg>

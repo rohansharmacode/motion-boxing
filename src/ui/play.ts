@@ -92,7 +92,7 @@ function again(): void {
 
 engine.onRoundEnd((result) => {
   setState('ended')
-  hud.showRoundEnd(result, again)
+  hud.showRoundEnd(result, again, null)
 })
 
 function onFrame(frame: PoseFrame | null): void {

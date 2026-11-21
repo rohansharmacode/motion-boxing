@@ -1,0 +1,72 @@
+/* Hand cursor: a dot inside a ring that fills while you hold still. Flat, no glow. */
+.hn-cursor {
+  --dwell: 0;
+  --hn-accent: #22e5ff;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2147483000;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s linear, transform 0.06s linear;
+  will-change: transform;
+}
+.hn-cursor--on { opacity: 1; }
+.hn-cursor svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.hn-cursor circle { fill: none; stroke-width: 6; }
+.hn-track { stroke: rgba(255, 255, 255, 0.35); }
+.hn-fill {
+  stroke: var(--hn-accent);
+  stroke-linecap: round;
+  stroke-dasharray: calc(var(--dwell) * 100) 100;
+}
+.hn-cursor:not(.hn-cursor--busy) .hn-track { stroke: rgba(255, 255, 255, 0.2); }
+.hn-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+/* The target under the hand: one plain outline, the ring on the cursor shows progress. */
+.hn-target {
+  outline: 3px solid var(--hn-accent, #22e5ff) !important;
+  outline-offset: 4px;
+}
+.hn-picked { outline-color: #fff !important; }
+
+.hn-hint {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2147482999;
+  transform: translateY(8px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(11, 16, 38, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e8ecf8;
+  font: 500 14px/1.2 var(--font-body, 'Outfit', system-ui, sans-serif);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s linear, transform 0.2s ease-out;
+}
+.hn-hint--on { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hn-cursor, .hn-hint { transition: opacity 0.15s linear; }
+}

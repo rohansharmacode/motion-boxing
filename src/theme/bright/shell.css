@@ -1,0 +1,105 @@
+/* Bright skin for the shell overlays (launch card, home button, toast, hand cursor).
+   The channel-grid layout itself lives in src/shell/channels.css. */
+/* ---------- launch card ---------- */
+
+:root[data-theme='bright'] .shell-launch-card {
+  gap: 10px;
+  padding: 36px 56px 40px;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  background: var(--ch-window);
+  box-shadow: 0 0 0 1px var(--ch-ring), 0 24px 48px rgba(15, 34, 52, 0.16);
+}
+
+:root[data-theme='bright'] .shell-launch-icon {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  color: var(--ch-accent);
+  background: #fff;
+  box-shadow: 0 0 0 4px var(--ch-ring);
+  filter: none;
+}
+
+:root[data-theme='bright'] .shell-launch-icon svg { width: 60%; height: 60%; }
+
+:root[data-theme='bright'] .shell-launch-title {
+  font-family: var(--ch-display);
+  font-weight: 400;
+  font-size: clamp(64px, 10vw, 128px);
+  letter-spacing: 0.02em;
+  line-height: 0.85;
+  color: var(--ch-ink);
+}
+
+:root[data-theme='bright'] .shell-launch-bar {
+  width: 280px;
+  height: 14px;
+  border-radius: 999px;
+  background: #e3e8ee;
+}
+
+:root[data-theme='bright'] .shell-launch-bar span {
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.35) 0 7px, transparent 7px 14px),
+    var(--ch-accent);
+}
+
+/* ---------- home button, toast, hand cursor ---------- */
+
+:root[data-theme='bright'] .shell-home {
+  padding: 10px 22px;
+  font: 800 15px var(--ch-body);
+  color: var(--ch-ink);
+  background: #fff;
+  border: 0;
+  box-shadow: 0 0 0 1px var(--ch-ring), var(--ch-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  opacity: 0.94;
+}
+
+:root[data-theme='bright'] .shell-home:hover,
+:root[data-theme='bright'] .shell-home:focus-visible { opacity: 1; background: #fff; }
+
+:root[data-theme='bright'] .shell-toast {
+  z-index: 4;
+  bottom: calc(var(--bar-h) + 12px);
+  font: 700 16px var(--ch-body);
+  color: var(--ch-ink);
+  background: #fff;
+  border: 0;
+  box-shadow: 0 0 0 1px var(--ch-ring), var(--ch-shadow);
+}
+
+:root[data-theme='bright'] .shell-cursor {
+  z-index: 5;
+  top: -34px;
+  left: -34px;
+  width: 68px;
+  height: 68px;
+  background: none;
+  mask: none;
+  -webkit-mask: none;
+  filter: none;
+}
+
+:root[data-theme='bright'] .shell-cursor::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--ch-accent) calc(var(--dwell) * 1turn), #bfe0ff 0);
+  mask: radial-gradient(circle, transparent 24px, #000 25px);
+  -webkit-mask: radial-gradient(circle, transparent 24px, #000 25px);
+}
+
+:root[data-theme='bright'] .shell-cursor span {
+  inset: 9px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 34, 52, 0.25);
+}
+

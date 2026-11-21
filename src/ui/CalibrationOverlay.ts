@@ -8,10 +8,10 @@
 //   cal.destroy();                       // remove immediately (same as cancel())
 
 import type { Sport } from '../api/types';
-import { el, ensurePositioned, html, leave, prefersReducedMotion, wait } from './dom';
+import { artImg, el, ensurePositioned, html, leave, prefersReducedMotion, wait } from './dom';
 
 export type CalibrationState = 'searching' | 'holding' | 'locked';
-export type CalibrationWarning = 'too_dark' | 'too_close' | 'no_person';
+export type CalibrationWarning = 'too_dark' | 'too_close' | 'no_person' | 'hands_hidden' | 'shoulders_hidden';
 
 export interface CalibrationOverlayOptions {
   sport?: Sport;
@@ -44,6 +44,14 @@ const WARNINGS: Record<CalibrationWarning, { text: string; icon: string }> = {
   too_close: {
     text: 'Too close — step back',
     icon: `<svg ${ICON_ATTRS}><circle cx="8" cy="5.5" r="2.5"/><path d="M4 21v-6a4 4 0 0 1 8 0v6"/><path d="M15 12h7M19 9l3 3-3 3"/></svg>`,
+  },
+  hands_hidden: {
+    text: 'Raise both fists so we can see them',
+    icon: `<svg ${ICON_ATTRS}><path d="M7 21v-8l-2-3V6a2 2 0 0 1 4 0v3M17 21v-8l2-3V6a2 2 0 0 0-4 0v3"/><path d="M12 3v3M10.5 4.5 12 3l1.5 1.5"/></svg>`,
+  },
+  shoulders_hidden: {
+    text: 'Show both shoulders — face the camera',
+    icon: `<svg ${ICON_ATTRS}><circle cx="12" cy="6.5" r="3"/><path d="M4 21v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3"/></svg>`,
   },
   no_person: {
     text: 'No one in frame',
@@ -102,9 +110,14 @@ export class CalibrationOverlay {
     this.ring = svg.querySelector<SVGCircleElement>('.kr-calib-ring')!;
     this.warnBox = el('div', { class: 'kr-calib-warn', role: 'alert', hidden: '' }, this.warnIcon, this.warnText);
 
+    // Full-frame stance guide over the (mirrored) webcam. The overlay is inset:0 like the video, so
+    // object-fit:contain keeps the whole 4:3 guide visible. Falls back to the inline line art if it fails.
+    const guide = artImg('calibration-silhouette.svg', 'kr-calib-art', () => this.element.classList.remove('kr-calib-has-art'));
+
     this.element = el(
       'section',
-      { class: 'kr-screen kr-calib kr-calib2', 'data-state': 'searching', 'aria-live': 'polite' },
+      { class: 'kr-screen kr-calib kr-calib2 kr-calib-has-art', 'data-state': 'searching', 'aria-live': 'polite' },
+      guide,
       el(
         'div',
         { class: 'kr-calib-top' },

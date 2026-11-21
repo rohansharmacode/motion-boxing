@@ -9,9 +9,11 @@ import { GOAL_HALF_WIDTH, GOAL_HEIGHT } from './physics.ts'
 /** Gloves and torso live on the goal plane. */
 export const KEEPER_Z = 0
 
-const REACH_X_MIN = -1.4
-const REACH_X_MAX = 1.4
-const REACH_Y_TOP = -1.1 // body y at the top of the goal
+// Reach box in body space. Kept a little inside a full arm span so a comfortable reach (not a full lunge)
+// covers the corners; players at a laptop rarely have room to dive.
+const REACH_X_MIN = -1.25
+const REACH_X_MAX = 1.25
+const REACH_Y_TOP = -1.0 // body y at the top of the goal
 const REACH_Y_BOTTOM = 0.5 // body y at the lowest reach
 const WORLD_Y_TOP = GOAL_HEIGHT
 const WORLD_Y_BOTTOM = 0.2
@@ -96,13 +98,32 @@ export function keeperPoseFromBody(body: BodyFrame): KeeperPose | null {
 
 /** Mouse fallback: gloves gather around a goal-plane point. */
 export function pointerPose(target: { x: number; y: number }): KeeperPose {
-  const topY = Math.max(target.y - 0.2, 0.9)
-  const tx = target.x * 0.6
-  return {
-    left: { x: target.x - 0.3, y: target.y, z: KEEPER_Z },
-    right: { x: target.x + 0.3, y: target.y, z: KEEPER_Z },
-    torsoTop: { x: tx, y: topY, z: KEEPER_Z },
-    torsoBottom: { x: tx, y: Math.max(0.15, topY - 0.75), z: KEEPER_Z },
+  const pose: KeeperPose = {
+    left: { x: 0, y: 0, z: 0 },
+    right: { x: 0, y: 0, z: 0 },
+    torsoTop: { x: 0, y: 0, z: 0 },
+    torsoBottom: { x: 0, y: 0, z: 0 },
     tracked: false,
   }
+  return pointerPoseInto(pose, target)
+}
+
+/** pointerPose without allocating: writes into dst (used every frame in mouse/keyboard mode). */
+export function pointerPoseInto(dst: KeeperPose, target: { x: number; y: number }): KeeperPose {
+  const topY = Math.max(target.y - 0.2, 0.9)
+  const tx = target.x * 0.6
+  dst.left.x = target.x - 0.3
+  dst.left.y = target.y
+  dst.left.z = KEEPER_Z
+  dst.right.x = target.x + 0.3
+  dst.right.y = target.y
+  dst.right.z = KEEPER_Z
+  dst.torsoTop.x = tx
+  dst.torsoTop.y = topY
+  dst.torsoTop.z = KEEPER_Z
+  dst.torsoBottom.x = tx
+  dst.torsoBottom.y = Math.max(0.15, topY - 0.75)
+  dst.torsoBottom.z = KEEPER_Z
+  dst.tracked = false
+  return dst
 }

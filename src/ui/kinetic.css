@@ -85,3 +85,28 @@
   font: 12px/1.4 ui-monospace, Menlo, monospace;
   pointer-events: none;
 }
+
+/* Loading splash art (public/art/splash-loading.svg, 640x360). */
+.kr-k-splash { display: block; width: min(560px, 80vw, 56vh * 16 / 9); height: auto; aspect-ratio: 16 / 9; pointer-events: none; user-select: none; }
+
+/* ---------- playtest fixes: keep the shell's Home pill, the webcam preview and the HUD apart ---------- */
+/* The Home pill sits top centre (16px to about 58px): drop the round timer below it. */
+.kr-big .kr-timer { margin-top: 48px; }
+.kr-big .kr-hud-mode { top: calc(2vh + 48px + clamp(56px, 7.5vw, 140px) + clamp(14px, 1.2vw, 22px) + 4vh); }
+/* Webcam preview above the punch speed card instead of underneath it. */
+body[data-state='fighting']:has(.kr-bhud) #stage {
+  bottom: calc(5vh + 8.6vw + 50px);
+  right: 2vw;
+  width: clamp(150px, 16vw, 250px);
+}
+/* End screen: its own Home button replaces the pill, the card clears the top, and Rematch / Home stay on screen. */
+body[data-state='ended'] .shell[data-view='game'] .shell-home { display: none; }
+.kr-kinetic .kr-post-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 14px 0 max(2vh, 14px);
+  margin-top: 4px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.82) 45%);
+}
+:root:not([data-theme='bright']) .kr-kinetic .kr-post-actions { background: linear-gradient(180deg, transparent, rgba(8, 10, 20, 0.86) 45%); }

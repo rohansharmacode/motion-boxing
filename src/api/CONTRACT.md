@@ -162,3 +162,17 @@ getApiStatus();                                    // { mode: 'live' | 'mock' | 
 ```
 
 None of these promises reject. `createSession({ displayName, sport })` (sync, local ids) still works.
+
+## Goalkeeper: optional fields (added with difficulty and save grades)
+
+These are all optional and only add to what was already sent, so older servers can ignore them. They ride in `metrics` (stored in `payload`).
+
+| Event | Field | Values |
+| --- | --- | --- |
+| `SAVE` / `GOAL` | `difficulty` | `easy` \| `normal` \| `hard` |
+| `SAVE` / `GOAL` | `saveGrade` | `perfect` \| `good` \| `fingertip` \| `miss`, or `null` for a wide shot |
+| `SAVE` / `GOAL` | `combo`, `points`, `rampStep` | integers. `points` = grade × combo multiplier + punch bonus. The adapter already sums `metrics.points`, so the leaderboard matches the end screen |
+| `SAVE` / `GOAL` | `shot`, `fake` | `straight` \| `curl` \| `dip` \| `skimmer` \| `topCorner`, and a boolean |
+| summary `TICK` | `difficulty`, `grade`, `bestCombo`, `perfects` | `grade` is `S` \| `A` \| `B` \| `C` |
+
+The guided practice (3 slow shots) sends no `SAVE`/`GOAL` events and no summary.

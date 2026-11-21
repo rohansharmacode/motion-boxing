@@ -48,7 +48,7 @@ const STRIKER_PLANT_Z = PENALTY_Z - 0.35
 const HIP_Y = 0.92
 
 // ---------- pools ----------
-const SPARK_N = 140
+const SPARK_N = 48
 const RING_N = 6
 const TRAIL_N = 30
 
@@ -602,7 +602,6 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   const thumbGeo = new THREE.SphereGeometry(GLOVE_VISUAL * 0.38, 12, 8)
   const cuffGeo = new THREE.CylinderGeometry(GLOVE_VISUAL * 0.55, GLOVE_VISUAL * 0.62, GLOVE_VISUAL * 0.6, 14)
   const haloGeo = new THREE.RingGeometry(GLOVE_RADIUS - 0.022, GLOVE_RADIUS, 48)
-  const haloFillGeo = new THREE.CircleGeometry(GLOVE_RADIUS, 40)
   const cuffMat = new THREE.MeshStandardMaterial({ color: 0xe8ecff, emissive: 0x4a4f66, roughness: 0.5 })
   const makeGlove = (color: number, side: -1 | 1): GloveRig => {
     const group = new THREE.Group()
@@ -629,12 +628,6 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     const halo = new THREE.Mesh(haloGeo, haloMat)
     halo.renderOrder = 4
     group.add(halo)
-    const fill = new THREE.Mesh(
-      haloFillGeo,
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    fill.renderOrder = 4
-    group.add(fill)
     const start = side < 0 ? READY_LEFT : READY_RIGHT
     group.position.copy(start)
     scene.add(group)
@@ -778,6 +771,53 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   botRoot.position.set(STRIKER_START_X, 0, STRIKER_START_Z)
   botRoot.scale.setScalar(1.12)
   scene.add(botRoot)
+
+  // ---------- wind-up arrow (0.6 s telegraph) ----------
+  // Solid, opaque arrow on the grass in front of the ball, pointing where the shot goes. Colour by
+  // shot: amber = straight/curl, cyan = low skimmer, magenta = high (top corner / dip). It swings to
+  // the real side mid wind-up on a fake.
+  const arrowShape = new THREE.Shape()
+  arrowShape.moveTo(-0.2, 0)
+  arrowShape.lineTo(0.2, 0)
+  arrowShape.lineTo(0.2, 1.25)
+  arrowShape.lineTo(0.55, 1.25)
+  arrowShape.lineTo(0, 2.05)
+  arrowShape.lineTo(-0.55, 1.25)
+  arrowShape.lineTo(-0.2, 1.25)
+  arrowShape.closePath()
+  const arrowMat = new THREE.MeshBasicMaterial({ color: AMBER, side: THREE.DoubleSide, fog: false })
+  const arrowMesh = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), arrowMat)
+  arrowMesh.rotation.x = Math.PI / 2 // shape +y -> world +z (toward the goal)
+  const arrowRoot = new THREE.Group()
+  // Mid-pitch, so it shows below the keeper's gloves from the camera behind the goal.
+  arrowRoot.position.set(0, 0.03, -5.2)
+  arrowRoot.add(arrowMesh)
+  arrowRoot.visible = false
+  arrowRoot.renderOrder = 2
+  scene.add(arrowRoot)
+  const ARROW_YAW = 0.42
+  // Reused by screenToGoal (called every frame in mouse mode).
+  const goalRay = new THREE.Vector3()
+  const goalOut = { x: 0, y: 0 }
+  const ARROW_HIGH = 0xff3fd0
+  const ARROW_LOW = 0x22e6ff
+  let arrowColor = AMBER
+  function updateArrow(phase: StrikerPhase, p: number, tell: StrikerTell): void {
+    if (phase !== 'telegraph') {
+      arrowRoot.visible = false
+      return
+    }
+    arrowRoot.visible = true
+    const grow = smooth(Math.min(1, p / 0.25))
+    const len = (tell.high ? 1.35 : 1.05) * grow
+    arrowRoot.scale.set(1.5 * (0.6 + 0.4 * grow), 1, 1.5 * len)
+    arrowRoot.rotation.y = tell.side * ARROW_YAW
+    const color = tell.kind === 'skimmer' ? ARROW_LOW : tell.high ? ARROW_HIGH : AMBER
+    if (color !== arrowColor) {
+      arrowColor = color
+      arrowMat.color.setHex(color)
+    }
+  }
 
   // striker animation state
   let sPhase: StrikerPhase = 'idle'
@@ -1171,6 +1211,13 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       fitCamera(w / h)
     },
 
+    setQuality(level: 'high' | 'low'): void {
+      // Low quality renders at 1 device pixel per CSS pixel: the biggest GPU saving on high-DPI laptops.
+      renderer.setPixelRatio(level === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : 1)
+      const size = renderer.getSize(new THREE.Vector2())
+      renderer.setSize(size.x, size.y, false)
+    },
+
     setKeeper(pose: KeeperPose | null): void {
       if (pose) {
         keeperPresent = true
@@ -1206,14 +1253,15 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       sProgress = clamp(Number.isFinite(progress) ? progress : 0, 0, 1)
       sTell.side = tell.side
       sTell.high = tell.high
+      updateArrow(phase, sProgress, tell)
     },
 
     flashSave(point: Vec3, part: KeeperPart, strength: number): void {
       const s = clamp(strength, 0, 1)
       const color = part === 'left' ? CYAN : part === 'right' ? MAGENTA : SAVE_GREEN
-      spawnSparks(point, Math.round(22 + 40 * s), color, 3 + 5 * s)
+      // Few particles: a short burst plus one ring.
+      spawnSparks(point, Math.round(10 + 22 * s), color, 3 + 5 * s)
       spawnRing(point, color, 0.7 + 0.7 * s, 0.45)
-      spawnRing(point, 0xffffff, 0.35 + 0.3 * s, 0.3)
       if (part === 'left') gloveL.glow = 1
       else if (part === 'right') gloveR.glow = 1
       else torsoGlow = 1
@@ -1227,7 +1275,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       ripple.y = clamp(point.y, 0, GOAL_HEIGHT)
       frameFlash = 1
       const behind = { x: ripple.x, y: ripple.y, z: GOAL_Z + 0.9 }
-      spawnSparks(behind, 34, RED, 3.5)
+      spawnSparks(behind, 18, RED, 3.5)
       spawnRing({ x: ripple.x, y: ripple.y, z: GOAL_Z }, RED, 1.3, 0.6)
       api.shake(0.55)
     },
@@ -1253,7 +1301,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
 
     screenToGoal(ndcX: number, ndcY: number): { x: number; y: number } {
       const origin = camera.position
-      const dir = new THREE.Vector3(clamp(ndcX, -1, 1), clamp(ndcY, -1, 1), 0.5).unproject(camera).sub(origin)
+      const dir = goalRay.set(clamp(ndcX, -1, 1), clamp(ndcY, -1, 1), 0.5).unproject(camera).sub(origin)
       let x = 0
       let y = 1.2
       if (Math.abs(dir.z) > 1e-6) {
@@ -1263,7 +1311,9 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
           y = origin.y + dir.y * t
         }
       }
-      return { x: clamp(x, -4.5, 4.5), y: clamp(y, 0, 3.2) }
+      goalOut.x = clamp(x, -4.5, 4.5)
+      goalOut.y = clamp(y, 0, 3.2)
+      return goalOut
     },
 
     reset(): void {

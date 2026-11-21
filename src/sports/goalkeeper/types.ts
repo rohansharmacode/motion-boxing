@@ -10,6 +10,9 @@
 // ZONES: 9-zone grid, index = row * 3 + col. row 0 = top, row 2 = bottom. col 0 = screen left (-x), col 2 = screen right.
 
 import type { BodyFrame, Calibration, CalibrationStatus } from '../../pose/types.ts'
+import type { Difficulty } from './difficulty.ts'
+import type { ShotType } from './shots.ts'
+import type { ResultGrade, SaveGrade } from './grading.ts'
 
 export type { BodyFrame, Calibration, CalibrationStatus }
 
@@ -67,6 +70,8 @@ export type StrikerPhase = 'idle' | 'runup' | 'telegraph' | 'kick' | 'recover'
 export interface StrikerTell {
   side: -1 | 0 | 1
   high: boolean
+  /** Shot type, colours the wind-up arrow. */
+  kind?: ShotType
 }
 
 /** One planned kick, chosen by striker.ts. */
@@ -100,10 +105,12 @@ export interface KeeperScene {
   highlightZone(zone: Zone | null, tone: 'save' | 'goal' | 'info'): void
   /** Camera shake, 0..1. */
   shake(intensity: number): void
-  /** Mouse fallback: normalised device coords (-1..1, y up) to a point on the goal plane z = 0. */
+  /** Mouse fallback: normalised device coords (-1..1, y up) to a point on the goal plane z = 0. Returns a reused object: copy it. */
   screenToGoal(ndcX: number, ndcY: number): { x: number; y: number }
   /** Clear effects and reset the striker for a new shootout. */
   reset(): void
+  /** Automatic quality: 'low' renders at pixel ratio 1. */
+  setQuality(level: 'high' | 'low'): void
   /** Advance animations by real elapsed ms. */
   update(dtMs: number): void
   render(): void
@@ -139,6 +146,19 @@ export interface KickResult {
   /** True when glove speed toward the ball was high enough for a punch clearance. */
   punch: boolean
   ballSpeed: number
+  /** Level the kick was taken at. */
+  difficulty?: Difficulty
+  /** Auto-ramp step (0 = base speed) the kick was taken at. */
+  rampStep?: number
+  shot?: ShotType
+  /** True when the wind-up arrow feinted to the other side first. */
+  fake?: boolean
+  /** Save quality; null for a wide shot with no contact. */
+  grade?: SaveGrade | null
+  /** Combo count after this kick. */
+  combo?: number
+  /** Points this kick earned (grade x combo multiplier + punch bonus). */
+  points?: number
 }
 
 export interface ShootoutResult {
@@ -150,6 +170,15 @@ export interface ShootoutResult {
   bestPeakVelocity: number
   /** Arcade score: saves * 1000 + bonuses (fast reaction, punch clearance). */
   score: number
+  difficulty?: Difficulty
+  /** S / A / B / C. */
+  grade?: ResultGrade
+  bestCombo?: number
+  /** 0..100. */
+  savePct?: number
+  perfects?: number
+  /** True when this was the guided practice, not a scored shootout. */
+  practice?: boolean
 }
 
 export type KeeperPhase = 'idle' | 'playing' | 'ended'
@@ -159,8 +188,13 @@ export interface KeeperEngine extends SportEngine<KeeperScene> {
   /** Kicks taken so far this shootout (0..KICKS_PER_SHOOTOUT). */
   readonly kickIndex: number
   readonly results: readonly KickResult[]
-  /** Start a 5-kick shootout. */
-  startShootout(): void
+  /** Start a 5-kick shootout, or with practice: true the 3 slow guided practice shots (no telemetry). */
+  startShootout(opts?: { practice?: boolean }): void
+  /** True while the guided practice runs. */
+  readonly practice: boolean
+  /** Level for the next shootout (and the rest of the current one). */
+  setDifficulty(level: Difficulty): void
+  readonly difficulty: Difficulty
   /** Mouse fallback. A goal-plane point both gloves gather around; overrides pose while non-null. */
   setPointer(target: { x: number; y: number } | null): void
   onKickResult(cb: (r: KickResult) => void): void
@@ -238,7 +272,15 @@ export interface KeeperHud {
   setScoreboard(results: readonly KickResult[], total: number): void
   /** Short callout such as SAVED!, GOAL, PUNCHED CLEAR, GET READY. */
   callout(text: string, tone: 'good' | 'bad' | 'info'): void
+  /** "Practice first (20 s)" toggle on the start screen. onChange fires when the player flips it. */
+  setPracticeChoice(on: boolean, onChange: (on: boolean) => void): void
+  /** One practice prompt line at the bottom with a Skip button. null hides it. */
+  setPractice(prompt: string | null, onSkip?: () => void): void
+  /** Grade popup (PERFECT! / GOOD SAVE / FINGERTIP! / MISSED) with combo and points. */
+  gradePopup(grade: SaveGrade, combo: number, points: number): void
   setInputMode(mode: InputMode): void
+  /** Easy / Normal / Hard picker on the start and end screens. onChange fires on a new pick. */
+  setDifficulty(level: Difficulty, onChange: (level: Difficulty) => void): void
   /** Faint edge pulse while the striker telegraphs (the 0.5 s stance tell). */
   setTelegraph(on: boolean): void
   showEnd(result: ShootoutResult, onAgain: () => void): void

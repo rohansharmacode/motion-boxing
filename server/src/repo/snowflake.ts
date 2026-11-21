@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto';
+import { drillSearchSql, parseSearchResponse, type DrillSearchOptions, type DrillSearchResult } from '../drills';
 import type { Logger } from '../logger';
 import { emptyMix, roundStats } from '../metrics';
 import type { Bind, Row, SqlExecutor } from '../snowflake/executor';
 import {
   EVENT_TYPES,
   type Benchmark,
+  type FeatureProbe,
+  type Highlight,
+  type HighlightsFeed,
+  type PlayerProgress,
+  type PlayerStyle,
+  type ProgressPoint,
+  type RepoFeatureProbes,
   type LeaderboardRow,
   type MotionEvent,
   type Player,
@@ -15,7 +23,7 @@ import {
   type SessionSummary,
   type StoredCoach,
 } from '../types';
-import { errorMessage, num, round, toNtzString } from '../util';
+import { TimeoutError, errorMessage, num, round, toNtzString, withTimeout } from '../util';
 import type { Repo } from './types';
 
 // All TIMESTAMP_NTZ values are stored in UTC; read them back as ISO-8601 with a Z.
@@ -191,6 +199,48 @@ export const SQL = {
     ORDER BY rank LIMIT ${limit}`;
   },
 
+  /** Goalkeeper/archery leaderboard from V_LEADERBOARD_BY_SPORT (sql/multisport.sql). Bind: sport. */
+  sportLeaderboardFromView(limit: number): string {
+    return `
+    SELECT rank, player_id, name, score, best_score, max_speed, best_reaction_ms
+    FROM V_LEADERBOARD_BY_SPORT WHERE sport = ? ORDER BY rank LIMIT ${limit}`;
+  },
+
+  /** Same logic as V_LEADERBOARD_BY_SPORT for one sport, used if the view is missing. Bind: sport. */
+  sportLeaderboardInline(limit: number): string {
+    return `
+    WITH ev AS (
+      SELECT session_id, player_id, speed_mps, reaction_ms, COALESCE(points, 0) AS points
+      FROM MOTION_EVENTS
+      WHERE player_id IS NOT NULL AND LOWER(COALESCE(sport, 'boxing')) = ?
+    ),
+    s AS (SELECT player_id, session_id, SUM(points) AS score FROM ev GROUP BY player_id, session_id),
+    e AS (
+      SELECT player_id,
+             MAX(CASE WHEN speed_mps > 0 THEN speed_mps END) AS max_speed,
+             MIN(CASE WHEN reaction_ms > 0 THEN reaction_ms END) AS best_reaction_ms
+      FROM ev GROUP BY player_id
+    ),
+    p AS (
+      SELECT s.player_id, MAX(s.score) AS best_score, MAX(e.max_speed) AS max_speed,
+             MIN(e.best_reaction_ms) AS best_reaction_ms
+      FROM s JOIN e ON e.player_id = s.player_id GROUP BY s.player_id
+    )
+    SELECT ROW_NUMBER() OVER (ORDER BY p.best_score DESC NULLS LAST, p.max_speed DESC NULLS LAST,
+                              p.best_reaction_ms ASC NULLS LAST, p.player_id) AS rank,
+           p.player_id, COALESCE(n.name, 'Unknown') AS name, p.best_score AS score, p.best_score,
+           ROUND(p.max_speed, 2) AS max_speed, ROUND(p.best_reaction_ms, 1) AS best_reaction_ms
+    FROM p LEFT JOIN (SELECT player_id, MAX(name) AS name FROM PLAYERS GROUP BY player_id) n
+      ON n.player_id = p.player_id
+    ORDER BY rank LIMIT ${limit}`;
+  },
+
+  sessionEvents: `
+    SELECT event_id, session_id, player_id, sport, TO_VARCHAR(event_ts, ${TS}) AS event_ts, event_type, hand,
+           speed_mps, accuracy, reaction_ms, guard_up, points, payload
+    FROM MOTION_EVENTS WHERE session_id = ?
+    ORDER BY event_ts, event_id LIMIT 1000`,
+
   playerSessions(limit: number): string {
     return `
     SELECT session_id,
@@ -198,7 +248,7 @@ export const SQL = {
            TO_VARCHAR(ended_at, ${TS})   AS ended_at,
            score, total_punches, avg_speed, max_speed, avg_reaction_ms, best_reaction_ms, accuracy,
            ai_coach_json:badge::STRING AS badge
-    FROM SESSIONS WHERE player_id = ?
+    FROM SESSIONS WHERE player_id = ? AND LOWER(COALESCE(sport, 'boxing')) = 'boxing'
     ORDER BY started_at DESC NULLS LAST LIMIT ${limit}`;
   },
 
@@ -254,6 +304,57 @@ export const SQL = {
     SELECT sport, metric, p25, p50, p75, p90, pro_avg, higher_is_better
     FROM PRO_BENCHMARKS WHERE sport = ?`,
 
+  // --- Snowflake Plus objects (sql/pipelines.sql, sql/cortex.sql). Binds: player id. ---
+  playerStyle: `
+    SELECT player_id, name, c_speed, c_reaction, c_accuracy, c_guard, c_symmetry, c_endurance, pro_similarity_pct
+    FROM V_PLAYER_STYLE WHERE player_id = ? LIMIT 1`,
+
+  styleTwin: `
+    SELECT twin_player_id, twin_name, similarity_pct
+    FROM V_STYLE_TWINS WHERE player_id = ? LIMIT 1`,
+
+  scouting: `
+    SELECT fighting_style, scouting_report, TO_VARCHAR(updated_at, ${TS}) AS updated_at
+    FROM PLAYER_SCOUTING WHERE player_id = ? LIMIT 1`,
+
+  playerProgress: `
+    SELECT sessions, best_score, last_score, speed_trend_mps_per_session, score_trend_per_session,
+           accuracy_trend_pct_per_session, reaction_trend_ms_per_session, improving
+    FROM PLAYER_PROGRESS WHERE player_id = ? LIMIT 1`,
+
+  /** Latest `limit` sessions, returned oldest first. */
+  progressHistory(limit: number): string {
+    return `
+    SELECT session_index, session_id, score, avg_speed, accuracy_pct FROM (
+      SELECT session_index, session_id, score, avg_speed, accuracy_pct
+      FROM SESSION_SUMMARY WHERE player_id = ?
+      ORDER BY session_index DESC LIMIT ${limit}
+    ) h ORDER BY session_index`;
+  },
+
+  highlights(limit: number): string {
+    return `
+    SELECT highlight_id, TO_VARCHAR(created_at, ${TS}) AS created_at, kind, player_id, name, session_id, value, unit, message
+    FROM V_HIGHLIGHTS_FEED ORDER BY created_at DESC, highlight_id DESC LIMIT ${limit}`;
+  },
+
+  dynamicTableHistory: `
+    SELECT name, state, TO_VARCHAR(CONVERT_TIMEZONE('UTC', refresh_end_time), ${TS}) AS refresh_end_time
+    FROM TABLE(MOTION_DB.INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY(NAME_PREFIX => 'MOTION_DB.PUBLIC.', RESULT_LIMIT => 100))
+    ORDER BY refresh_end_time DESC NULLS LAST`,
+
+  showDynamicTables: `SHOW DYNAMIC TABLES IN SCHEMA MOTION_DB.PUBLIC`,
+
+  taskHistory: `
+    SELECT name, state, TO_VARCHAR(CONVERT_TIMEZONE('UTC', completed_time), ${TS}) AS completed_time
+    FROM TABLE(MOTION_DB.INFORMATION_SCHEMA.TASK_HISTORY(RESULT_LIMIT => 100))
+    WHERE name IN ('T_HIGHLIGHTS', 'T_SCOUTING')
+    ORDER BY scheduled_time DESC NULLS LAST`,
+
+  showTasks: `SHOW TASKS IN SCHEMA MOTION_DB.PUBLIC`,
+
+  vectorsProbe: `SELECT player_id, similarity_pct FROM V_STYLE_TWINS LIMIT 1`,
+
   /** Row-limit wrapper for already-guarded text-to-SQL output. `limit` is a server constant. */
   readOnlyWrap(innerSql: string, limit: number): string {
     return `SELECT * FROM (\n${innerSql}\n) LIMIT ${limit}`;
@@ -284,6 +385,17 @@ export function fatigueFromParts(q1: number | null, q4: number | null): number |
   return (100 * (q1 - q4)) / q1;
 }
 
+/**
+ * "Object does not exist or not authorized" (code 002003) and friends: the optional PLUS objects
+ * (sql/PLUS_CONTRACT.md) have not been created, or the role has no grant. Callers degrade to
+ * available:false instead of failing.
+ */
+export function isMissingObjectError(err: unknown): boolean {
+  const code = String((err as { code?: unknown } | null)?.code ?? '');
+  if (code === '002003' || code === '390201') return true;
+  return /does not exist or not authorized|does not exist|not authorized|unknown function|insufficient privileges/i.test(errorMessage(err));
+}
+
 function parseCoach(v: unknown): StoredCoach | null {
   if (v === null || v === undefined || v === '') return null;
   try {
@@ -301,6 +413,8 @@ function str(v: unknown): string | null {
 
 export class SnowflakeRepo implements Repo {
   readonly mode = 'snowflake' as const;
+  /** Optional features already reported as missing (one warning each per process). */
+  private readonly warnedMissing = new Set<string>();
 
   constructor(
     private readonly db: SqlExecutor,
@@ -431,8 +545,9 @@ export class SnowflakeRepo implements Repo {
     return updated > 0;
   }
 
-  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
+  async leaderboard(limit: number, sport: string = 'boxing'): Promise<LeaderboardRow[]> {
     const n = safeLimit(limit, 10);
+    if (sport.toLowerCase() !== 'boxing') return this.sportLeaderboard(n, sport.toLowerCase());
     let rows: Row[];
     try {
       rows = (await this.db.query(SQL.leaderboardFromView(n))).rows;
@@ -448,6 +563,54 @@ export class SnowflakeRepo implements Repo {
       fastest_punch: num(r.fastest_punch),
       best_reaction_ms: num(r.best_reaction_ms),
     }));
+  }
+
+  private async sportLeaderboard(n: number, sport: string): Promise<LeaderboardRow[]> {
+    let rows: Row[];
+    try {
+      rows = (await this.db.query(SQL.sportLeaderboardFromView(n), [sport])).rows;
+    } catch (err) {
+      this.log.warn('V_LEADERBOARD_BY_SPORT query failed; using inline leaderboard', { sport, error: errorMessage(err) });
+      rows = (await this.db.query(SQL.sportLeaderboardInline(n), [sport])).rows;
+    }
+    return rows.map((r) => ({
+      rank: num(r.rank) ?? 0,
+      player_id: String(r.player_id),
+      name: String(r.name ?? 'Unknown'),
+      score: num(r.score ?? r.best_score),
+      fastest_punch: num(r.max_speed),
+      best_reaction_ms: num(r.best_reaction_ms),
+    }));
+  }
+
+  async sessionEvents(sessionId: string): Promise<MotionEvent[]> {
+    const { rows } = await this.db.query(SQL.sessionEvents, [sessionId]);
+    return rows.map((r) => {
+      let payload: unknown = r.payload ?? null;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          payload = null;
+        }
+      }
+      const hand = String(r.hand ?? '').toUpperCase();
+      return {
+        event_id: String(r.event_id ?? ''),
+        session_id: String(r.session_id ?? sessionId),
+        player_id: String(r.player_id ?? ''),
+        sport: String(r.sport ?? 'boxing'),
+        event_ts: String(r.event_ts ?? ''),
+        event_type: String(r.event_type ?? '').toLowerCase() as MotionEvent['event_type'],
+        hand: hand === 'L' || hand === 'R' ? hand : null,
+        speed_mps: num(r.speed_mps) ?? 0,
+        accuracy: num(r.accuracy),
+        reaction_ms: num(r.reaction_ms),
+        guard_up: typeof r.guard_up === 'boolean' ? r.guard_up : null,
+        points: num(r.points) ?? 0,
+        payload: payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null,
+      };
+    });
   }
 
   async playerSessions(playerId: string, limit: number): Promise<SessionSummary[]> {
@@ -512,6 +675,173 @@ export class SnowflakeRepo implements Repo {
       .filter((b) => [b.p25, b.p50, b.p75, b.p90].every(Number.isFinite));
   }
 
+  /** Logs the first "missing object" per feature; returns true when `err` is one. */
+  private missing(feature: string, err: unknown): boolean {
+    if (!isMissingObjectError(err)) return false;
+    if (!this.warnedMissing.has(feature)) {
+      this.warnedMissing.add(feature);
+      this.log.warn(`${feature}: Snowflake object missing or not granted; reporting available:false (run the sql/*.sql PLUS files)`, {
+        error: errorMessage(err).slice(0, 300),
+      });
+    }
+    return true;
+  }
+
+  async searchDrills(query: string, opts: DrillSearchOptions): Promise<DrillSearchResult> {
+    try {
+      const { rows } = await this.db.query(drillSearchSql(query, opts), [], { timeoutMs: opts.timeoutMs });
+      return { available: true, source: 'cortex_search', results: parseSearchResponse(rows[0]?.response).slice(0, opts.limit) };
+    } catch (err) {
+      if (this.missing('COACH_DRILL_SEARCH', err)) return { available: false, source: 'cortex_search', results: [] };
+      throw err;
+    }
+  }
+
+  /** Runs an optional-object query; null when the object is missing (warned once per feature). */
+  private async optional(feature: string, sql: string, binds: Bind[]): Promise<Row[] | null> {
+    try {
+      return (await this.db.query(sql, binds)).rows;
+    } catch (err) {
+      if (this.missing(feature, err)) return null;
+      throw err;
+    }
+  }
+
+  async playerStyle(playerId: string): Promise<PlayerStyle> {
+    const [style, twin, scout] = await Promise.all([
+      this.optional('V_PLAYER_STYLE', SQL.playerStyle, [playerId]),
+      this.optional('V_STYLE_TWINS', SQL.styleTwin, [playerId]),
+      this.optional('PLAYER_SCOUTING', SQL.scouting, [playerId]),
+    ]);
+    const r = style?.[0];
+    const t = twin?.[0];
+    const sc = scout?.[0];
+    const c = (v: unknown) => round(num(v) ?? 50, 1) ?? 50;
+    return {
+      player_id: playerId,
+      available: style !== null,
+      components: r
+        ? { speed: c(r.c_speed), reaction: c(r.c_reaction), accuracy: c(r.c_accuracy), guard: c(r.c_guard), symmetry: c(r.c_symmetry), endurance: c(r.c_endurance) }
+        : null,
+      pro_similarity_pct: r ? num(r.pro_similarity_pct) : null,
+      twin: t && t.twin_player_id ? { player_id: String(t.twin_player_id), name: String(t.twin_name ?? 'Unknown'), similarity_pct: num(t.similarity_pct) ?? 0 } : null,
+      scouting: sc && sc.fighting_style
+        ? { fighting_style: String(sc.fighting_style), scouting_report: String(sc.scouting_report ?? ''), updated_at: str(sc.updated_at) }
+        : null,
+    };
+  }
+
+  async playerProgress(playerId: string, historyLimit: number): Promise<PlayerProgress> {
+    const [prog, hist] = await Promise.all([
+      this.optional('PLAYER_PROGRESS', SQL.playerProgress, [playerId]),
+      this.optional('SESSION_SUMMARY', SQL.progressHistory(safeLimit(historyLimit, 200)), [playerId]),
+    ]);
+    const r = prog?.[0];
+    const history: ProgressPoint[] = (hist ?? []).map((h) => ({
+      session_index: num(h.session_index) ?? 0,
+      session_id: String(h.session_id),
+      score: num(h.score),
+      avg_speed: num(h.avg_speed),
+      accuracy_pct: num(h.accuracy_pct),
+    }));
+    return {
+      player_id: playerId,
+      available: prog !== null && hist !== null,
+      sessions: num(r?.sessions) ?? 0,
+      best_score: num(r?.best_score),
+      last_score: num(r?.last_score),
+      speed_trend_mps_per_session: num(r?.speed_trend_mps_per_session),
+      score_trend_per_session: num(r?.score_trend_per_session),
+      accuracy_trend_pct_per_session: num(r?.accuracy_trend_pct_per_session),
+      reaction_trend_ms_per_session: num(r?.reaction_trend_ms_per_session),
+      improving: r?.improving === true || String(r?.improving).toLowerCase() === 'true',
+      history,
+    };
+  }
+
+  async highlights(limit: number): Promise<HighlightsFeed> {
+    const rows = await this.optional('V_HIGHLIGHTS_FEED', SQL.highlights(safeLimit(limit, 50)), []);
+    if (rows === null) return { available: false, highlights: [] };
+    return {
+      available: true,
+      highlights: rows.map(
+        (h): Highlight => ({
+          highlight_id: String(h.highlight_id),
+          created_at: String(h.created_at ?? ''),
+          kind: String(h.kind ?? ''),
+          player_id: String(h.player_id ?? ''),
+          name: String(h.name ?? 'Unknown'),
+          session_id: String(h.session_id ?? ''),
+          value: num(h.value),
+          unit: String(h.unit ?? ''),
+          message: String(h.message ?? ''),
+        }),
+      ),
+    };
+  }
+
+  private searchProbe: { at: number; probe: FeatureProbe } | null = null;
+
+  async probeFeatures(timeoutMs: number): Promise<RepoFeatureProbes> {
+    let lastRefresh: string | null = null;
+    const q = (sql: string) => this.db.query(sql, [], { timeoutMs }).then((r) => r.rows);
+    const [dynamic_tables, cortex_search, streams_tasks, vectors] = await Promise.all([
+      probe(timeoutMs, async () => {
+        const rows = await q(SQL.dynamicTableHistory).catch(() => null);
+        if (rows && rows.length > 0) {
+          const pf = rows.find((r) => String(r.name).toUpperCase() === 'PLAYER_FORM' && String(r.state).toUpperCase() === 'SUCCEEDED');
+          lastRefresh = pf ? str(pf.refresh_end_time) : null;
+          const names = [...new Set(rows.map((r) => String(r.name).toUpperCase()))].sort();
+          const latestPf = rows.find((r) => String(r.name).toUpperCase() === 'PLAYER_FORM' && !['SCHEDULED', 'EXECUTING'].includes(String(r.state).toUpperCase()));
+          if (latestPf && String(latestPf.state).toUpperCase() === 'FAILED') return { status: 'error', detail: 'latest PLAYER_FORM refresh FAILED (see DYNAMIC_TABLE_REFRESH_HISTORY)' };
+          return { status: 'up', detail: `refresh history for ${names.join(', ')}` };
+        }
+        const shown = await q(SQL.showDynamicTables);
+        const names = shown.map((r) => String(r.name).toUpperCase()).sort();
+        return names.includes('PLAYER_FORM')
+          ? { status: 'up', detail: `dynamic tables: ${names.join(', ')}` }
+          : { status: 'missing', detail: 'PLAYER_FORM dynamic table not found (run sql/analytics.sql)' };
+      }),
+      this.probeSearch(timeoutMs),
+      probe(timeoutMs, async () => {
+        const rows = await q(SQL.taskHistory).catch(() => null);
+        if (rows && rows.length > 0) {
+          const latest = new Map<string, Row>();
+          for (const r of rows) {
+            const s = String(r.state).toUpperCase();
+            if (s === 'SCHEDULED' || s === 'EXECUTING') continue; // future / running rows say nothing about health
+            if (!latest.has(String(r.name))) latest.set(String(r.name), r);
+          }
+          const parts = [...latest.values()].map((r) => `${String(r.name)} ${String(r.state)}${r.completed_time ? ` at ${String(r.completed_time)}` : ''}`);
+          const failed = [...latest.values()].some((r) => /FAIL|CANCEL/.test(String(r.state).toUpperCase()));
+          if (latest.size === 0) return { status: 'up', detail: 'tasks scheduled, no completed runs yet' };
+          return { status: failed ? 'error' : 'up', detail: parts.join('; ') };
+        }
+        const tasks = (await q(SQL.showTasks)).filter((r) => ['T_HIGHLIGHTS', 'T_SCOUTING'].includes(String(r.name).toUpperCase()));
+        return tasks.length > 0
+          ? { status: 'up', detail: tasks.map((r) => `${String(r.name)} ${String(r.state ?? '')}`.trim()).join('; ') + ' (no runs yet)' }
+          : { status: 'missing', detail: 'T_HIGHLIGHTS / T_SCOUTING not found (run sql/pipelines.sql, sql/cortex.sql)' };
+      }),
+      probe(timeoutMs, async () => {
+        const rows = await q(SQL.vectorsProbe);
+        return { status: 'up', detail: rows.length ? 'V_STYLE_TWINS (VECTOR_COSINE_SIMILARITY) answered' : 'V_STYLE_TWINS exists, no pairs yet' };
+      }),
+    ]);
+    return { dynamic_tables, cortex_search, streams_tasks, vectors, player_form_last_refresh: lastRefresh };
+  }
+
+  /** One SEARCH_PREVIEW with limit 1, cached for 60 s (each call costs search credits). */
+  private async probeSearch(timeoutMs: number): Promise<FeatureProbe> {
+    if (this.searchProbe && Date.now() - this.searchProbe.at < 60_000) return this.searchProbe.probe;
+    const result = await probe(timeoutMs, async () => {
+      const r = await this.searchDrills('jab', { limit: 1, timeoutMs });
+      if (!r.available) return { status: 'missing', detail: 'COACH_DRILL_SEARCH not found (run sql/cortex.sql)' };
+      return { status: 'up', detail: `COACH_DRILL_SEARCH answered (${r.results.length} result)` };
+    });
+    this.searchProbe = { at: Date.now(), probe: result };
+    return result;
+  }
+
   async runReadOnlyQuery(sql: string, rowLimit: number): Promise<Record<string, unknown>[]> {
     if (!this.readOnlyDb) throw new Error('read-only Snowflake role is not configured');
     const { rows } = await this.readOnlyDb.query(SQL.readOnlyWrap(sql, safeLimit(rowLimit)), [], {
@@ -522,6 +852,17 @@ export class SnowflakeRepo implements Repo {
 
   async close(): Promise<void> {
     await Promise.allSettled([this.db.close(), this.readOnlyDb?.close()]);
+  }
+}
+
+/** Runs one status probe with its own timeout; maps every failure to a status instead of throwing. */
+async function probe(timeoutMs: number, fn: () => Promise<FeatureProbe>): Promise<FeatureProbe> {
+  try {
+    return await withTimeout(fn(), timeoutMs, 'status probe');
+  } catch (err) {
+    if (isMissingObjectError(err)) return { status: 'missing', detail: errorMessage(err).slice(0, 200) };
+    if (err instanceof TimeoutError) return { status: 'error', detail: `timed out after ${timeoutMs} ms` };
+    return { status: 'error', detail: errorMessage(err).slice(0, 200) };
   }
 }
 

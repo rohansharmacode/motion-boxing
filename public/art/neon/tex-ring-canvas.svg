@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Seamless neon ring canvas texture">
+  <defs>
+    <!-- 16x16 woven canvas twill (divides 512 evenly -> seamless) -->
+    <pattern id="rc-weave" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#0B1126" />
+      <path d="M0,4 H16 M0,12 H16" stroke="#141E3E" stroke-width="2" />
+      <path d="M4,0 V16 M12,0 V16" stroke="#080C1C" stroke-width="2" stroke-opacity="0.7" />
+      <rect x="2" y="2" width="4" height="4" fill="#1A264D" fill-opacity="0.45" />
+      <rect x="10" y="10" width="4" height="4" fill="#1A264D" fill-opacity="0.45" />
+      <rect x="10" y="2" width="4" height="4" fill="#22E5FF" fill-opacity="0.03" />
+    </pattern>
+    <!-- 64x64 subtle stitched mat padding sub-grid -->
+    <pattern id="rc-sub" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64,0 L0,0 L0,64" fill="none" stroke="#22E5FF" stroke-opacity="0.08" stroke-width="1" stroke-dasharray="4 4" />
+    </pattern>
+    <!-- 256x256 heavy canvas panel seams -->
+    <pattern id="rc-panel" width="256" height="256" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="256" height="256" fill="none" stroke="#060914" stroke-width="4" />
+      <rect x="3" y="3" width="250" height="250" fill="none" stroke="#22E5FF" stroke-opacity="0.16" stroke-width="1" stroke-dasharray="10 6" />
+      <!-- Subtle neon weave wear dots wrapped cleanly inside panel -->
+      <circle cx="128" cy="128" r="22" fill="none" stroke="#FF2E88" stroke-opacity="0.08" stroke-width="1.5" />
+      <path d="M120,128 H136 M128,120 V136" stroke="#22E5FF" stroke-opacity="0.18" stroke-width="1.5" />
+    </pattern>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#rc-weave)" />
+  <rect width="512" height="512" fill="url(#rc-sub)" />
+  <rect width="512" height="512" fill="url(#rc-panel)" />
+
+  <!-- Seamless corner-wrapped seam ticks at 0/256/512 -->
+  <g fill="#22E5FF" fill-opacity="0.32">
+    <rect x="0" y="0" width="8" height="2" /><rect x="504" y="0" width="8" height="2" />
+    <rect x="0" y="510" width="8" height="2" /><rect x="504" y="510" width="8" height="2" />
+    <rect x="248" y="255" width="16" height="2" /><rect x="255" y="248" width="2" height="16" />
+  </g>
+</svg>

@@ -28,9 +28,11 @@ export class OneEuroFilter {
       this.tPrev = tSeconds
       return value
     }
-    const dt = tSeconds - this.tPrev
-    if (!(dt > 0)) return this.xPrev
-    const dx = (value - this.xPrev) / dt
+    const rawDt = tSeconds - this.tPrev
+    if (!(rawDt > 0)) return this.xPrev
+    // Clamp to the 15 to 240 fps range so frame-rate hitches neither freeze nor overshoot the filter.
+    const dt = Math.min(1 / 15, Math.max(1 / 240, rawDt))
+    const dx = (value - this.xPrev) / rawDt
     const ad = alpha(this.dCutoff, dt)
     const dxHat = ad * dx + (1 - ad) * this.dxPrev
     const cutoff = this.minCutoff + this.beta * Math.abs(dxHat)
@@ -58,6 +60,14 @@ export class OneEuroVec3 {
     this.fx = new OneEuroFilter(minCutoff, beta, dCutoff)
     this.fy = new OneEuroFilter(minCutoff, beta, dCutoff)
     this.fz = new OneEuroFilter(minCutoff, beta, dCutoff)
+  }
+
+  /** Allocation-free filter: writes the result into dst and returns it. */
+  filterInto(dst: Vec3, v: Vec3, tSeconds: number): Vec3 {
+    dst.x = this.fx.filter(v.x, tSeconds)
+    dst.y = this.fy.filter(v.y, tSeconds)
+    dst.z = this.fz.filter(v.z, tSeconds)
+    return dst
   }
 
   filter(v: Vec3, tSeconds: number): Vec3 {

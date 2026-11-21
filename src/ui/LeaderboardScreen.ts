@@ -7,9 +7,12 @@
 //   // Or directly:
 //   const board = new LeaderboardScreen(container, { playerId, onBack: () => goHome() });
 
+// The leaderboard can be the first screen opened from the home menu, so it must load its own styles.
+import './styles.css';
+import './components.css';
 import { getLastPlayer, getLeaderboard } from '../api/client';
 import type { LeaderboardEntry, LeaderboardResponse, Sport } from '../api/types';
-import { el, ensurePositioned, html, isTyping, prefersReducedMotion } from './dom';
+import { artImg, el, ensurePositioned, html, isTyping, prefersReducedMotion } from './dom';
 import { ICONS } from './icons';
 import type { GameContext, GameSession } from './shellTypes';
 
@@ -86,6 +89,7 @@ export class LeaderboardScreen {
           el(
             'div',
             { class: 'kr-board-title' },
+            artImg('tile-leaderboard.svg', 'kr-board-art'),
             el('span', { class: 'kr-live' }, el('span', {}, 'Live standings')),
             el('h1', {}, 'Leader', el('span', {}, 'board')),
           ),

@@ -1,6 +1,11 @@
+import type { DrillSearchOptions, DrillSearchResult } from '../drills';
 import type {
   Benchmark,
+  HighlightsFeed,
   LeaderboardRow,
+  PlayerProgress,
+  PlayerStyle,
+  RepoFeatureProbes,
   MotionEvent,
   Player,
   PlayerMetrics,
@@ -54,10 +59,35 @@ export interface Repo {
    */
   finalizeSession(sessionId: string, stats: SessionStats, coach: StoredCoach): Promise<boolean>;
 
-  leaderboard(limit: number): Promise<LeaderboardRow[]>;
+  /**
+   * Best single-session score per player, top N. sport defaults to boxing (V_LEADERBOARD, unchanged);
+   * goalkeeper/archery read V_LEADERBOARD_BY_SPORT (sql/multisport.sql), fastest_punch = fastest
+   * glove / release speed.
+   */
+  leaderboard(limit: number, sport?: string): Promise<LeaderboardRow[]>;
+
+  /** All MOTION_EVENTS rows of one session, oldest first (goalkeeper/archery coach card). */
+  sessionEvents(sessionId: string): Promise<MotionEvent[]>;
   playerSessions(playerId: string, limit: number): Promise<SessionSummary[]>;
   playerMetrics(playerId: string): Promise<PlayerMetrics>;
   benchmarks(sport: string): Promise<Benchmark[]>;
+
+  // --- Snowflake Plus (sql/PLUS_CONTRACT.md). Missing objects -> available:false, never a throw. ---
+
+  /** V_PLAYER_STYLE + V_STYLE_TWINS + PLAYER_SCOUTING. */
+  playerStyle(playerId: string): Promise<PlayerStyle>;
+  /** PLAYER_PROGRESS + SESSION_SUMMARY history (oldest first, at most `historyLimit` latest sessions). */
+  playerProgress(playerId: string, historyLimit: number): Promise<PlayerProgress>;
+  /** V_HIGHLIGHTS_FEED, newest first. */
+  highlights(limit: number): Promise<HighlightsFeed>;
+  /** Independent short probes for GET /api/snowflake/status; never throws. */
+  probeFeatures(timeoutMs: number): Promise<RepoFeatureProbes>;
+
+  /**
+   * Cortex Search over COACH_DRILLS (keyword search in mock mode). available:false when the
+   * search service does not exist; other failures throw.
+   */
+  searchDrills(query: string, opts: DrillSearchOptions): Promise<DrillSearchResult>;
 
   /**
    * Runs an already-guarded SELECT under the read-only role with a hard row limit
