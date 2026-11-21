@@ -104,6 +104,8 @@ export interface KeeperScene {
   screenToGoal(ndcX: number, ndcY: number): { x: number; y: number }
   /** Clear effects and reset the striker for a new shootout. */
   reset(): void
+  /** Automatic quality: 'low' renders at pixel ratio 1. */
+  setQuality(level: 'high' | 'low'): void
   /** Advance animations by real elapsed ms. */
   update(dtMs: number): void
   render(): void

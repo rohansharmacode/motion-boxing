@@ -44,6 +44,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     { StartupError },
     { createBoxingTutorial, tutorialNeeded },
     { createTrackingHint },
+    { createQualityGovernor },
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
@@ -62,6 +63,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./pose/types.ts'),
     import('./sports/boxing/tutorial.ts'),
     import('./pose/trackingHint.ts'),
+    import('./pose/qualityGovernor.ts'),
   ])
   // Nothing has been created yet, so there is nothing to dispose.
   if (ctx.signal.aborted) return NOOP_SESSION
@@ -88,6 +90,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   const telemetry = createTelemetry()
   const overlay = createPoseOverlay(overlayCanvas)
   const trackingHint = createTrackingHint(ui)
+  const governor = createQualityGovernor()
   // Every punch the camera reads bursts on that fist in the preview, so players see what registered.
   const flashPunches = (a: BoxingActions): BoxingActions => {
     for (const p of a.punches) overlay.flash(p.hand, p.kind.toUpperCase())
@@ -252,6 +255,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
       pipeline = p
       overlay.resize(p.videoWidth, p.videoHeight)
       document.body.dataset.delegate = p.delegate
+      document.body.dataset.poseMode = p.mode
       aspect = p.videoWidth / p.videoHeight
       stopFrames = p.subscribe(onFrame)
       beginCalibration()
@@ -332,8 +336,12 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function loop(now: number): void {
     if (disposed) return
     raf = requestAnimationFrame(loop)
-    const dt = Math.min(Math.max(now - last, 0), MAX_DT_MS)
+    const rawDt = Math.max(now - last, 0)
+    const dt = Math.min(rawDt, MAX_DT_MS)
     last = now
+    // Automatic quality: low under ~50 fps or when tracking is slow, back to high after fast frames.
+    const nextQuality = governor.update(rawDt, pipeline ? pipeline.inferenceMs : 0)
+    if (nextQuality) scene.setQuality(nextQuality)
     if (keyboard.enabled) engine.onActions(keyboard.poll())
     engine.update(dt)
     scene.render()

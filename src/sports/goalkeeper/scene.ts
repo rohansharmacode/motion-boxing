@@ -1171,6 +1171,13 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       fitCamera(w / h)
     },
 
+    setQuality(level: 'high' | 'low'): void {
+      // Low quality renders at 1 device pixel per CSS pixel: the biggest GPU saving on high-DPI laptops.
+      renderer.setPixelRatio(level === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : 1)
+      const size = renderer.getSize(new THREE.Vector2())
+      renderer.setSize(size.x, size.y, false)
+    },
+
     setKeeper(pose: KeeperPose | null): void {
       if (pose) {
         keeperPresent = true
