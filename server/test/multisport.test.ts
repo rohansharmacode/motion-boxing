@@ -307,3 +307,51 @@ describe('goalkeeper / archery (original API) and per-sport leaderboard', () => 
     expect(hl.highlights.filter((h: { player_id: string }) => h.player_id === pid)).toEqual([]);
   });
 });
+
+describe('multi-sport follow-ups (review of the multi-sport PR)', () => {
+  it('original-API keeper saves without points use the exact accuracy (0.57 -> +29, not 28)', async () => {
+    const { http, repo } = app();
+    const p = await http.post('/api/players').send({ name: 'Float Keeper' }).expect(201);
+    const s = await http.post('/api/session/start').send({ player_id: p.body.player_id, sport: 'goalkeeper' }).expect(201);
+    const sid = s.body.session_id as string;
+    const base = { session_id: sid, player_id: p.body.player_id, sport: 'goalkeeper', event_type: 'save', hand: 'L', speed_mps: 5 };
+    const ev = await http.post('/api/events').send([
+      { ...base, event_ts: new Date(T0).toISOString(), accuracy: 0.57, reaction_ms: 400, payload: { zone: 1 } },
+      { ...base, event_ts: new Date(T0 + 9000).toISOString(), accuracy: 0.29, reaction_ms: 500, payload: { zone: 2, punch: true } },
+    ]);
+    expect(ev.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 30));
+    const rows = repo.events.filter((e) => e.session_id === sid);
+    // 1000 + 250 (reaction < 450) + round(57/2) = 1279; 1000 + 150 (punch) + round(29/2) = 1165.
+    expect(rows.map((e) => e.points)).toEqual([1279, 1165]);
+  });
+
+  it('GET /api/player/:id/stats lists boxing rounds only, not the same player\'s keeper shootouts', async () => {
+    const { http } = app();
+    const box = await newSession(http, 'Two Sport Sam');
+    await http.post('/api/events').send(apiEvents(box.sessionId, box.playerId, [{ type: 'jab' }, { type: 'cross' }]));
+    await http.post('/api/session/end').send({ session_id: box.sessionId }).expect(200);
+    const gk = await http.post('/api/session/start').send({ player_id: box.playerId, sport: 'goalkeeper' }).expect(201);
+    const gsid = gk.body.session_id as string;
+    await http.post('/api/events').send({ events: shootout(gsid, box.playerId) });
+    await new Promise((r) => setTimeout(r, 30));
+    await http.post('/api/session/end').send({ session_id: gsid }).expect(200);
+
+    const stats = (await http.get(`/api/player/${box.playerId}/stats`).expect(200)).body;
+    expect(stats.sessions.map((s: { session_id: string }) => s.session_id)).toEqual([box.sessionId]);
+  });
+
+  it('a warming-up keeper card already carries the keeper badge note (not "from 0 punches")', async () => {
+    const slow = new FnCortex(() => new Promise((r) => setTimeout(() => r('{"tips":["a","b","c"],"drill":"d","badge":"e","summary":"f"}'), 300)));
+    const { http } = app({ cortex: slow, config: { coachTimeoutMs: 3000, coachFastMs: 50 } });
+    const pid = randomUUID();
+    const sid = randomUUID();
+    await http.post('/api/events').send({ events: shootout(sid, pid) });
+    await new Promise((r) => setTimeout(r, 30));
+    const end = await http.post('/api/session/end').send(endBody(sid, pid, 'GOALKEEPER', 'Warm Keeper', 0));
+    expect(end.status).toBe(200);
+    expect(end.body.warming_up).toBe(true);
+    expect(end.body.coach.badge.description).toMatch(/^Earned this shootout: \d+ points, 3 of 5 saved\.$/);
+    expect(end.body.coach.badge.description).not.toMatch(/punches/);
+  });
+});

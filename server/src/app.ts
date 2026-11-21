@@ -249,7 +249,7 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
         row.payload = withSportPayload(e.sport, row.payload, row.accuracy);
         if (e.points == null) {
           const p = row.payload;
-          row.points = defaultSportPoints(e.sport, row.event_type, { reaction_ms: row.reaction_ms, accuracy_score: row.accuracy === null ? null : row.accuracy * 100 }, p);
+          row.points = defaultSportPoints(e.sport, row.event_type, { reaction_ms: row.reaction_ms, accuracy_score: row.accuracy === null ? null : Math.round(row.accuracy * 1e4) / 100 }, p);
         }
       }
       events.push(row);
