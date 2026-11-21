@@ -364,7 +364,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   const podGlows = drone.pods.map((pod) => {
     const m = new Mesh(
       new SphereGeometry(0.13, 16, 10),
-      new MeshBasicMaterial({ color: 0xffb000, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, fog: false }),
+      new MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, fog: false }),
     )
     m.visible = false
     pod.add(m)
