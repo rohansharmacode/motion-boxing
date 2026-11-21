@@ -185,7 +185,13 @@ const num = (v: number): number => (Number.isFinite(v) ? v : 0)
 
 export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {}): BoxingDetector {
   const cfg: BoxingDetectorConfig = { ...DEFAULT_BOXING_CONFIG, ...config }
-  const keepMs = Math.max(cfg.velocityWindowMs, cfg.peakWindowMs, cfg.uppercutStartWindowMs, cfg.hookCrossWindowMs)
+  const keepMs = Math.max(
+    cfg.velocityWindowMs,
+    cfg.peakWindowMs,
+    cfg.straightDthetaWindowMs,
+    cfg.uppercutStartWindowMs,
+    cfg.hookCrossWindowMs,
+  )
   const hands: [HandState, HandState] = [newHand('left'), newHand('right')]
   let lastT: number | null = null
   let guard = false
@@ -329,9 +335,11 @@ export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {})
 
   function updateSlip(f: BodyFrame): SlipKind | null {
     const nose = f.body[LM.NOSE]
+    noseX = 0
+    duckY = 0
     if (!finite(nose) || nose.visibility < cfg.minVisibility) return null
     noseX = nose.x
-    duckY = nose.y - f.neutralNose.y
+    duckY = num(nose.y - f.neutralNose.y)
     const sideKind: SlipKind = noseX < 0 ? 'left' : 'right'
     const thX = Math.max(1e-6, cfg.slipMinNoseX - (slip === sideKind ? cfg.hysteresis : 0))
     const thY = Math.max(1e-6, cfg.duckMinDrop - (slip === 'duck' ? cfg.hysteresis : 0))
@@ -385,7 +393,7 @@ export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {})
         const midX = (b[LM.L_SHOULDER].x + b[LM.R_SHOULDER].x) / 2
         const midY = (b[LM.L_SHOULDER].y + b[LM.R_SHOULDER].y) / 2
         // The contract says never 0; the floor only guards against broken input.
-        const swWorld = Math.max(f.calibration.shoulderWidthWorld, 0.05)
+        const swWorld = Math.max(num(f.calibration.shoulderWidthWorld), 0.05)
         twist = Math.abs(w[LM.L_SHOULDER].z - w[LM.R_SHOULDER].z)
         for (const h of hands) track(h, f, midX, midY, swWorld)
         const [l, r] = hands

@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- Goalkeeper-in-shell test harness (dev server only: /tests/gk-shell.html). Mounts the real dashboard
+     with the goalkeeper launcher, exactly as main.ts would. Add ?debug to open the keeper debug panel. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Keeper shell harness</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;800&display=swap" />
+  </head>
+  <body>
+    <script type="module">
+      import '/src/style.css'
+      import { mountShell } from '/src/shell/index.ts'
+      import { startGoalkeeper } from '/src/sports/goalkeeper/index.ts'
+      const debug = new URLSearchParams(location.search).has('debug')
+      window.__events = []
+      window.addEventListener('motion-event', (e) => window.__events.push(e.detail))
+      window.__shell = mountShell({ launchers: { goalkeeper: (ctx) => startGoalkeeper(ctx, { debug }) } })
+    </script>
+  </body>
+</html>

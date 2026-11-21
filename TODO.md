@@ -33,6 +33,24 @@ We own `src/pose/*`, `src/sports/boxing/*`, `src/main.ts` (plus package.json for
 | H | Orchestrator: review results, build + dev server myself, fresh-eyes review, commit + push | orchestrator | - | todo |
 | I | Human: webcam playtest and threshold tuning with debug panel (Backquote) | detector config | human | todo |
 
+## Ownership (updated 12:22)
+Ours: `src/sports/boxing/*`, `src/main.ts`, `src/styles/*`, `public/assets/*`. Shared: `src/pose/*` (goalkeeper uses it).
+Team: Person B `server/` API, Person C `src/ui` + `src/api`, Gemini `public/art`, Astra `src/lib`, shell `src/shell/*`, goalkeeper `src/sports/goalkeeper/*`.
+None of server/, src/ui, src/api, public/art, src/lib, INTEGRATION.md were in the repo at 12:22. Our own backend draft was parked (not committed) so it cannot clash with Person B.
+
+## Queue (in order)
+1. M1 workflow wf_70b02344-de3 (above) finishes; orchestrator review; commit + push.
+2. (cancelled: our own server/ backend. Person B owns server/.)
+3. Shell integration: `startBoxing(ctx: GameContext): Promise<GameSession>` in `src/main.ts`, dispose stops camera, rAF loop, keyboard, engine, scene; return early after each await if `ctx.signal.aborted`; `mountShell({ launchers: { boxing: startBoxing } })`; no auto-start; round-end "Home" button calls `ctx.exit()`; keep the round timer clear of the shell Home button (top centre).
+4. Wave 1 boxing polish (exclusive files): bloom arena with weak-laptop fallback, 3 drone attack patterns, combos, slow-mo KO, sfx, art from handoff when present.
+5. Team integration when pushed: Person B server, Person C src/ui + src/api (name entry, coach card, mock fallback), Gemini art on tiles, Astra src/lib, goalkeeper in mountShell, leaderboard tile via GET /api/leaderboard.
+6. Hardening: 5 reviewers (weak laptop, bad lighting, passer-by, network down, rapid replays/leaks), fix ours, report theirs; hidden demo mode (M) with seeded round + coach card; lazy-load models; docs/DEMO.md click-path.
+7. Done gate: full flow (dashboard, name, calibrate, round, events, coach card, leaderboard, home with best score) clean twice in a row (3 for the hardening pass), build green, pushed.
+
+## Git process
+- Shared working tree is used by other teams. Commit from a separate worktree (branch `boxing-sync` tracking origin/main, in the session scratchpad): sync only our paths, `npm run build`, commit `<area>: <what>`, `git pull --rebase origin main`, `git push origin HEAD:main`.
+- Commit at least every 20 minutes. Never commit `.env` or secrets.
+
 ## Next (after M1)
 - Review pass (xhigh): detector logic vs real webcam data, loop latency, scene perf.
 - Web Worker inference with ImageBitmap transfer and isBusy gate; auto-downgrade ladder (doc section 4).

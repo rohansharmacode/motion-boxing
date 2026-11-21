@@ -199,7 +199,7 @@ export function buildGlove(hand: Hand): GloveParts {
   const glow = new MeshBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.08,
     blending: AdditiveBlending,
     depthWrite: false,
     side: BackSide,
@@ -218,17 +218,26 @@ export function buildGlove(hand: Hand): GloveParts {
   thumb.position.set(inward * 0.068, 0.018, -0.03)
   thumb.scale.set(0.9, 1, 1.5)
 
-  const cuff = new Mesh(new CylinderGeometry(0.058, 0.066, 0.1, 8), armour())
+  const cuffMat = new MeshStandardMaterial({
+    color: color.clone().multiplyScalar(0.25),
+    emissive: color.clone().multiplyScalar(0.12),
+    roughness: 0.5,
+    flatShading: true,
+  })
+  const cuff = new Mesh(new CylinderGeometry(0.056, 0.062, 0.06, 8), cuffMat)
   cuff.rotation.x = Math.PI / 2
-  cuff.position.z = 0.12
-  const band = new Mesh(new TorusGeometry(0.064, 0.008, 6, 20), trim)
-  band.position.z = 0.085
+  cuff.position.z = 0.1
+  const band = new Mesh(new TorusGeometry(0.062, 0.008, 6, 20), trim)
+  band.position.z = 0.078
 
-  const halo = new Mesh(new IcosahedronGeometry(0.125, 1), glow)
+  const halo = new Mesh(new IcosahedronGeometry(0.11, 2), glow)
   halo.scale.copy(fist.scale)
 
+  const model = new Group()
+  model.add(fist, facets, thumb, cuff, band, halo)
+  model.scale.setScalar(0.9)
   const group = new Group()
-  group.add(fist, facets, thumb, cuff, band, halo)
+  group.add(model)
   return { group, shell, glow }
 }
 

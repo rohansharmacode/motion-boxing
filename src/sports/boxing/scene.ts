@@ -50,8 +50,8 @@ const HIT_RADIUS_SCALE = 1.6
 const SLIP_LEAN_M = 0.12
 const DUCK_DROP_M = 0.15
 /** Untracked glove poses in rig metres (x is mirrored per side). */
-const GUARD_REST = { x: 0.15, y: -0.16, z: -0.48 }
-const GUARD_HELD = { x: 0.115, y: -0.11, z: -0.44 }
+const GUARD_REST = { x: 0.2, y: -0.2, z: -0.6 }
+const GUARD_HELD = { x: 0.15, y: -0.14, z: -0.55 }
 /** Shoulder widths to rig metres for tracked wrists. */
 const SW_TO_M = 0.6
 /** Elbow angle (deg) to reach: 0 at 70, 1 at 175. */
@@ -202,7 +202,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   const drone = buildDrone(glowMap)
   scene.add(drone.root, drone.floorGlow)
   const sparks = createSparks(720, 0.065, glowMap)
-  const nearSparks = createSparks(160, 0.014, glowMap)
+  const nearSparks = createSparks(160, 0.02, glowMap)
   scene.add(sparks.points, nearSparks.points)
 
   // Player rig at eye height: camera and gloves move together for slips and ducks.
@@ -274,8 +274,8 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     const reach = theta === null ? 0.2 : clamp((theta - REACH_MIN_DEG) / (REACH_MAX_DEG - REACH_MIN_DEG), 0, 1)
     g.track.set(
       clamp(relX * SW_TO_M, -0.6, 0.6) * (1 - 0.4 * reach), // straight arms converge on the target
-      clamp(-(relY + 0.3) * 0.55 - 0.16, -0.65, 0.3), // three y is up, body y is down
-      -(0.46 + 0.5 * reach),
+      clamp(-(relY + 0.3) * 0.55 - 0.2 + 0.12 * reach, -0.7, 0.3), // three y is up, body y is down
+      -(0.56 + 0.5 * reach),
     )
     return true
   }
@@ -325,13 +325,13 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       const twist = g.punch ? PUNCH_TWIST[g.punch.kind] : null
       const mirror = -g.side // 1 for the left glove
       group.rotation.set(
-        0.3 + clamp(g.vel.y * 0.25, -0.35, 0.35) + (twist ? twist.pitch * w : 0),
+        0.5 + clamp(g.vel.y * 0.25, -0.35, 0.35) + (twist ? twist.pitch * w : 0),
         mirror * (-0.14 + (twist ? twist.yaw * w : 0)) + clamp(-g.vel.x * 0.15, -0.3, 0.3),
         mirror * (twist ? twist.roll * w : 0) + clamp(-g.vel.x * 0.3, -0.4, 0.4),
       )
       g.glow += ((guard ? 1 : 0) - g.glow) * Math.min(1, dt * 12)
       shell.emissiveIntensity = 0.5 + 0.9 * g.glow + 0.7 * w
-      glow.opacity = 0.12 + 0.2 * g.glow + 0.18 * w
+      glow.opacity = 0.08 + 0.16 * g.glow + 0.14 * w
     }
   }
 
@@ -347,6 +347,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     gloveTarget(g, out)
     if (kind === 'hook') out.x *= 0.3 // hooks arc in to the centre line
     else if (kind === 'uppercut') out.y -= 0.5 // uppercuts dig into the body
+    else out.x *= 0.6 // straight punches converge on the centre line
     rig.updateMatrixWorld()
     return rig.localToWorld(out)
   }
@@ -525,7 +526,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     camera.position.set(Math.sin(realTime * 71) * shake, Math.sin(realTime * 53 + 1.3) * shake * 0.8, 0)
     camera.rotation.set(CAMERA_PITCH + Math.sin(realTime * 41) * shake * 0.5, 0, Math.sin(realTime * 37) * shake * 1.2)
     redFlash = Math.max(0, redFlash - real / 0.35)
-    vignetteMat.opacity = redFlash * 0.75
+    vignetteMat.opacity = redFlash * 0.55
     vignette.visible = redFlash > 0
   }
 
