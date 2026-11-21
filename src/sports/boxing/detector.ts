@@ -114,6 +114,8 @@ export interface BoxingDetectorConfig {
 }
 
 // Tuned to be forgiving for casual players, while each false-positive path has its own explicit gate.
+// 2026-11-21: straightMinForward, thrustMinFwd, hookMinSpeed, uppercutMinSpeed and guardMaxNoseDist tuned on real
+// webcam recordings (recordings/boxing_anon_*, motion lab /record.html); see the PR for before/after numbers.
 export const DEFAULT_BOXING_CONFIG: BoxingDetectorConfig = {
   minVisibility: 0.35,
   velocityMinVisibility: 0.5,
@@ -133,25 +135,25 @@ export const DEFAULT_BOXING_CONFIG: BoxingDetectorConfig = {
   straightDthetaWindowMs: 120,
   straightMinTheta: 131,
   straightMaxZReach: -0.12,
-  straightMinForward: 0.06,
-  thrustMinFwd: 2,
+  straightMinForward: 0.08,
+  thrustMinFwd: 2.6,
   thrustMinTheta: 105,
   thrustMinDtheta: 90,
   crossMinYaw: 14,
   rearCrossMinYaw: 7,
-  hookMinSpeed: 2.2,
+  hookMinSpeed: 2.5,
   hookMinTheta: 60,
   hookMaxTheta: 130,
   hookMinLateralRatio: 1.3,
   hookMidlineMargin: 0.2,
   hookCrossWindowMs: 180,
-  uppercutMinSpeed: 2.4,
+  uppercutMinSpeed: 3,
   uppercutStartBelow: -0.1,
   uppercutMaxStartBelow: 0.9,
   uppercutStartWindowMs: 300,
   uppercutMaxOtherRise: 0.5,
   dominanceRatio: 1,
-  guardMaxNoseDist: 0.6,
+  guardMaxNoseDist: 0.55,
   guardMaxTheta: 145,
   slipMinNoseX: 0.3,
   duckMinDrop: 0.2,

@@ -305,7 +305,11 @@ export function formatConfusion(s: Scores): string {
 // Training: score many recordings under a boxing config, and search for a better one.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** One number to maximise: mean F1 over the scored labels present, minus a penalty per idle trigger per minute. */
+/**
+ * One number to maximise: mean F1 over the scored labels present. Idle triggers are already false positives of
+ * their motion (they lower its precision), so they are not penalised a second time: with a short idle set a
+ * separate per-minute penalty dominated everything and let the tuner trade away whole motions.
+ */
 export function objective(s: Scores, labels: readonly MotionLabel[]): number {
   const f1s: number[] = []
   for (const label of labels) {
@@ -315,11 +319,17 @@ export function objective(s: Scores, labels: readonly MotionLabel[]): number {
     const r = m.tp / m.reps
     f1s.push(p + r > 0 ? (2 * p * r) / (p + r) : 0)
   }
-  const idle = s.confusion.get('idle')
-  const idleFires = idle ? [...idle].filter(([k]) => labels.includes(k)).reduce((a, [, n]) => a + n, 0) : 0
-  const idlePerMin = s.idleMinutes > 0 ? idleFires / s.idleMinutes : 0
-  const meanF1 = f1s.length ? f1s.reduce((a, b) => a + b, 0) / f1s.length : 0
-  return meanF1 - 0.05 * idlePerMin
+  return f1s.length ? f1s.reduce((a, b) => a + b, 0) / f1s.length : 0
+}
+
+/** Detected reps per label (true positives), for the tuner's "never lose detections" rule. */
+function recalls(s: Scores, labels: readonly MotionLabel[]): Map<MotionLabel, number> {
+  const out = new Map<MotionLabel, number>()
+  for (const l of labels) {
+    const m = s.byLabel.get(l)
+    if (m && m.reps > 0 && SCORED_LABELS.includes(l)) out.set(l, m.tp)
+  }
+  return out
 }
 
 export function scoreAll(recs: Recording[], opts: ReplayOptions, types: readonly MotionLabel[]): Scores {
@@ -355,8 +365,8 @@ export interface TuneStep {
 }
 
 /**
- * Coordinate search: for each tunable, try one step down and one step up; keep a change only if the objective
- * improves. Repeats for `rounds`. `onStep` can yield to the UI (await it) and report progress.
+ * Coordinate search: for each tunable, try one step down and one step up; keep a change only if mean F1 improves
+ * and no motion loses a detected rep. Repeats for `rounds`. `onStep` can yield to the UI (await it) and report progress.
  */
 export async function autoTuneBoxing(
   recs: Recording[],
@@ -367,8 +377,10 @@ export async function autoTuneBoxing(
 ): Promise<{ config: Partial<BoxingDetectorConfig>; before: number; after: number }> {
   const cfg: Partial<BoxingDetectorConfig> = { ...start }
   const value = (k: keyof BoxingDetectorConfig): number => (cfg[k] ?? DEFAULT_BOXING_CONFIG[k]) as number
-  const before = objective(scoreAll(recs, { boxing: cfg }, types), types)
+  const start0 = scoreAll(recs, { boxing: cfg }, types)
+  const before = objective(start0, types)
   let best = before
+  let bestTp = recalls(start0, types)
   for (let round = 1; round <= rounds; round++) {
     let improved = false
     for (const t of BOXING_TUNABLES) {
@@ -376,9 +388,13 @@ export async function autoTuneBoxing(
         const v = Math.round((value(t.key) + dir * t.step) * 1000) / 1000
         if (v < t.min || v > t.max) continue
         const trial = { ...cfg, [t.key]: v }
-        const o = objective(scoreAll(recs, { boxing: trial }, types), types)
-        const accepted = o > best + 1e-6
-        if (accepted) { best = o; Object.assign(cfg, { [t.key]: v }); improved = true }
+        const sc = scoreAll(recs, { boxing: trial }, types)
+        const o = objective(sc, types)
+        const tp = recalls(sc, types)
+        // A step must raise mean F1 AND not lose a detected rep in any motion (no trading one motion for another).
+        const noLoss = [...bestTp].every(([l, n]) => (tp.get(l) ?? 0) >= n)
+        const accepted = noLoss && o > best + 1e-6
+        if (accepted) { best = o; bestTp = tp; Object.assign(cfg, { [t.key]: v }); improved = true }
         await onStep?.({ round, key: t.key, value: v, objective: o, accepted })
       }
     }
