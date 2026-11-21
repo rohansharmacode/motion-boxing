@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="KINETIC Goalkeeper neon retro-arcade sport illustration">
+  <defs>
+    <linearGradient id="ng-sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060A18" />
+      <stop offset="58%" stop-color="#0C1734" />
+      <stop offset="78%" stop-color="#29123B" />
+      <stop offset="100%" stop-color="#080C1C" />
+    </linearGradient>
+    <radialGradient id="ng-aura" cx="50%" cy="46%" r="54%">
+      <stop offset="0%" stop-color="#22E5FF" stop-opacity="0.3" />
+      <stop offset="65%" stop-color="#FF2E88" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#080C1C" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="ng-post" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22E5FF" />
+      <stop offset="50%" stop-color="#F2F7FF" />
+      <stop offset="100%" stop-color="#FF2E88" />
+    </linearGradient>
+    <filter id="ng-neon" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#ng-sky)" />
+  <rect width="1280" height="720" fill="url(#ng-aura)" />
+
+  <!-- Stadium Spotlight Cones -->
+  <polygon points="140,0 440,520 580,520 220,0" fill="#22E5FF" fill-opacity="0.06" />
+  <polygon points="1140,0 840,520 700,520 1060,0" fill="#FF2E88" fill-opacity="0.07" />
+
+  <!-- Synthwave Pitch Perspective Grid -->
+  <rect x="0" y="510" width="1280" height="210" fill="#070B1A" />
+  <g stroke="#22E5FF" stroke-opacity="0.34" stroke-width="2">
+    <line x1="0" y1="510" x2="1280" y2="510" stroke="#FF2E88" stroke-opacity="0.8" stroke-width="3" />
+    <line x1="0" y1="556" x2="1280" y2="556" />
+    <line x1="0" y1="616" x2="1280" y2="616" />
+    <line x1="0" y1="686" x2="1280" y2="686" />
+    <line x1="640" y1="510" x2="640" y2="720" />
+    <line x1="460" y1="510" x2="290" y2="720" />
+    <line x1="820" y1="510" x2="990" y2="720" />
+    <line x1="280" y1="510" x2="-40" y2="720" />
+    <line x1="1000" y1="510" x2="1320" y2="720" />
+  </g>
+  <!-- Penalty Box Arc -->
+  <ellipse cx="640" cy="634" rx="280" ry="38" fill="none" stroke="#22E5FF" stroke-opacity="0.45" stroke-width="3" />
+
+  <!-- Neon Goal Frame + 9-Zone Laser Net -->
+  <g transform="translate(170, 114)">
+    <!-- Perspective back net -->
+    <g stroke="#22E5FF" stroke-opacity="0.26" stroke-width="2">
+      <rect x="74" y="42" width="792" height="354" fill="#080F24" fill-opacity="0.55" />
+      <line x1="74" y1="160" x2="866" y2="160" />
+      <line x1="74" y1="278" x2="866" y2="278" />
+      <line x1="338" y1="42" x2="338" y2="396" />
+      <line x1="602" y1="42" x2="602" y2="396" />
+      <line x1="0" y1="0" x2="74" y2="42" />
+      <line x1="940" y1="0" x2="866" y2="42" />
+    </g>
+    <!-- Active Top-Right Strike Zone Highlight -->
+    <rect x="602" y="42" width="264" height="118" fill="#FF2E88" fill-opacity="0.16" stroke="#FF2E88" stroke-width="3" stroke-dasharray="14 10" />
+    <!-- Glowing Goal Frame -->
+    <path d="M 0 402 L 0 0 L 940 0 L 940 402" fill="none" stroke="url(#ng-post)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#ng-neon)" />
+  </g>
+
+  <!-- Sweeping Magnus Plasma Shot Trail -->
+  <path d="M 280 680 Q 560 400 886 244" fill="none" stroke="#FF2E88" stroke-width="10" stroke-linecap="round" stroke-dasharray="28 16" filter="url(#ng-neon)" />
+  <path d="M 294 676 Q 565 406 886 244" fill="none" stroke="#F2F7FF" stroke-width="3" stroke-linecap="round" stroke-dasharray="28 16" />
+
+  <!-- Diving Cyber-Keeper Silhouette (Geometric, Original) -->
+  <g transform="translate(566, 360) rotate(-14)" filter="url(#ng-neon)">
+    <!-- Kinetic Dive Arc -->
+    <path d="M -220 96 Q 20 -120 296 -42" fill="none" stroke="#22E5FF" stroke-opacity="0.5" stroke-width="4" stroke-dasharray="16 12" />
+    <!-- Geometric Armor Torso -->
+    <polygon points="-76,-28 84,-42 114,56 -46,84" fill="#0E1A36" stroke="#22E5FF" stroke-width="5" stroke-linejoin="round" />
+    <polygon points="-10,-16 42,-18 28,44 -26,42" fill="#22E5FF" fill-opacity="0.22" />
+    <!-- Visor Helmet -->
+    <polygon points="36,-116 106,-116 122,-74 78,-48 22,-74" fill="#131F40" stroke="#22E5FF" stroke-width="4.5" />
+    <line x1="46" y1="-84" x2="108" y2="-86" stroke="#FF2E88" stroke-width="9" stroke-linecap="round" />
+    <!-- Outstretched Left Keeper Glove -->
+    <g transform="translate(-174, 34) rotate(-18)">
+      <rect x="-46" y="-36" width="92" height="72" rx="18" fill="#0D1C38" stroke="#22E5FF" stroke-width="6" />
+      <rect x="-26" y="-18" width="52" height="16" rx="8" fill="#22E5FF" />
+    </g>
+    <!-- Outstretched Saving Right Glove -->
+    <g transform="translate(248, -56) rotate(20)">
+      <rect x="-54" y="-42" width="108" height="84" rx="20" fill="#260E2C" stroke="#FF2E88" stroke-width="6.5" />
+      <rect x="-30" y="-20" width="60" height="18" rx="9" fill="#22E5FF" />
+    </g>
+  </g>
+
+  <!-- Neon Plasma Football + Deflection Burst -->
+  <g transform="translate(888, 240)" filter="url(#ng-neon)">
+    <circle cx="0" cy="0" r="68" fill="none" stroke="#22E5FF" stroke-opacity="0.55" stroke-width="3.5" stroke-dasharray="14 10" />
+    <circle cx="0" cy="0" r="46" fill="#0C132A" stroke="#FF2E88" stroke-width="7" />
+    <polygon points="0,-24 22,-8 14,20 -14,20 -22,-8" fill="#22E5FF" stroke="#F2F7FF" stroke-width="2.5" />
+    <!-- Impact rays -->
+    <g stroke="#22E5FF" stroke-width="4.5" stroke-linecap="round">
+      <line x1="-68" y1="-56" x2="-46" y2="-38" />
+      <line x1="68" y1="-56" x2="46" y2="-38" stroke="#FF2E88" />
+      <line x1="78" y1="18" x2="54" y2="12" stroke="#FF2E88" />
+    </g>
+  </g>
+</svg>
