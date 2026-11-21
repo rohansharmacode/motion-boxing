@@ -122,6 +122,44 @@ function logEvent(text: string, cls = ''): void {
   while (box.childElementCount > 200) box.lastElementChild?.remove()
 }
 
+/**
+ * The calibrator's own checks (src/pose/calibration.ts) on the current frame, in words, so it is clear which one fails:
+ * both shoulders visible (> 0.5) and 0.03 < shoulder width < 0.5 of frame height; both wrists visible (>= 0.4) and
+ * not within 2% of the frame edge.
+ */
+function calDiagnostics(frame: PoseFrame | null): { text: string; data: Record<string, unknown> } | null {
+  if (!frame || !pipeline) return null
+  const a = pipeline.videoWidth / Math.max(1, pipeline.videoHeight)
+  const ls = frame.image[11]
+  const rs = frame.image[12]
+  const width = Math.hypot((ls.x - rs.x) * a, ls.y - rs.y)
+  const wrist = (i: number) => {
+    const w = frame.image[i]
+    const edge = w.x <= 0.02 || w.x >= 0.98 || w.y <= 0.02 || w.y >= 0.98
+    return { vis: +(w.visibility ?? 0).toFixed(2), x: +w.x.toFixed(2), y: +w.y.toFixed(2), edge, ok: (w.visibility ?? 0) >= 0.4 && !edge }
+  }
+  const L = wrist(15)
+  const R = wrist(16)
+  const shouldersOk = (ls.visibility ?? 0) > 0.5 && (rs.visibility ?? 0) > 0.5 && width >= 0.03
+  const fmt = (n: string, w: ReturnType<typeof wrist>): string => `${n} fist ${w.ok ? 'OK' : w.edge ? 'AT EDGE (y ' + w.y + ')' : 'not seen (' + w.vis + ')'}`
+  const text = `Shoulders ${shouldersOk ? 'OK' : `NOT OK (vis ${(ls.visibility ?? 0).toFixed(2)}/${(rs.visibility ?? 0).toFixed(2)})`}, ` +
+    `size ${(width * 100).toFixed(0)}% of frame height (${width > 0.5 ? 'TOO CLOSE, max 50' : 'ok'}). ${fmt('Left', L)}. ${fmt('Right', R)}.`
+  return { text, data: { shoulderVis: [ls.visibility, rs.visibility], shoulderWidth: +width.toFixed(3), left: L, right: R, aspect: +a.toFixed(2) } }
+}
+
+let lastReport = 0
+/** Dev only: posts the calibration state to the dev server (no images), so a helper can read it from the terminal. */
+function reportStatus(status: string, diag: ReturnType<typeof calDiagnostics>): void {
+  const now = performance.now()
+  if (now - lastReport < 1000) return
+  lastReport = now
+  void fetch('/__lab-status', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ at: new Date().toISOString(), status, fps: Math.round(fps), inferenceMs: pipeline?.inferenceMs, video: pipeline ? [pipeline.videoWidth, pipeline.videoHeight] : null, ...(diag?.data ?? { pose: false }) }),
+  }).catch(() => {})
+}
+
 function onFrame(frame: PoseFrame | null): void {
   if (frame) {
     if (prevT) fps = fps * 0.9 + (1000 / Math.max(1, frame.t - prevT)) * 0.1
@@ -146,7 +184,9 @@ function onFrame(frame: PoseFrame | null): void {
     }
     const st = live.calibration ? 'done' : live.status
     $('calStatus').textContent = live.calibration ? `calibrated (${live.calibration.stance ?? 'orthodox'})` : `calibrating: ${st}`
-    $('calHint').textContent = CAL_HINT[st] ?? ''
+    const diag = calDiagnostics(frame)
+    $('calHint').textContent = `${CAL_HINT[st] ?? ''}${diag && !live.calibration ? `\n${diag.text}` : ''}`
+    reportStatus(st, diag)
   }
   if (frames.length % 10 === 0 || !taking) {
     $('perf').textContent = `fps ${fps.toFixed(0)}   pose inference ${pipeline?.inferenceMs.toFixed(1) ?? '-'} ms   camera-to-app ${frame ? (performance.now() - frame.t).toFixed(0) : '-'} ms`
