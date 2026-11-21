@@ -49,6 +49,18 @@ export interface AppConfig {
   keepWarmMs: number;
   /** Fire one tiny Cortex COMPLETE at startup so the first real card is not a cold start. */
   cortexWarmup: boolean;
+  /** Coach card via AI_COMPLETE structured output (falls back to CORTEX.COMPLETE if unsupported). */
+  cortexStructured: boolean;
+  /** Ground the coach drill on COACH_DRILL_SEARCH (Cortex Search) results. */
+  coachGrounding: boolean;
+  /** Own timeout for the coach's Cortex Search call. */
+  coachSearchTimeoutMs: number;
+  /** GET /api/drills/search statement timeout. */
+  drillSearchTimeoutMs: number;
+  /** Per-feature timeout of the GET /api/snowflake/status probes. */
+  statusProbeTimeoutMs: number;
+  /** GET /api/snowflake/status answers from cache for this long. */
+  statusCacheMs: number;
   /** Converts the front end's peak_velocity (shoulder-widths/s) to m/s. */
   shoulderWidthM: number;
   events: EventQueueConfig;
@@ -90,12 +102,18 @@ export function loadConfig(env: Env = process.env): AppConfig {
       .map((s) => s.trim())
       .filter(Boolean),
     logLevel,
-    cortexModel: str(env, 'CORTEX_MODEL', 'mistral-large2'),
+    cortexModel: str(env, 'CORTEX_MODEL', 'mistral-large3'),
     coachTimeoutMs: int(env, 'COACH_TIMEOUT_MS', 8000, 100, 120_000),
     sessionEndFlushWaitMs: int(env, 'SESSION_END_FLUSH_WAIT_MS', 5000, 0, 60_000),
     coachFastMs: int(env, 'COACH_FAST_MS', 5000, 0, 120_000),
     keepWarmMs: int(env, 'WAREHOUSE_KEEPWARM_MS', 0, 0, 3_600_000),
     cortexWarmup: env.CORTEX_WARMUP === undefined ? true : isTruthy(env.CORTEX_WARMUP),
+    cortexStructured: env.CORTEX_STRUCTURED === undefined ? true : isTruthy(env.CORTEX_STRUCTURED),
+    coachGrounding: env.COACH_GROUNDING === undefined ? true : isTruthy(env.COACH_GROUNDING),
+    coachSearchTimeoutMs: int(env, 'COACH_SEARCH_TIMEOUT_MS', 2500, 100, 60_000),
+    drillSearchTimeoutMs: int(env, 'DRILL_SEARCH_TIMEOUT_MS', 5000, 100, 60_000),
+    statusProbeTimeoutMs: int(env, 'STATUS_PROBE_TIMEOUT_MS', 3000, 100, 60_000),
+    statusCacheMs: int(env, 'STATUS_CACHE_MS', 10_000, 0, 600_000),
     shoulderWidthM: Number(str(env, 'SHOULDER_WIDTH_M', '0.4')) > 0 ? Number(str(env, 'SHOULDER_WIDTH_M', '0.4')) : 0.4,
     events: {
       maxBatch: int(env, 'EVENTS_MAX_BATCH', 500, 1, 5000),

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import express, { type Express } from 'express';
 import { createAskRouter } from './ask';
+import { createPlusRouter } from './plusRoutes';
 import type { AppConfig } from './config';
 import type { Cortex } from './cortex';
 import { HttpError, db, errorHandler, notFoundHandler, zodDetails } from './errors';
@@ -83,6 +84,9 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     coachTimeoutMs: config.coachTimeoutMs,
     flushWaitMs: config.sessionEndFlushWaitMs,
     coachFastMs: config.coachFastMs,
+    coachStructured: config.cortexStructured,
+    coachGrounding: config.coachGrounding,
+    coachSearchTimeoutMs: config.coachSearchTimeoutMs,
   });
 
   // --- Front-end flow (client-generated ids, see src/frontend.ts) ----------------------------
@@ -260,7 +264,9 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     const body = readBody(req.body);
     if (!isFrontendEndBody(body)) {
       const { session_id } = EndSessionBody.parse(body);
-      res.json(await sessions.end(session_id));
+      // The original response shape stays exactly as documented in sql/CONTRACT.md.
+      const { coach_meta: _meta, ...original } = await sessions.end(session_id);
+      res.json(original);
       return;
     }
     // Front-end shape: upsert PLAYERS + SESSIONS, run the coach, return coach + leaderboard + form score.
@@ -288,7 +294,8 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
         return null;
       }),
     ]);
-    res.json({ ...result, coach: toFrontendCoach(result.coach, result.stats), leaderboard, form_score });
+    const { coach_meta, ...rest } = result;
+    res.json({ ...rest, coach: toFrontendCoach(result.coach, result.stats, coach_meta), leaderboard, form_score });
   });
 
   /** Poll after a session end answered warming_up:true. */
@@ -296,7 +303,12 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     const id = IdSchema.safeParse(req.params.id);
     if (!id.success) throw new HttpError(400, 'validation_error', 'Invalid session id', zodDetails(id.error));
     const status = await sessions.coachStatus(id.data);
-    res.json(status.ready ? { ...status, coach_card: toFrontendCoach(status.coach, status.stats) } : status);
+    if (!status.ready) {
+      res.json(status);
+      return;
+    }
+    const { coach_meta, ...rest } = status;
+    res.json({ ...rest, coach_card: toFrontendCoach(status.coach, status.stats, coach_meta) });
   });
 
   app.get('/api/leaderboard', async (_req, res) => {
@@ -320,6 +332,7 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     });
   });
 
+  app.use(createPlusRouter({ repo, cortex, config, log }));
   app.use(createAskRouter({ repo, cortex, config, log }));
 
   app.use(notFoundHandler);

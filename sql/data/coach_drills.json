@@ -1,0 +1,258 @@
+[
+  {
+    "drill_id": "spd-01",
+    "title": "Snap-Back Jabs",
+    "focus": "speed",
+    "level": "beginner",
+    "description": "Stand in your stance facing the camera. Throw 20 jabs at about 70 percent power and pull each hand back faster than it went out. Rest 30 seconds. Do 3 sets.",
+    "cues": "Return faster than you throw | Relax the shoulders | Exhale on every jab"
+  },
+  {
+    "drill_id": "spd-02",
+    "title": "Ten-Second Flurries",
+    "focus": "speed",
+    "level": "intermediate",
+    "description": "Throw straight punches as fast as you can for 10 seconds, then hold a still guard for 20 seconds. Do 6 rounds. Reach full extension on every punch so speed never costs reach.",
+    "cues": "Full extension every punch | Stay loose between bursts | Count your punches each round"
+  },
+  {
+    "drill_id": "spd-03",
+    "title": "Double-Jab Ladder",
+    "focus": "speed",
+    "level": "intermediate",
+    "description": "Throw a double jab, then a triple, then four jabs, then work back down to one. That ladder is one set. Do 4 sets with 30 seconds rest and keep the rhythm crisp.",
+    "cues": "Small fast steps of the lead hand | Chin down | Same speed on the last jab as the first"
+  },
+  {
+    "drill_id": "spd-04",
+    "title": "Balloon Hands",
+    "focus": "speed",
+    "level": "advanced",
+    "description": "Shadowbox 3 rounds of 1 minute with very light hands, as if tapping a balloon, chasing your fastest hand speed of the day. Go all out for the last 15 seconds of each round. Rest 45 seconds.",
+    "cues": "Light hands are fast hands | Turn the hips, not just the arms | Sharp breath out"
+  },
+  {
+    "drill_id": "rct-01",
+    "title": "Clap Cue Jabs",
+    "focus": "reaction",
+    "level": "beginner",
+    "description": "Ask a friend to clap at random moments, or use a random beep timer. On each signal fire one jab as fast as you can and return to guard. Do 3 sets of 15 signals.",
+    "cues": "React, do not guess | Stay relaxed while you wait | Guard back before the next cue"
+  },
+  {
+    "drill_id": "rct-02",
+    "title": "Left or Right Calls",
+    "focus": "reaction",
+    "level": "intermediate",
+    "description": "A partner calls left or right at random. Throw a lead hook on left and a rear cross on right. Do 3 rounds of 1 minute and aim to answer each call within half a second.",
+    "cues": "Eyes on the screen | Weight centred | Do not drop the other hand"
+  },
+  {
+    "drill_id": "rct-03",
+    "title": "Block Then Fire",
+    "focus": "reaction",
+    "level": "intermediate",
+    "description": "On a random signal, raise a high double block, then answer straight away with a jab-cross. Do 4 sets of 10 signals with 30 seconds rest between sets.",
+    "cues": "Block first, then punch | Short punches, fast return | Keep elbows tight"
+  },
+  {
+    "drill_id": "rct-04",
+    "title": "Prompt Pyramid",
+    "focus": "reaction",
+    "level": "advanced",
+    "description": "Play 30-second game rounds where you punch only on prompts. Round 1 answer with one punch, round 2 with two, round 3 with three, then back down to one. Rest 30 seconds between rounds.",
+    "cues": "First punch is the fastest | Stay balanced after each answer | Breathe between prompts"
+  },
+  {
+    "drill_id": "acc-01",
+    "title": "Sticky Note Target",
+    "focus": "accuracy",
+    "level": "beginner",
+    "description": "Put a sticky note at chin height on the wall in front of you. Throw slow jabs and crosses that stop just short of it. Do 2 sets of 20 per hand.",
+    "cues": "Look at the target, not the hand | Punch in a straight line | Stop short, do not hit the wall"
+  },
+  {
+    "drill_id": "acc-02",
+    "title": "Slow Motion Round",
+    "focus": "accuracy",
+    "level": "beginner",
+    "description": "Shadowbox one 2-minute round at quarter speed, picturing every punch landing on the same spot. Then do one round at half speed with the same precision.",
+    "cues": "Same target every time | Full extension | Smooth, not rushed"
+  },
+  {
+    "drill_id": "acc-03",
+    "title": "Call the Target",
+    "focus": "accuracy",
+    "level": "intermediate",
+    "description": "Picture three targets in front of you: head, chest and body. Call a target out loud, then hit it with a straight punch. Do 3 rounds of 1 minute and change target on every punch.",
+    "cues": "Call it, then throw it | Bend the knees for body shots | Return to guard each time"
+  },
+  {
+    "drill_id": "acc-04",
+    "title": "Tired Precision",
+    "focus": "accuracy",
+    "level": "advanced",
+    "description": "Throw fast punches for 20 seconds, then immediately throw 5 slow, perfect jabs at one spot. Repeat 6 times. Clean punches at the end of a round are the ones that count.",
+    "cues": "Slow down to be precise | Exhale and reset | Same spot every jab"
+  },
+  {
+    "drill_id": "grd-01",
+    "title": "Glued Rear Hand",
+    "focus": "guard",
+    "level": "beginner",
+    "description": "Throw 3 sets of 15 jabs while the rear glove stays touching your cheek. After each set, check the camera view to see whether the rear hand drifted.",
+    "cues": "Rear hand on the cheek | Elbow covers the ribs | Chin behind the shoulder"
+  },
+  {
+    "drill_id": "grd-02",
+    "title": "Tap and Return",
+    "focus": "guard",
+    "level": "intermediate",
+    "description": "After every punch, touch your forehead with the punching hand before you throw the next one. Do 3 rounds of 1 minute of jab, cross and hook. This builds the habit of coming home to guard.",
+    "cues": "Every punch comes home | Forehead tap, then go again | Keep the other hand still"
+  },
+  {
+    "drill_id": "grd-03",
+    "title": "Chin Tuck Rounds",
+    "focus": "guard",
+    "level": "beginner",
+    "description": "Hold a rolled-up sock between your chin and chest and shadowbox 2 rounds of 1 minute without dropping it. Keep the elbows in and the eyes up.",
+    "cues": "Chin down, eyes up | Elbows in | Small, tight punches"
+  },
+  {
+    "drill_id": "grd-04",
+    "title": "Guard Check Penalty",
+    "focus": "guard",
+    "level": "advanced",
+    "description": "Shadowbox 3 rounds of 90 seconds. Every time you notice your guard drop, stop and do 3 squats, then carry on. Aim for zero squats by the third round.",
+    "cues": "Hands up when tired | Punch and recover | Watch the guard percentage in the game"
+  },
+  {
+    "drill_id": "sym-01",
+    "title": "Mirror Stance Rounds",
+    "focus": "symmetry",
+    "level": "beginner",
+    "description": "Box 2 rounds of 1 minute in your normal stance, then 2 rounds in the opposite stance. Try to match your strong-side punch count with your weak side.",
+    "cues": "Same rhythm both sides | Count your punches | Relax the weak shoulder"
+  },
+  {
+    "drill_id": "sym-02",
+    "title": "Weak Hand Leads",
+    "focus": "symmetry",
+    "level": "intermediate",
+    "description": "Start every combination with your weaker hand. Do 3 rounds of 1 minute of weak-hand jab, hook and uppercut, then finish each round with 10 crosses from the strong hand.",
+    "cues": "Weak hand goes first | Full turn on the hook | Do not rush the strong hand"
+  },
+  {
+    "drill_id": "sym-03",
+    "title": "Strict Alternation",
+    "focus": "symmetry",
+    "level": "intermediate",
+    "description": "Alternate hands strictly, left then right, for 4 sets of 30 punches. Keep both hands at the same speed, and slow the strong hand down if you need to.",
+    "cues": "Left, right, left, right | Match the speed | Even breathing"
+  },
+  {
+    "drill_id": "sym-04",
+    "title": "Switch Stance Combos",
+    "focus": "symmetry",
+    "level": "advanced",
+    "description": "Throw a jab-cross-hook, switch stance with a small hop, then throw the same combination from the other side. Do 4 rounds of 45 seconds with 30 seconds rest.",
+    "cues": "Quick, small switch | Guard stays up during the hop | Same power both sides"
+  },
+  {
+    "drill_id": "end-01",
+    "title": "Steady Pace Round",
+    "focus": "endurance",
+    "level": "beginner",
+    "description": "Shadowbox for 3 minutes at a pace you can keep the whole time, about one punch per second. Rest 1 minute, then repeat once. The goal is an even pace, not top speed.",
+    "cues": "Even pace from start to end | Breathe through the nose | Loose shoulders"
+  },
+  {
+    "drill_id": "end-02",
+    "title": "Work Rest Ladder",
+    "focus": "endurance",
+    "level": "intermediate",
+    "description": "Punch for 30 seconds and rest 30, then 40 on and 20 off, then 50 on and 10 off. Repeat the ladder twice. Keep the last punches as sharp as the first.",
+    "cues": "Sharp to the final second | Short rests, quick reset | Stay on your toes"
+  },
+  {
+    "drill_id": "end-03",
+    "title": "Fourth Quarter Finisher",
+    "focus": "endurance",
+    "level": "intermediate",
+    "description": "Play a normal game round, then straight away throw 30 seconds of straight punches at full speed. Do this 3 times in a session to train speed when you are tired.",
+    "cues": "Push through the last 30 seconds | Hands back to guard | Exhale on every punch"
+  },
+  {
+    "drill_id": "end-04",
+    "title": "Championship Rounds",
+    "focus": "endurance",
+    "level": "advanced",
+    "description": "Do 6 rounds of 2 minutes with 45 seconds rest, mixing jabs, crosses and hooks. Track the speed drop in the game and try to keep it under 10 percent.",
+    "cues": "Pace the early rounds | Same speed in round 6 | Drink water between rounds"
+  },
+  {
+    "drill_id": "cmb-01",
+    "title": "One-Two Foundations",
+    "focus": "combos",
+    "level": "beginner",
+    "description": "Throw 4 sets of 15 jab-cross combinations. Pause in guard for one second after each one. Focus on turning the rear foot as the cross goes out.",
+    "cues": "Jab sets up the cross | Turn the rear foot | Pause in guard"
+  },
+  {
+    "drill_id": "cmb-02",
+    "title": "Jab Cross Hook",
+    "focus": "combos",
+    "level": "intermediate",
+    "description": "Do 3 rounds of 1 minute of jab, cross and lead hook. Turn the lead foot in on the hook and return to guard after every combination. Rest 30 seconds between rounds.",
+    "cues": "Hook elbow at shoulder height | Pivot the lead foot | Guard home after the hook"
+  },
+  {
+    "drill_id": "cmb-03",
+    "title": "Body Then Head",
+    "focus": "combos",
+    "level": "intermediate",
+    "description": "Throw a cross to the body, then a lead hook to the head. Bend the knees for the body shot instead of leaning. Do 4 sets of 10 combinations on each side.",
+    "cues": "Bend the knees, not the back | Body first, head second | Back to guard"
+  },
+  {
+    "drill_id": "cmb-04",
+    "title": "Five Punch Flow",
+    "focus": "combos",
+    "level": "advanced",
+    "description": "Throw jab, cross, lead hook, rear uppercut, cross. Repeat it 8 times in a row at speed, rest 30 seconds, and do 4 sets. Keep the guard tight between punches.",
+    "cues": "Flow, do not pause | Short uppercut | Finish with the guard up"
+  },
+  {
+    "drill_id": "ftw-01",
+    "title": "Small Box Steps",
+    "focus": "footwork",
+    "level": "beginner",
+    "description": "Picture a small square on the floor, one step wide. Step forward, right, back and left in stance, throwing a jab after each step. Do 3 rounds of 1 minute and stay inside the camera frame.",
+    "cues": "Never cross your feet | Small steps | Jab after landing"
+  },
+  {
+    "drill_id": "ftw-02",
+    "title": "Pivot and Punch",
+    "focus": "footwork",
+    "level": "intermediate",
+    "description": "Throw a jab-cross, pivot a quarter turn on the lead foot, and repeat until you have turned a full circle. Do 4 sets. Keep your whole body in the camera frame.",
+    "cues": "Pivot on the ball of the foot | Guard up while turning | Punch only when set"
+  },
+  {
+    "drill_id": "ftw-03",
+    "title": "In and Out",
+    "focus": "footwork",
+    "level": "intermediate",
+    "description": "Step in with a jab, then step back out of range. Do 3 rounds of 1 minute with small steps, never crossing your feet, and stay in the webcam view.",
+    "cues": "Front foot first going in | Back foot first going out | Hands up on the exit"
+  },
+  {
+    "drill_id": "ftw-04",
+    "title": "Bounce Rounds",
+    "focus": "footwork",
+    "level": "advanced",
+    "description": "Stay light on the balls of your feet for 3 rounds of 90 seconds, bouncing in stance and throwing combinations of two to four punches on the move. Rest 30 seconds between rounds.",
+    "cues": "Light, springy feet | Punch while moving | Keep the bounce small"
+  }
+]

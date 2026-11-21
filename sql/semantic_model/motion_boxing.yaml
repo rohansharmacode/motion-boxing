@@ -1,0 +1,771 @@
+# Cortex Analyst semantic model for Motion Boxing (webcam boxing game).
+# Upload to @MOTION_DB.PUBLIC.SEMANTIC_MODELS/motion_boxing.yaml (see sql/semantic.sql and README.md).
+# Logical column names match the physical column names (except benchmarks.benchmark_metric),
+# so every expr below is a plain column or a simple expression over base-table columns.
+name: motion_boxing
+description: >-
+  Motion Boxing is a webcam boxing game. Players (fighters, boxers) play rounds (sessions);
+  every detected punch, block, slip or duck is one event with hand speed, accuracy, reaction
+  time and guard. Per-player form, progress across rounds and professional benchmarks are
+  precomputed by Snowflake dynamic tables. Sport is always boxing.
+
+tables:
+  # ---------------------------------------------------------------------------
+  - name: players
+    synonyms: ["fighters", "boxers", "users"]
+    description: One row per player. Join on player_id to show a player's name.
+    base_table:
+      database: MOTION_DB
+      schema: PUBLIC
+      table: PLAYERS
+    primary_key:
+      columns: [player_id]
+    dimensions:
+      - name: player_id
+        description: Unique player id (UUID string). Use name for display.
+        expr: player_id
+        data_type: VARCHAR
+      - name: name
+        synonyms: ["player name", "fighter", "boxer", "player", "display name", "username"]
+        description: Player display name chosen in the game. Not guaranteed unique, so group by player_id and name.
+        expr: name
+        data_type: VARCHAR
+    time_dimensions:
+      - name: created_at
+        synonyms: ["signup time", "joined at", "first seen"]
+        description: When the player was first seen (TIMESTAMP_NTZ, UTC).
+        expr: created_at
+        data_type: TIMESTAMP_NTZ
+    metrics:
+      - name: player_count
+        synonyms: ["number of players", "how many players", "player total"]
+        description: Number of distinct players.
+        expr: COUNT(DISTINCT player_id)
+
+  # ---------------------------------------------------------------------------
+  - name: sessions
+    synonyms: ["rounds", "matches", "games", "bouts"]
+    description: >-
+      One row per round (session) that has at least one event. A round, session, match or game
+      all mean the same thing. session_index numbers each player's rounds in time order
+      (1 = first round), so it is the right column for "across sessions" or "over time per player".
+      Score is the sum of points in the round.
+    base_table:
+      database: MOTION_DB
+      schema: PUBLIC
+      table: SESSION_SUMMARY
+    primary_key:
+      columns: [session_id]
+    dimensions:
+      - name: session_id
+        synonyms: ["round id", "match id"]
+        description: Unique round id (UUID string).
+        expr: session_id
+        data_type: VARCHAR
+      - name: player_id
+        description: Player who played the round. Join to players.player_id for the name.
+        expr: player_id
+        data_type: VARCHAR
+      - name: session_index
+        synonyms: ["round number", "session number", "nth session", "attempt number"]
+        description: 1 for the player's first round, 2 for the second, and so on (ordered by session_start_ts).
+        expr: session_index
+        data_type: NUMBER
+        sample_values: ["1", "2", "3"]
+    time_dimensions:
+      - name: session_start_ts
+        synonyms: ["round start", "session date", "played at", "match time"]
+        description: When the round started (TIMESTAMP_NTZ, UTC). Use it for "latest round" and per-day questions.
+        expr: session_start_ts
+        data_type: TIMESTAMP_NTZ
+    facts:
+      - name: score
+        synonyms: ["round score", "points scored", "session score", "match score"]
+        description: Total points scored in the round (higher is better).
+        expr: score
+        data_type: NUMBER
+      - name: punches
+        synonyms: ["punches in round", "punches per session"]
+        description: Number of punches (jab, cross, hook, uppercut) thrown in the round.
+        expr: punches
+        data_type: NUMBER
+      - name: avg_speed
+        synonyms: ["round average speed"]
+        description: Average punch hand speed in the round, metres per second.
+        expr: avg_speed
+        data_type: FLOAT
+      - name: max_speed
+        synonyms: ["round top speed"]
+        description: Fastest punch in the round, metres per second.
+        expr: max_speed
+        data_type: FLOAT
+      - name: avg_reaction_ms
+        synonyms: ["round reaction time"]
+        description: Average reaction time in the round, milliseconds (lower is better).
+        expr: avg_reaction_ms
+        data_type: FLOAT
+      - name: accuracy_pct
+        synonyms: ["round accuracy"]
+        description: Average punch accuracy in the round, 0 to 100.
+        expr: accuracy_pct
+        data_type: FLOAT
+      - name: guard_pct
+        synonyms: ["round guard"]
+        description: Percent of punches thrown with the other hand's guard up, 0 to 100.
+        expr: guard_pct
+        data_type: FLOAT
+    metrics:
+      - name: rounds_played
+        synonyms: ["sessions played", "number of rounds", "matches played", "games played"]
+        description: Number of distinct rounds.
+        expr: COUNT(DISTINCT session_id)
+      - name: highest_round_score
+        synonyms: ["high score", "top score", "highest score"]
+        description: Best single-round score.
+        expr: MAX(score)
+      - name: average_round_score
+        synonyms: ["mean score", "typical score"]
+        description: Average round score.
+        expr: AVG(score)
+    filters:
+      - name: rounds_today
+        synonyms: ["played today", "today's rounds"]
+        description: Rounds that started today (UTC).
+        expr: session_start_ts >= DATE_TRUNC('DAY', SYSDATE())
+
+  # ---------------------------------------------------------------------------
+  - name: punches
+    synonyms: ["punch events", "motion events", "strikes", "moves"]
+    description: >-
+      One row per detected move. event_type jab, cross, hook and uppercut are punches;
+      block, slip and duck are defensive moves and are NOT punches. Always filter with
+      is_punch = TRUE for punch counts, punch speed and accuracy. speed_mps is hand speed in
+      metres per second, reaction_ms is reaction time in milliseconds (lower is better, only
+      values above 0 count), accuracy is 0 to 1.
+    base_table:
+      database: MOTION_DB
+      schema: PUBLIC
+      table: MOTION_EVENTS
+    primary_key:
+      columns: [event_id]
+    dimensions:
+      - name: event_id
+        description: Unique event id.
+        expr: event_id
+        data_type: VARCHAR
+      - name: session_id
+        description: Round the event belongs to. Join to sessions.session_id.
+        expr: session_id
+        data_type: VARCHAR
+      - name: player_id
+        description: Player who made the move. Join to players.player_id for the name.
+        expr: player_id
+        data_type: VARCHAR
+      - name: event_type
+        synonyms: ["punch type", "move type", "strike type", "technique"]
+        description: Move type, lower case. Punches are jab, cross, hook, uppercut; block, slip, duck are defensive.
+        expr: LOWER(event_type)
+        data_type: VARCHAR
+        is_enum: true
+        sample_values: ["jab", "cross", "hook", "uppercut", "block", "slip", "duck"]
+      - name: hand
+        synonyms: ["which hand", "glove", "side", "left or right"]
+        description: Hand used, L (left) or R (right).
+        expr: UPPER(hand)
+        data_type: VARCHAR
+        is_enum: true
+        sample_values: ["L", "R"]
+      - name: sport
+        description: Always boxing for now.
+        expr: LOWER(sport)
+        data_type: VARCHAR
+        is_enum: true
+        sample_values: ["boxing"]
+      - name: is_punch
+        synonyms: ["is a punch", "offensive move"]
+        description: TRUE for jab, cross, hook and uppercut; FALSE for block, slip and duck.
+        expr: LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut')
+        data_type: BOOLEAN
+      - name: guard_up
+        synonyms: ["hands up", "guard was up", "protected"]
+        description: TRUE if the other hand's guard was up when this punch was thrown.
+        expr: guard_up
+        data_type: BOOLEAN
+    time_dimensions:
+      - name: event_ts
+        synonyms: ["punch time", "thrown at", "event time", "timestamp"]
+        description: When the move happened (TIMESTAMP_NTZ, UTC). For today use event_ts >= DATE_TRUNC('DAY', SYSDATE()).
+        expr: event_ts
+        data_type: TIMESTAMP_NTZ
+    facts:
+      - name: speed_mps
+        synonyms: ["hand speed", "punch speed", "velocity", "metres per second"]
+        description: Punch hand speed in metres per second (0 for blocks). Higher is faster.
+        expr: speed_mps
+        data_type: FLOAT
+      - name: accuracy
+        synonyms: ["punch accuracy", "precision", "on target"]
+        description: Punch accuracy from 0 to 1 (NULL for blocks). Multiply by 100 for a percent.
+        expr: accuracy
+        data_type: FLOAT
+      - name: reaction_ms
+        synonyms: ["reaction time", "reflexes", "response time", "reaction speed"]
+        description: Milliseconds from the prompt to the move. Lower is better. Ignore NULL and values <= 0.
+        expr: reaction_ms
+        data_type: FLOAT
+      - name: points
+        synonyms: ["points awarded", "punch points"]
+        description: Points awarded for the move. A round's score is the sum of its points.
+        expr: points
+        data_type: NUMBER
+    metrics:
+      - name: total_punches_thrown
+        synonyms: ["punch count", "number of punches", "punches thrown", "total punches"]
+        description: Number of punches (jab, cross, hook, uppercut), defensive moves excluded.
+        expr: COUNT(CASE WHEN LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut') THEN 1 END)
+      - name: avg_punch_speed
+        synonyms: ["average speed", "mean punch speed", "average hand speed"]
+        description: Average punch hand speed in metres per second, punches only.
+        expr: AVG(CASE WHEN LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut') THEN speed_mps END)
+      - name: fastest_punch_speed
+        synonyms: ["fastest punch", "top speed", "peak speed", "quickest punch"]
+        description: Fastest punch hand speed in metres per second, punches only.
+        expr: MAX(CASE WHEN LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut') THEN speed_mps END)
+      - name: best_reaction_time_ms
+        synonyms: ["best reaction", "quickest reaction", "fastest reflexes"]
+        description: Lowest (best) reaction time in milliseconds, values above 0 only.
+        expr: MIN(CASE WHEN reaction_ms > 0 THEN reaction_ms END)
+      - name: avg_reaction_time_ms
+        synonyms: ["average reaction", "mean reaction time"]
+        description: Average reaction time in milliseconds, values above 0 only. Lower is better.
+        expr: AVG(CASE WHEN reaction_ms > 0 THEN reaction_ms END)
+      - name: punch_accuracy_pct
+        synonyms: ["accuracy percent", "hit rate"]
+        description: Average punch accuracy as a percent (0 to 100), punches only.
+        expr: AVG(CASE WHEN LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut') THEN accuracy END) * 100
+      - name: guard_up_rate_pct
+        synonyms: ["guard percentage", "guard discipline"]
+        description: Percent of punches thrown with the other hand's guard up (0 to 100).
+        expr: AVG(CASE WHEN LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut') AND guard_up IS NOT NULL THEN IFF(guard_up, 100, 0) END)
+      - name: total_points
+        synonyms: ["points total", "sum of points"]
+        description: Sum of points over all moves.
+        expr: SUM(points)
+      - name: defensive_moves_count
+        synonyms: ["number of blocks", "dodges", "defensive moves"]
+        description: Number of blocks, slips and ducks.
+        expr: COUNT(CASE WHEN LOWER(event_type) IN ('block', 'slip', 'duck') THEN 1 END)
+    filters:
+      - name: punches_only
+        synonyms: ["only punches", "exclude blocks"]
+        description: Keep punches only (jab, cross, hook, uppercut).
+        expr: LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut')
+      - name: thrown_today
+        synonyms: ["today", "so far today"]
+        description: Moves made today (UTC).
+        expr: event_ts >= DATE_TRUNC('DAY', SYSDATE())
+
+  # ---------------------------------------------------------------------------
+  - name: player_form
+    synonyms: ["player stats", "player profile", "career stats"]
+    description: >-
+      One row per player with career aggregates over all of their punches, refreshed every minute
+      by a dynamic table. Use it for per-player rankings: fatigue (stamina), left/right symmetry,
+      guard, punch mix and the 0 to 100 form_score. All *_pct columns are 0 to 100.
+    base_table:
+      database: MOTION_DB
+      schema: PUBLIC
+      table: PLAYER_FORM
+    primary_key:
+      columns: [player_id]
+    dimensions:
+      - name: player_id
+        description: Player id. Join to players.player_id.
+        expr: player_id
+        data_type: VARCHAR
+      - name: name
+        description: Player display name ('Unknown' if not set). Same as players.name.
+        expr: name
+        data_type: VARCHAR
+    facts:
+      - name: sessions
+        description: Number of rounds the player has played.
+        expr: sessions
+        data_type: NUMBER
+      - name: punches
+        synonyms: ["career punches", "lifetime punches"]
+        description: Total punches the player has thrown.
+        expr: punches
+        data_type: NUMBER
+      - name: avg_speed
+        synonyms: ["career average speed"]
+        description: Average punch hand speed, metres per second.
+        expr: avg_speed
+        data_type: FLOAT
+      - name: max_speed
+        synonyms: ["personal record speed", "career top speed"]
+        description: Fastest punch ever, metres per second.
+        expr: max_speed
+        data_type: FLOAT
+      - name: avg_reaction_ms
+        synonyms: ["career reaction time"]
+        description: Average reaction time, milliseconds (lower is better).
+        expr: avg_reaction_ms
+        data_type: FLOAT
+      - name: best_reaction_ms
+        synonyms: ["personal best reaction"]
+        description: Best (lowest) reaction time, milliseconds.
+        expr: best_reaction_ms
+        data_type: FLOAT
+      - name: accuracy_pct
+        synonyms: ["career accuracy"]
+        description: Average punch accuracy, 0 to 100.
+        expr: accuracy_pct
+        data_type: FLOAT
+      - name: fatigue_drop_pct
+        synonyms: ["fatigue", "stamina", "endurance", "speed drop", "tiredness", "gassing out"]
+        description: >-
+          Percent drop in punch speed from the first quarter to the last quarter of a round
+          (positive = slower by the end of the round). Lower is better. NULL if no round has 8+ punches.
+        expr: fatigue_drop_pct
+        data_type: FLOAT
+      - name: symmetry_pct
+        synonyms: ["left right balance", "symmetry", "balance", "two handed balance"]
+        description: Left/right hand balance of punch count and speed, 0 to 100 (100 = perfectly balanced).
+        expr: symmetry_pct
+        data_type: FLOAT
+      - name: guard_pct
+        synonyms: ["guard", "defense", "keeping hands up"]
+        description: Percent of punches thrown with the other hand's guard up, 0 to 100.
+        expr: guard_pct
+        data_type: FLOAT
+      - name: mix_jab_pct
+        synonyms: ["jab share"]
+        description: Percent of the player's punches and blocks that are jabs.
+        expr: mix_jab_pct
+        data_type: FLOAT
+      - name: mix_cross_pct
+        synonyms: ["cross share"]
+        description: Percent of the player's punches and blocks that are crosses.
+        expr: mix_cross_pct
+        data_type: FLOAT
+      - name: mix_hook_pct
+        synonyms: ["hook share"]
+        description: Percent of the player's punches and blocks that are hooks.
+        expr: mix_hook_pct
+        data_type: FLOAT
+      - name: mix_uppercut_pct
+        synonyms: ["uppercut share"]
+        description: Percent of the player's punches and blocks that are uppercuts.
+        expr: mix_uppercut_pct
+        data_type: FLOAT
+      - name: mix_block_pct
+        synonyms: ["block share"]
+        description: Percent of the player's punches and blocks that are blocks.
+        expr: mix_block_pct
+        data_type: FLOAT
+      - name: form_score
+        synonyms: ["overall rating", "skill rating", "power ranking", "form rating"]
+        description: >-
+          Overall 0 to 100 rating: speed 25%, reaction 20%, accuracy 20%, guard 15%, symmetry 10%,
+          endurance 10%. Higher is better.
+        expr: form_score
+        data_type: FLOAT
+    metrics:
+      - name: avg_form_score
+        synonyms: ["average form", "mean rating"]
+        description: Average form_score across players.
+        expr: AVG(form_score)
+      - name: avg_fatigue_drop_pct
+        synonyms: ["average fatigue"]
+        description: Average fatigue_drop_pct across players (lower is better).
+        expr: AVG(fatigue_drop_pct)
+    filters:
+      - name: active_players
+        synonyms: ["players with punches"]
+        description: Players who have thrown at least one punch.
+        expr: punches > 0
+
+  # ---------------------------------------------------------------------------
+  - name: player_progress
+    synonyms: ["progression", "improvement over time", "player trends"]
+    description: >-
+      One row per player describing how they change from round to round (linear trend per round,
+      by session_index), refreshed every minute by a dynamic table. Use it for "who improved the
+      most". Trends are NULL for players with fewer than 2 rounds.
+    base_table:
+      database: MOTION_DB
+      schema: PUBLIC
+      table: PLAYER_PROGRESS
+    primary_key:
+      columns: [player_id]
+    dimensions:
+      - name: player_id
+        description: Player id. Join to players.player_id for the name.
+        expr: player_id
+        data_type: VARCHAR
+      - name: improving
+        synonyms: ["is improving", "getting better", "on the rise"]
+        description: TRUE if the player's score trend per round is positive.
+        expr: improving
+        data_type: BOOLEAN
+    time_dimensions:
+      - name: first_session_ts
+        synonyms: ["first played"]
+        description: Start of the player's first round (UTC).
+        expr: first_session_ts
+        data_type: TIMESTAMP_NTZ
+      - name: last_session_ts
+        synonyms: ["last played", "most recent round time"]
+        description: Start of the player's latest round (UTC).
+        expr: last_session_ts
+        data_type: TIMESTAMP_NTZ
+    facts:
+      - name: sessions
+        description: Number of rounds with events for this player.
+        expr: sessions
+        data_type: NUMBER
+      - name: best_score
+        synonyms: ["personal best score", "career high"]
+        description: Best single-round score.
+        expr: best_score
+        data_type: NUMBER
+      - name: last_score
+        synonyms: ["latest score", "most recent score"]
+        description: Score of the player's latest round.
+        expr: last_score
+        data_type: NUMBER
+      - name: speed_trend_mps_per_session
+        synonyms: ["speed improvement", "speed trend"]
+        description: Change in average punch speed per round, metres per second (positive = getting faster).
+        expr: speed_trend_mps_per_session
+        data_type: FLOAT
+      - name: score_trend_per_session
+        synonyms: ["score improvement", "score trend", "progress rate"]
+        description: Change in score per round (positive = improving). Best column for "who improved the most".
+        expr: score_trend_per_session
+        data_type: FLOAT
+      - name: accuracy_trend_pct_per_session
+        synonyms: ["accuracy trend", "accuracy improvement"]
+        description: Change in accuracy per round, percentage points (positive = more accurate).
+        expr: accuracy_trend_pct_per_session
+        data_type: FLOAT
+      - name: reaction_trend_ms_per_session
+        synonyms: ["reaction trend", "reflex improvement"]
+        description: Change in average reaction time per round, ms (NEGATIVE = reacting faster = better).
+        expr: reaction_trend_ms_per_session
+        data_type: FLOAT
+    metrics:
+      - name: improving_players_count
+        synonyms: ["number of improving players"]
+        description: Number of players whose score trend is positive.
+        expr: COUNT_IF(improving)
+
+  # ---------------------------------------------------------------------------
+  - name: benchmarks
+    synonyms: ["pro benchmarks", "pro stats", "professional benchmarks", "reference values"]
+    description: >-
+      Reference distribution and professional average for each boxing metric. Not linked to players;
+      compare by picking one benchmark_metric row (for example reaction_ms) and a player aggregate.
+      p25 < p50 < p75 < p90 are always ascending raw values; higher_is_better tells which end is good
+      (reaction_ms and fatigue_drop_pct: lower is better). Values are hand-picked, not from a published dataset.
+    base_table:
+      database: MOTION_DB
+      schema: PUBLIC
+      table: PRO_BENCHMARKS
+    dimensions:
+      - name: sport
+        description: Always boxing.
+        expr: sport
+        data_type: VARCHAR
+        is_enum: true
+        sample_values: ["boxing"]
+      - name: benchmark_metric
+        synonyms: ["benchmark name", "stat name"]
+        description: >-
+          Which measure the row describes: punch_speed_mps (m/s), reaction_ms (ms, lower better),
+          accuracy_pct, guard_pct, symmetry_pct (0 to 100), fatigue_drop_pct (lower better).
+        expr: metric
+        data_type: VARCHAR
+        is_enum: true
+        sample_values: ["punch_speed_mps", "reaction_ms", "accuracy_pct", "guard_pct", "symmetry_pct", "fatigue_drop_pct"]
+      - name: higher_is_better
+        synonyms: ["direction"]
+        description: TRUE if a higher value is better for this metric.
+        expr: higher_is_better
+        data_type: BOOLEAN
+    facts:
+      - name: p25
+        synonyms: ["25th percentile"]
+        description: 25th percentile value of the metric.
+        expr: p25
+        data_type: FLOAT
+      - name: p50
+        synonyms: ["median", "50th percentile"]
+        description: Median value of the metric.
+        expr: p50
+        data_type: FLOAT
+      - name: p75
+        synonyms: ["75th percentile"]
+        description: 75th percentile value of the metric.
+        expr: p75
+        data_type: FLOAT
+      - name: p90
+        synonyms: ["90th percentile"]
+        description: 90th percentile value of the metric.
+        expr: p90
+        data_type: FLOAT
+      - name: pro_avg
+        synonyms: ["pro average", "professional average", "pro level"]
+        description: Average for professional boxers.
+        expr: pro_avg
+        data_type: FLOAT
+
+relationships:
+  - name: punches_to_players
+    left_table: punches
+    right_table: players
+    relationship_columns:
+      - left_column: player_id
+        right_column: player_id
+    join_type: left_outer
+    relationship_type: many_to_one
+  - name: punches_to_sessions
+    left_table: punches
+    right_table: sessions
+    relationship_columns:
+      - left_column: session_id
+        right_column: session_id
+    join_type: left_outer
+    relationship_type: many_to_one
+  - name: sessions_to_players
+    left_table: sessions
+    right_table: players
+    relationship_columns:
+      - left_column: player_id
+        right_column: player_id
+    join_type: left_outer
+    relationship_type: many_to_one
+  - name: player_form_to_players
+    left_table: player_form
+    right_table: players
+    relationship_columns:
+      - left_column: player_id
+        right_column: player_id
+    join_type: left_outer
+    relationship_type: one_to_one
+  - name: player_progress_to_players
+    left_table: player_progress
+    right_table: players
+    relationship_columns:
+      - left_column: player_id
+        right_column: player_id
+    join_type: left_outer
+    relationship_type: one_to_one
+
+custom_instructions: >-
+  Timestamps are TIMESTAMP_NTZ in UTC, so for "today", "this hour" or "last 10 minutes" compare
+  against SYSDATE() (current UTC time), not CURRENT_TIMESTAMP(). A punch is event_type jab, cross,
+  hook or uppercut; block, slip and duck are not punches, so filter punches.is_punch = TRUE for punch
+  counts, speeds and accuracy. Ignore reaction_ms values that are NULL or <= 0. Speeds are metres
+  per second, reaction times are milliseconds and lower is better. Round, session, match and game
+  mean the same thing. Show player names (players.name) rather than ids, and round decimals to 2 places.
+
+verified_queries:
+  - name: fastest_punch
+    question: Who has the fastest punch?
+    use_as_onboarding_question: true
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT pl.name, ROUND(MAX(e.speed_mps), 2) AS fastest_punch_mps
+      FROM __punches AS e
+      JOIN __players AS pl ON e.player_id = pl.player_id
+      WHERE e.is_punch = TRUE
+      GROUP BY pl.player_id, pl.name
+      ORDER BY fastest_punch_mps DESC NULLS LAST
+      LIMIT 1
+
+  - name: top_5_players_by_best_score
+    question: Who are the top 5 players by best score?
+    use_as_onboarding_question: true
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT pl.name, MAX(s.score) AS best_score, COUNT(DISTINCT s.session_id) AS rounds_played
+      FROM __sessions AS s
+      JOIN __players AS pl ON s.player_id = pl.player_id
+      GROUP BY pl.player_id, pl.name
+      ORDER BY best_score DESC NULLS LAST
+      LIMIT 5
+
+  - name: punches_thrown_today
+    question: How many punches were thrown today?
+    use_as_onboarding_question: true
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT COUNT(*) AS punches_today, COUNT(DISTINCT player_id) AS players_today
+      FROM __punches
+      WHERE is_punch = TRUE
+        AND event_ts >= DATE_TRUNC('DAY', SYSDATE())
+
+  - name: fastest_punch_type_on_average
+    question: Which punch type is the fastest on average?
+    use_as_onboarding_question: true
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT event_type AS punch_type, ROUND(AVG(speed_mps), 2) AS avg_speed_mps, COUNT(*) AS punches_thrown
+      FROM __punches
+      WHERE is_punch = TRUE
+      GROUP BY event_type
+      ORDER BY avg_speed_mps DESC NULLS LAST
+
+  - name: most_improved_players
+    question: Who improved the most across sessions?
+    use_as_onboarding_question: true
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT pl.name,
+             ROUND(pp.score_trend_per_session, 2) AS score_gain_per_round,
+             ROUND(pp.speed_trend_mps_per_session, 2) AS speed_gain_mps_per_round,
+             pp.sessions AS rounds_played,
+             pp.best_score,
+             pp.last_score
+      FROM __player_progress AS pp
+      JOIN __players AS pl ON pp.player_id = pl.player_id
+      WHERE pp.sessions >= 2
+        AND pp.score_trend_per_session IS NOT NULL
+      ORDER BY pp.score_trend_per_session DESC
+      LIMIT 5
+
+  - name: speed_per_10_seconds_latest_session
+    question: Show the average speed per 10 seconds for the latest session
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      WITH latest AS (
+        SELECT session_id
+        FROM __punches
+        WHERE is_punch = TRUE AND session_id IS NOT NULL
+        ORDER BY event_ts DESC
+        LIMIT 1
+      ),
+      timed AS (
+        SELECT e.event_ts, e.speed_mps,
+               MIN(e.event_ts) OVER (PARTITION BY e.session_id) AS round_start_ts
+        FROM __punches AS e
+        JOIN latest AS l ON e.session_id = l.session_id
+        WHERE e.is_punch = TRUE
+      )
+      SELECT FLOOR(DATEDIFF('second', round_start_ts, event_ts) / 10) * 10 AS seconds_into_round,
+             ROUND(AVG(speed_mps), 2) AS avg_speed_mps,
+             COUNT(*) AS punches_thrown
+      FROM timed
+      GROUP BY seconds_into_round
+      ORDER BY seconds_into_round
+
+  - name: biggest_speed_drop_by_end_of_round
+    question: Which players drop speed the most by the end of a round?
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT name, fatigue_drop_pct, avg_speed, punches
+      FROM __player_form
+      WHERE fatigue_drop_pct IS NOT NULL
+      ORDER BY fatigue_drop_pct DESC
+      LIMIT 5
+
+  - name: punch_mix_share
+    question: What share of punches are jabs vs crosses vs hooks vs uppercuts?
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT event_type AS punch_type,
+             COUNT(*) AS punches_thrown,
+             ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS share_pct
+      FROM __punches
+      WHERE is_punch = TRUE
+      GROUP BY event_type
+      ORDER BY punches_thrown DESC
+
+  - name: reaction_time_vs_pro_benchmark
+    question: How does the average player compare to the pro benchmark for reaction time?
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      WITH player_avg AS (
+        SELECT AVG(avg_reaction_ms) AS avg_player_reaction_ms, COUNT(*) AS players
+        FROM __player_form
+        WHERE avg_reaction_ms > 0
+      )
+      SELECT ROUND(a.avg_player_reaction_ms, 1) AS avg_player_reaction_ms,
+             b.pro_avg AS pro_avg_reaction_ms,
+             b.p50 AS median_reaction_ms,
+             ROUND(a.avg_player_reaction_ms - b.pro_avg, 1) AS ms_slower_than_pro,
+             a.players
+      FROM player_avg AS a
+      CROSS JOIN __benchmarks AS b
+      WHERE b.sport = 'boxing'
+        AND b.benchmark_metric = 'reaction_ms'
+
+  - name: left_vs_right_hand_speed
+    question: Left vs right hand average speed
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT hand, ROUND(AVG(speed_mps), 2) AS avg_speed_mps, COUNT(*) AS punches_thrown
+      FROM __punches
+      WHERE is_punch = TRUE
+        AND hand IN ('L', 'R')
+      GROUP BY hand
+      ORDER BY hand
+
+  - name: best_reaction_time
+    question: Who has the best reaction time?
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT pl.name, MIN(e.reaction_ms) AS best_reaction_ms, ROUND(AVG(e.reaction_ms), 1) AS avg_reaction_ms
+      FROM __punches AS e
+      JOIN __players AS pl ON e.player_id = pl.player_id
+      WHERE e.reaction_ms > 0
+      GROUP BY pl.player_id, pl.name
+      ORDER BY best_reaction_ms ASC
+      LIMIT 5
+
+  - name: players_ranked_by_form_score
+    question: Rank the players by form score
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT name, form_score, avg_speed, avg_reaction_ms, accuracy_pct, punches
+      FROM __player_form
+      WHERE punches > 0
+      ORDER BY form_score DESC
+      LIMIT 10
+
+  - name: best_guard
+    question: Which players keep their guard up the most?
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT name, guard_pct, punches
+      FROM __player_form
+      WHERE guard_pct IS NOT NULL
+      ORDER BY guard_pct DESC
+      LIMIT 5
+
+  - name: rounds_played_per_day
+    question: How many rounds were played each day?
+    verified_at: 1795266489
+    verified_by: Motion Boxing team
+    sql: |
+      SELECT DATE_TRUNC('DAY', session_start_ts) AS play_date,
+             COUNT(DISTINCT session_id) AS rounds_played,
+             COUNT(DISTINCT player_id) AS players
+      FROM __sessions
+      GROUP BY play_date
+      ORDER BY play_date DESC
