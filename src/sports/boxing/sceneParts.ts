@@ -57,7 +57,7 @@ export const COLORS: { readonly [K in keyof typeof NEON_COLORS]: number } = isBr
  */
 export const DRONE = {
   y: 1.0,
-  z: -2.1,
+  z: -1.55, // close quarters
   headY: 0.52,
   headRadius: 0.2,
   chestRadius: 0.26,
