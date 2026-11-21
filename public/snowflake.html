@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Kinetic Ring: How we used Snowflake</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="data:," />
+<style>body{background:#0b0f1a;color:#e6ecff;font:16px/1.6 system-ui,sans-serif;max-width:900px;margin:0 auto;padding:32px}code,pre{background:#151b2e;color:#e6ecff}pre{padding:12px;overflow:auto}a{color:#3cc8ff}table{border-collapse:collapse}td,th{border:1px solid #334;padding:4px 8px}header{display:none}</style></head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Kinetic Ring: How we used Snowflake</h1>
+</header>
+<h1 id="kinetic-ring-how-we-used-snowflake">Kinetic Ring: How we used
+Snowflake</h1>
+<pre><code>Browser game -&gt; Express API -&gt; MOTION_EVENTS / PLAYERS / SESSIONS
+  -&gt; Dynamic Tables (PLAYER_FORM, SESSION_SUMMARY, PLAYER_PROGRESS)
+  -&gt; Streams + Tasks (T_HIGHLIGHTS, T_SCOUTING)
+  -&gt; Cortex AI (AI_COMPLETE, AI_CLASSIFY, AI_AGG, Search, Analyst)
+  -&gt; Back to game: coach card, highlights ticker, leaderboards</code></pre>
+<p>Every move you make becomes data. The browser batches each punch,
+save, arrow or roll (type, hand, speed, reaction time, accuracy) to our
+Express API, which writes them to <code>MOTION_EVENTS</code>, with
+<code>PLAYERS</code> and <code>SESSIONS</code> alongside.</p>
+<p>Inside Snowflake: - <strong>Dynamic Tables</strong>
+(<code>PLAYER_FORM</code>, <code>SESSION_SUMMARY</code> -&gt;
+<code>PLAYER_PROGRESS</code>) roll raw events into form and improvement
+trends (<code>REGR_SLOPE</code>). - <strong>Streams + Tasks</strong>:
+<code>T_HIGHLIGHTS</code> writes a live highlights feed (speed records,
+personal bests, milestones) and flags impossible punch speeds as
+anti-cheat. <code>T_SCOUTING</code> uses <code>AI_CLASSIFY</code> and
+<code>AI_COMPLETE</code> to label your fighting style and write a
+scouting report. - <strong>Cortex <code>AI_COMPLETE</code> with a JSON
+schema</strong> writes the post-round coach card (headline, 3 tips,
+drill, badge), grounded by <strong>Cortex Search</strong> over a drill
+library (RAG). - <strong>VECTOR similarity</strong> finds your “style
+twin”; <strong>Cortex Analyst</strong>, guarded text-to-SQL,
+<strong>Time Travel</strong> and <code>AI_AGG</code> power a
+<strong>Streamlit in Snowflake</strong> coaching dashboard. -
+Least-privilege roles, X-Small warehouse with auto-suspend, and tasks
+that skip when no one is playing.</p>
+<p>In the game you see it as the coach card after each round, the
+home-screen highlights ticker, per-sport leaderboards and stats.</p>
+<p>Honest status: all of this ran end-to-end on a real Snowflake account
+during the hackathon (real Cortex coach cards; screenshots in
+<code>docs/snowflake-screens/</code>). The public Render demo runs the
+server in <strong>mock mode</strong> (same API, in-memory data), so the
+live site does not spend Snowflake credits; the highlights ticker there
+is labelled “MOCK”.</p>
+</body>
+</html>
