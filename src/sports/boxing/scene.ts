@@ -99,9 +99,9 @@ const BODY_LEAN_M = 0.4
 type ShotName = 'fight' | 'wide' | 'ko'
 /** Camera shots in stage space (rig origin at eye height): camera position and look-at point, metres. */
 const SHOTS: Record<ShotName, { pos: [number, number, number]; look: [number, number, number] }> = {
-  fight: { pos: [0.45, 1.6 + 0.9, 2.75], look: [-0.08, 1.15, -2.1] },
+  fight: { pos: [0.45, 1.6 + 0.8, 2.2], look: [-0.08, 1.15, -1.55] },
   wide: { pos: [-1.2, 1.6 + 1.4, 2.9], look: [0, 1.0, -1.2] },
-  ko: { pos: [1.8, 1.0, -0.6], look: [0, 0.6, -2.4] },
+  ko: { pos: [1.8, 1.0, -0.1], look: [0, 0.6, -1.85] },
 }
 const CAM_FOLLOW = { x: 0.45, y: 0.55 } as const
 /** Impact camera kick: damped springs (position metres, rotation radians), driven in real time. */

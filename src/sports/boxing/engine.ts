@@ -29,6 +29,8 @@ import type {
 
 const ROUND_MS = 60_000
 const MAX_HP = 100
+/** Fights were too long: every hit (both ways) lands this much harder, for a KO in about 30 to 45 s. */
+const DAMAGE_SCALE = 2
 /** Wind-up before each opponent punch: long enough to read it and dodge. */
 const TELEGRAPH_MS = 1000
 const FIRST_ATTACK_MS = 2000
@@ -421,7 +423,7 @@ export function createBoxingEngine(deps: {
       const comboMult = Math.min(COMBO_MULT_MAX, 1 + COMBO_STEP * (combo - 1))
       const accuracyMult = 0.6 + (0.4 * hit.accuracy) / 100
       const stunMult = stunned ? BOT_STUN_MULT : 1
-      damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult * staminaMult)
+      damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult * staminaMult * DAMAGE_SCALE)
       droneHp = Math.max(0, round1(droneHp - damage))
       scene.droneHit(hit, damage, counter)
       scene.hitstop(counter ? COUNTER_HITSTOP_MS : punch.kind === 'jab' ? HITSTOP_MS : HEAVY_HITSTOP_MS)
@@ -517,7 +519,7 @@ export function createBoxingEngine(deps: {
     scene?.droneStrike(a.pattern)
     hud.setTelegraph(null)
     let outcome: RoundLog['defences'][number]['outcome']
-    const full = a.remote ? a.remote.damage : STRIKE_DAMAGE[a.pattern]
+    const full = a.remote ? a.remote.damage : STRIKE_DAMAGE[a.pattern] * DAMAGE_SCALE
     const hpBefore = playerHp
     if (isDodge(a.pattern, slip)) {
       outcome = 'dodged'
