@@ -18,17 +18,6 @@ Switch with `?theme=bright` or `?theme=neon` (remembered in localStorage under `
 - `src/theme/bright/sfx.ts`: cheerful synthesized UI sounds (used by the shell) and an optional boxing set.
 - `public/art/bright/*`: original bright SVG art with the same names as `public/art/*`.
 
-## Boxing scene patch (for the JetBrains Air session)
+## Boxing scene hookup
 
-`src/sports/boxing/*` is owned by the Air session, so the 3D changes ship as a patch:
-
-```
-git apply docs/theme/boxing-bright.patch
-```
-
-It touches 3 files, about 25 lines:
-- `scene.ts`: `const look = brightBoxingLook()`; under bright it uses the look's lights/sky, arena, opponent and gloves, calls `look.update()` each frame, cheers the crowd on counters and KOs, disposes it.
-- `sceneParts.ts`: `COLORS` follows the theme; `hdr()` does not push colours above 1 under bright.
-- `scenePost.ts`: no bloom under bright (daylight pastels would glow), full resolution kept.
-
-Neon behaviour is unchanged when `?theme=neon`.
+`src/sports/boxing/scene.ts` calls `brightBoxingLook()` once (null under neon). Under bright it uses the look's sky/lights, arena, opponent and gloves, calls `look.update()` each frame, cheers the crowd on counters and KOs. `sceneParts.ts` makes `COLORS` follow the theme and keeps `hdr()` colours in range under bright; `scenePost.ts` skips bloom under bright (full resolution kept). Neon is unchanged with `?theme=neon`.
