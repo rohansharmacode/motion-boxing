@@ -7,6 +7,10 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import type { QualityLevel } from './types.ts'
+import { isBright } from '../../theme/index.ts'
+
+/** The bright daylight theme has no neon to bloom: 'high' keeps full resolution but renders plain. */
+const BLOOM_ON = !isBright()
 
 /** A small radius keeps the glow on the neon instead of hazing the whole frame. */
 const BLOOM = { strength: 0.6, radius: 0.2, threshold: 0.62 } as const
@@ -64,8 +68,8 @@ export function createRenderPipeline(
     renderer.setPixelRatio(ratio)
     renderer.setSize(width, height)
     // On low the composer shrinks to 1 px so its buffers give their memory back.
-    const w = high ? width : 1
-    const h = high ? height : 1
+    const w = high && BLOOM_ON ? width : 1
+    const h = high && BLOOM_ON ? height : 1
     composer.setPixelRatio(ratio)
     composer.setSize(w, h)
     // The bloom chain starts at half the CSS resolution whatever the pixel ratio: it is a blur anyway.
@@ -109,7 +113,7 @@ export function createRenderPipeline(
     },
 
     render() {
-      if (quality === 'high') composer.render(0)
+      if (quality === 'high' && BLOOM_ON) composer.render(0)
       else renderer.render(scene, camera)
     },
 

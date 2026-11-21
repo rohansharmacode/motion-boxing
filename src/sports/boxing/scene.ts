@@ -36,6 +36,10 @@ import {
 import type { DroneHitPart, GloveParts } from './sceneParts.ts'
 import { STRIKE_TIMING, WIND_MS, blendAttackPose, createPose } from './sceneAttack.ts'
 import { createRenderPipeline } from './scenePost.ts'
+import { brightBoxingLook } from '../../theme/bright/boxing.ts'
+
+/** Bright theme look (island arena, bean opponent, cartoon gloves), null under ?theme=neon. */
+const look = brightBoxingLook()
 
 const EYE_Y = 1.6
 const CAMERA_PITCH = -0.15
@@ -225,7 +229,7 @@ function makeGlove(hand: Hand): Glove {
   return {
     hand,
     side: left ? -1 : 1,
-    parts: buildGlove(hand),
+    parts: look ? look.buildGlove(hand) : buildGlove(hand),
     joints: left
       ? { shoulder: LM.L_SHOULDER, elbow: LM.L_ELBOW, wrist: LM.L_WRIST }
       : { shoulder: LM.R_SHOULDER, elbow: LM.R_ELBOW, wrist: LM.R_WRIST },
@@ -247,18 +251,21 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   container.appendChild(canvas)
 
   const scene = new Scene()
-  scene.background = new Color(COLORS.bg)
-  scene.fog = new Fog(COLORS.bg, 7, 18)
-  const key = new DirectionalLight(0xffffff, 2.5)
-  key.position.set(1.5, 4, 3)
-  const rim = new DirectionalLight(COLORS.drone, 1.6)
-  rim.position.set(-2, 3, -7)
-  scene.add(new HemisphereLight(0x9fb2ff, 0x0c0e16, 1.5), key, rim)
+  if (look) look.setup(scene, renderer)
+  else {
+    scene.background = new Color(COLORS.bg)
+    scene.fog = new Fog(COLORS.bg, 7, 18)
+    const key = new DirectionalLight(0xffffff, 2.5)
+    key.position.set(1.5, 4, 3)
+    const rim = new DirectionalLight(COLORS.drone, 1.6)
+    rim.position.set(-2, 3, -7)
+    scene.add(new HemisphereLight(0x9fb2ff, 0x0c0e16, 1.5), key, rim)
+  }
 
   const glowMap = createGlowTexture()
   const vignetteMap = createVignetteTexture()
-  scene.add(buildArena())
-  const drone = buildDrone(glowMap)
+  scene.add(look ? look.buildArena() : buildArena())
+  const drone = look ? look.buildDrone(glowMap) : buildDrone(glowMap)
   scene.add(drone.root, drone.floorGlow)
   const sparks = createSparks(720, 0.065, glowMap)
   const nearSparks = createSparks(160, 0.02, glowMap)
@@ -488,6 +495,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       impact.y += clamp(aim.y - impact.y, -part.radius, part.radius) * 0.6
     }
     impact.z += part.radius + 0.05
+    look?.onDroneHit(counter)
     const color = counter ? GOLD : GLOVE_COLOR[hand]
     sparks.burst(impact, counter ? 70 : 30 + Math.round(damage * 2), color, counter ? 4.5 : 3.2, SPRAY_OUT, counter ? 0.6 : 0.45)
     sparks.burst(impact, 12, WHITE, 1.6, NO_BIAS, 0.18)
@@ -519,6 +527,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
 
   function startKO(): void {
     if (ko) return
+    look?.onKO()
     const push = lastHand === 'left' ? 1 : -1 // the left glove travels toward +x
     ko = {
       ms: 0,
@@ -888,6 +897,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       sparks.update(dt)
       nearSparks.update(dt)
       updateCamera(realMs / 1000)
+      look?.update(realMs / 1000)
     },
 
     render() {
@@ -909,6 +919,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       glowMap.dispose()
       vignetteMap.dispose()
       pending.length = 0
+      look?.dispose()
       post.dispose()
       renderer.dispose()
       renderer.forceContextLoss() // free the GL context so the dashboard can start other games

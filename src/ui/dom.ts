@@ -1,4 +1,6 @@
 // Tiny DOM helpers so the UI has no framework dependency.
+import { isBright } from '../theme/index.ts';
+import '../theme/bright/ui.css';
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -63,7 +65,24 @@ export function isTyping(e: KeyboardEvent) {
 }
 
 /** URL of a file in public/art/, honouring Vite's base path. */
-export const artUrl = (file: string) => `${import.meta.env.BASE_URL}art/${file}`;
+/** Art files that have a bright-theme version in public/art/bright/. */
+const BRIGHT_ART = new Set([
+  'title-ko.svg',
+  'title-win.svg',
+  'title-lose.svg',
+  'splash-get-ready.svg',
+  'splash-loading.svg',
+  'tile-boxing.svg',
+  'tile-goalkeeper.svg',
+  'tile-archery.svg',
+  'tile-leaderboard.svg',
+  'tile-coming-soon.svg',
+  'calibration-silhouette.svg',
+]);
+
+/** URL of a file in public/art/ (or public/art/bright/ in the bright theme), honouring Vite's base path. */
+export const artUrl = (file: string) =>
+  `${import.meta.env.BASE_URL}art/${isBright() && BRIGHT_ART.has(file) ? 'bright/' : ''}${file}`;
 
 /** Decorative <img> for public/art/ assets. Removes itself (and runs onFail) if the file fails to load. */
 export function artImg(file: string, cls: string, onFail?: () => void): HTMLImageElement {

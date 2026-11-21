@@ -1,0 +1,667 @@
+/* Bright theme for the home dashboard: a sunny island resort menu. Original look.
+   Every rule is scoped under :root[data-theme='bright'] so the neon theme is untouched. */
+
+:root[data-theme='bright'] .shell {
+  --ink: var(--b-ink, #28344a);
+  --mut: var(--b-muted, #6b7a90);
+  --pri: var(--b-primary, #2f9bff);
+  --pri-d: var(--b-primary-dark, #1b78d6);
+  --bounce: var(--b-bounce, cubic-bezier(0.34, 1.56, 0.64, 1));
+  --soft: var(--b-shadow, 0 10px 30px rgba(40, 80, 140, 0.18));
+  --fd: var(--b-font-display, 'Fredoka'), 'Fredoka', 'Nunito', system-ui, sans-serif;
+  --fb: var(--b-font-body, 'Nunito'), 'Nunito', system-ui, sans-serif;
+  --shell-radius: 32px;
+  font-family: var(--fb);
+  color: var(--ink);
+}
+
+/* ---------- background: sky, sun, clouds, sea, sand ---------- */
+
+:root[data-theme='bright'] .shell-bg {
+  background: linear-gradient(to bottom, #59b5f2 0%, #8fd3fb 30%, #cfeefc 60%, #f3fbff 78%);
+  overflow: hidden;
+}
+
+:root[data-theme='bright'] .shell-sun {
+  position: absolute;
+  top: -9vmax;
+  right: 8vw;
+  width: 26vmax;
+  height: 26vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 250, 220, 0.95) 0 22%, rgba(255, 240, 180, 0.45) 38%, transparent 68%);
+  animation: b-shell-pulse 7s ease-in-out infinite;
+}
+
+@keyframes b-shell-pulse {
+  50% { transform: scale(1.06); opacity: 0.85; }
+}
+
+/* A cloud is a white pill with two round puffs on top. */
+:root[data-theme='bright'] .shell-cloud {
+  position: absolute;
+  width: 180px;
+  height: 52px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 -8px 0 rgba(160, 205, 240, 0.35), 0 10px 24px rgba(60, 130, 200, 0.12);
+  opacity: 0.95;
+  will-change: transform;
+  animation: b-shell-cloud 90s linear infinite;
+}
+
+:root[data-theme='bright'] .shell-cloud::before,
+:root[data-theme='bright'] .shell-cloud::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+}
+
+:root[data-theme='bright'] .shell-cloud::before { width: 76px; height: 76px; left: 26px; top: -40px; }
+:root[data-theme='bright'] .shell-cloud::after { width: 100px; height: 100px; left: 70px; top: -56px; }
+
+:root[data-theme='bright'] .shell-cloud--1 { top: 18%; left: 0; animation-delay: -20s; }
+:root[data-theme='bright'] .shell-cloud--2 { top: 8%; left: 0; scale: 0.7; opacity: 0.85; animation-duration: 120s; animation-delay: -75s; }
+:root[data-theme='bright'] .shell-cloud--3 { top: 34%; left: 0; scale: 0.55; opacity: 0.7; animation-duration: 140s; animation-delay: -40s; }
+:root[data-theme='bright'] .shell-cloud--4 { top: 12%; left: 0; scale: 1.1; animation-duration: 100s; animation-delay: -88s; }
+
+@keyframes b-shell-cloud {
+  from { transform: translateX(-260px); }
+  to { transform: translateX(calc(100vw + 60px)); }
+}
+
+/* Distant green island on the horizon. */
+:root[data-theme='bright'] .shell-isle {
+  position: absolute;
+  left: 6vw;
+  bottom: 15%;
+  width: 34vw;
+  height: 7vh;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: linear-gradient(#8fd16a, #6fb553);
+  opacity: 0.75;
+}
+
+:root[data-theme='bright'] .shell-isle::after {
+  content: '';
+  position: absolute;
+  right: -12vw;
+  bottom: 0;
+  width: 18vw;
+  height: 4.5vh;
+  border-radius: inherit;
+  background: inherit;
+  opacity: 0.8;
+}
+
+:root[data-theme='bright'] .shell-sea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3%;
+  height: 12%;
+  overflow: hidden;
+  background: linear-gradient(to bottom, #46c7d9 0%, #2fb3d6 45%, #6fd8e0 100%);
+}
+
+/* Wave dashes slide with a transform-only loop (one tile width), no per-frame repaint. */
+:root[data-theme='bright'] .shell-sea::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -340px;
+  right: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 60px, rgba(255, 255, 255, 0.55) 60px 96px, transparent 96px 170px) 0 35% / 340px 4px repeat-x,
+    repeating-linear-gradient(90deg, transparent 0 140px, rgba(255, 255, 255, 0.4) 140px 164px, transparent 164px 340px) 0 70% / 340px 3px repeat-x;
+  will-change: transform;
+  animation: b-shell-waves 14s linear infinite;
+}
+
+@keyframes b-shell-waves {
+  to { transform: translateX(340px); }
+}
+
+:root[data-theme='bright'] .shell-sand {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: -3%;
+  height: 7%;
+  border-radius: 50% 50% 0 0 / 60% 60% 0 0;
+  background: linear-gradient(#f6dfa4, #e9c983);
+  box-shadow: 0 -6px 0 rgba(244, 253, 255, 0.8);
+}
+
+/* Sparkles: four-point stars that twinkle. */
+:root[data-theme='bright'] .shell-spark {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: 0;
+  animation: b-shell-twinkle 4.2s ease-in-out infinite;
+}
+
+:root[data-theme='bright'] .shell-spark--1 { top: 14%; left: 36%; }
+:root[data-theme='bright'] .shell-spark--2 { top: 28%; left: 62%; animation-delay: -1.4s; scale: 0.7; }
+:root[data-theme='bright'] .shell-spark--3 { top: 8%; left: 78%; animation-delay: -2.6s; }
+:root[data-theme='bright'] .shell-spark--4 { bottom: 13%; left: 22%; animation-delay: -0.8s; scale: 0.8; }
+:root[data-theme='bright'] .shell-spark--5 { bottom: 11%; left: 74%; animation-delay: -3.3s; scale: 0.6; }
+
+@keyframes b-shell-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  50% { opacity: 0.95; transform: scale(1) rotate(45deg); }
+}
+
+/* ---------- header ---------- */
+
+:root[data-theme='bright'] .shell-brand {
+  align-items: center;
+  gap: 10px;
+  padding: 8px 22px 8px 8px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--soft);
+}
+
+/* Logo mark: a sky ball with a sunny swoosh. */
+:root[data-theme='bright'] .shell-logo {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: radial-gradient(circle at 34% 30%, #bfe6ff 0 14%, var(--pri) 46%, var(--pri-d) 100%);
+  box-shadow: inset 0 -4px 0 rgba(0, 40, 100, 0.15);
+  animation: b-shell-bob 3s ease-in-out infinite;
+}
+
+:root[data-theme='bright'] .shell-logo::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--b-accent, #ffb347);
+  border: 3px solid #fff;
+}
+
+@keyframes b-shell-bob {
+  50% { transform: translateY(-3px) rotate(-8deg); }
+}
+
+:root[data-theme='bright'] .shell-brand-name {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: clamp(26px, 3vw, 36px);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+:root[data-theme='bright'] .shell-brand-sub {
+  font-family: var(--fb);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--pri);
+}
+
+:root[data-theme='bright'] .shell-pill,
+:root[data-theme='bright'] .shell-clock {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 0;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: var(--soft);
+}
+
+:root[data-theme='bright'] .shell-pill { font-weight: 800; font-size: 14px; }
+
+:root[data-theme='bright'] .shell-pill-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--b-good, #35c26b);
+  box-shadow: 0 0 0 4px rgba(53, 194, 107, 0.2);
+}
+
+:root[data-theme='bright'] .shell-clock {
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: clamp(20px, 2vw, 26px);
+  letter-spacing: 0;
+}
+
+:root[data-theme='bright'] .shell-greeting {
+  justify-self: start;
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: clamp(20px, 2vw, 26px);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(27, 120, 214, 0.35), 0 4px 14px rgba(27, 120, 214, 0.3);
+}
+
+/* ---------- tiles: white cards with a coloured art panel on top ----------
+   One grid for every tile: the art takes whatever height is left, then an icon column
+   beside one text column (title, tagline, how-to, best). Text rows are auto, so nothing clips. */
+
+:root[data-theme='bright'] .shell-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    'art art'
+    'icon body'
+    'icon how'
+    'icon best';
+  align-items: start;
+  justify-items: stretch;
+  column-gap: 14px;
+  row-gap: 3px;
+  padding: 8px 20px 18px 8px;
+  border: 0;
+  border-radius: var(--shell-radius);
+  background: #fff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 12px 0 -4px rgba(40, 80, 140, 0.08), var(--soft);
+  transform: none;
+  scale: 1;
+  transition: scale 380ms var(--bounce), box-shadow 260ms ease;
+  animation: b-shell-tile-in 620ms var(--bounce) both;
+}
+
+@keyframes b-shell-tile-in {
+  from { opacity: 0; transform: translateY(40px) scale(0.85); }
+}
+
+:root[data-theme='bright'] .shell-tile:hover,
+:root[data-theme='bright'] .shell-tile:focus,
+:root[data-theme='bright'] .shell-tile:focus-visible,
+:root[data-theme='bright'] .shell-tile--featured:hover,
+:root[data-theme='bright'] .shell-tile--featured:focus {
+  transform: none;
+  scale: 1.04;
+  z-index: 1;
+  /* Ring + one modest glow. Static once focused (only scale/rotate animate). */
+  box-shadow:
+    0 0 0 6px #fff,
+    0 0 0 12px var(--pri),
+    0 0 28px 10px rgba(47, 155, 255, 0.4),
+    0 18px 32px rgba(40, 80, 140, 0.24);
+}
+
+:root[data-theme='bright'] .shell-tile--featured:hover,
+:root[data-theme='bright'] .shell-tile--featured:focus { scale: 1.02; }
+
+/* Gentle idle wobble on the focused tile, on its own compositor layer. */
+:root[data-theme='bright'] .shell-tile:focus {
+  will-change: transform, scale, rotate;
+  animation: b-shell-wobble 2.6s ease-in-out 400ms infinite;
+}
+
+@keyframes b-shell-wobble {
+  0%, 100% { rotate: 0deg; }
+  25% { rotate: -0.7deg; }
+  75% { rotate: 0.7deg; }
+}
+
+:root[data-theme='bright'] .shell-tile--featured:focus { animation-name: b-shell-wobble-sm; }
+
+@keyframes b-shell-wobble-sm {
+  0%, 100% { rotate: 0deg; }
+  25% { rotate: -0.35deg; }
+  75% { rotate: 0.35deg; }
+}
+
+/* Art panel: fills the top of the card on an accent-coloured backdrop. */
+:root[data-theme='bright'] .shell-tile-art {
+  grid-area: art;
+  position: relative;
+  inset: auto;
+  z-index: 0;
+  height: 100%;
+  min-height: 0;
+  margin: 0 -12px 6px 0;
+  width: calc(100% + 12px);
+  border-radius: 24px;
+  opacity: 1;
+  background: linear-gradient(160deg, var(--b), var(--a));
+}
+
+:root[data-theme='bright'] .shell-tile:hover .shell-tile-art,
+:root[data-theme='bright'] .shell-tile:focus .shell-tile-art { transform: none; }
+
+:root[data-theme='bright'] .shell-tile-art--dim { filter: grayscale(1) brightness(1.08) contrast(0.8); opacity: 0.6; }
+:root[data-theme='bright'] .shell-tile-art--soon { display: none; } /* the corner ribbon says it */
+
+:root[data-theme='bright'] .shell-tile-scrim,
+:root[data-theme='bright'] .shell-tile-glow,
+:root[data-theme='bright'] .shell-tile--featured::after { display: none; }
+
+:root[data-theme='bright'] .shell-tile-shine {
+  grid-area: art;
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  width: calc(100% + 12px);
+  height: 100%;
+  margin-bottom: 6px;
+  border-radius: 24px;
+  overflow: hidden;
+  transform: none;
+  background: none;
+}
+
+:root[data-theme='bright'] .shell-tile-shine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.45) 50%, transparent 60%);
+  transform: translateX(-120%);
+}
+
+:root[data-theme='bright'] .shell-tile:focus .shell-tile-shine { animation: none; }
+:root[data-theme='bright'] .shell-tile:focus .shell-tile-shine::before { animation: shell-shine 900ms ease-out; }
+
+/* Icon: a round chip in the left column, lifted to sit on the art's edge. Same size on every tile. */
+:root[data-theme='bright'] .shell-tile-icon {
+  grid-area: icon;
+  position: relative;
+  z-index: 2;
+  width: clamp(46px, min(16cqh, 14cqw), 64px);
+  margin: calc(clamp(46px, min(16cqh, 14cqw), 64px) * -0.5) 0 0 12px;
+  border-radius: 50%;
+  color: var(--a);
+  background: #fff;
+  border: 0;
+  filter: none;
+  box-shadow: 0 6px 14px rgba(40, 80, 140, 0.2);
+}
+
+:root[data-theme='bright'] .shell-tile-icon svg { width: 60%; height: 60%; }
+
+:root[data-theme='bright'] .shell-tile-body {
+  grid-area: body;
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  padding: 0;
+}
+
+:root[data-theme='bright'] .shell-tile-title {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: clamp(22px, min(12cqh, 9cqw), 60px);
+  letter-spacing: 0;
+  line-height: 1.05;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+:root[data-theme='bright'] :is(.shell-tile-title, .shell-tile-tag, .shell-tile-how, .shell-tile-best) { text-shadow: none; }
+
+:root[data-theme='bright'] .shell-tile-tag {
+  font-weight: 700;
+  font-size: clamp(13px, 1.1vw, 16px);
+  color: var(--mut);
+}
+
+:root[data-theme='bright'] .shell-tile-how {
+  grid-area: how;
+  position: relative;
+  z-index: 1;
+  max-width: 46ch;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mut);
+}
+
+:root[data-theme='bright'] .shell-tile-best {
+  grid-area: best;
+  position: relative;
+  z-index: 1;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--pri-d);
+}
+
+/* Play badge: chunky coloured pill on the art. */
+:root[data-theme='bright'] .shell-tile-badge {
+  z-index: 2;
+  top: 20px;
+  right: 20px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #fff;
+  background: var(--a);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--a) 70%, #000), 0 8px 16px rgba(40, 80, 140, 0.22);
+  transition: scale 300ms var(--bounce);
+}
+
+:root[data-theme='bright'] .shell-tile[data-ready='true'] .shell-tile-badge::before { content: '\25B6\00a0'; font-size: 0.8em; }
+
+:root[data-theme='bright'] .shell-tile:focus .shell-tile-badge { scale: 1.12; }
+
+/* Locked: soft grey card with a "Coming soon" ribbon across the corner. */
+:root[data-theme='bright'] .shell-tile[data-ready='false'] { background: #eef1f5; }
+:root[data-theme='bright'] .shell-tile[data-ready='false'] .shell-tile-art--dim { background: #d7dde5; }
+:root[data-theme='bright'] .shell-tile[data-ready='false'] :is(.shell-tile-icon, .shell-tile-title) { opacity: 1; }
+:root[data-theme='bright'] .shell-tile[data-ready='false'] .shell-tile-icon { color: #9aa6b5; }
+:root[data-theme='bright'] .shell-tile[data-ready='false'] .shell-tile-title { color: #7d8898; }
+
+:root[data-theme='bright'] .shell-tile[data-ready='false'] .shell-tile-badge {
+  top: 26px;
+  right: -46px;
+  width: 190px;
+  padding: 6px 0;
+  text-align: center;
+  rotate: 35deg;
+  border-radius: 0;
+  border: 0;
+  font-size: 14px;
+  color: #fff;
+  background: var(--b-accent, #ffb347);
+  box-shadow: 0 4px 10px rgba(40, 80, 140, 0.25);
+}
+
+/* Dwell: thick rounded progress bar in primary blue along the card bottom. */
+:root[data-theme='bright'] .shell-tile-dwell {
+  z-index: 3;
+  left: 18px;
+  right: 18px;
+  bottom: 8px;
+  width: auto;
+  height: 10px;
+  border-radius: 999px;
+  transform: none;
+  box-shadow: none;
+  opacity: calc(var(--dwell) * 1000);
+  background:
+    linear-gradient(var(--pri), var(--pri)) left / calc(var(--dwell) * 100%) 100% no-repeat,
+    #dcecfb;
+}
+
+/* ---------- footer ---------- */
+
+:root[data-theme='bright'] .shell-hints {
+  align-items: center;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+:root[data-theme='bright'] .shell-hints > span {
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 12px rgba(40, 80, 140, 0.12);
+}
+
+:root[data-theme='bright'] .shell-hints kbd {
+  padding: 3px 10px;
+  border-radius: 10px;
+  font: 700 12px var(--fb);
+  color: var(--ink);
+  background: #fff;
+  border: 0;
+  box-shadow: 0 3px 0 #c9d6e6, 0 0 0 1.5px #dbe5f0;
+}
+
+:root[data-theme='bright'] .shell-hints .shell-privacy { padding-left: 14px; color: var(--mut); }
+
+/* ---------- launch card ---------- */
+
+:root[data-theme='bright'] .shell-launch { background: rgba(207, 238, 252, 0); transition: background 300ms; }
+:root[data-theme='bright'] .shell[data-view='launching'] .shell-launch { background: rgba(207, 238, 252, 0.45); }
+
+:root[data-theme='bright'] .shell-launch-card {
+  gap: 8px;
+  padding: 36px 56px 40px;
+  border-radius: 40px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.5), 0 24px 60px rgba(40, 80, 140, 0.3);
+}
+
+:root[data-theme='bright'] .shell[data-view='launching'] .shell-launch-card {
+  animation: b-shell-launch var(--shell-launch-ms) var(--bounce) both;
+}
+
+@keyframes b-shell-launch {
+  0% { opacity: 0; transform: translate(var(--from-x), var(--from-y)) scale(var(--from-s)); }
+  40% { opacity: 1; transform: scale(1.08); }
+  62% { transform: scale(0.97); }
+  80%, 100% { transform: scale(1); }
+}
+
+:root[data-theme='bright'] .shell-launch-icon {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(160deg, var(--b), var(--a));
+  filter: none;
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--a) 70%, #000);
+}
+
+:root[data-theme='bright'] .shell-launch-icon svg { width: 62%; height: 62%; }
+
+:root[data-theme='bright'] .shell-launch-title {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: clamp(48px, 7vw, 92px);
+  letter-spacing: 0;
+  line-height: 1;
+  color: var(--ink);
+}
+
+:root[data-theme='bright'] .shell-launch-bar {
+  width: 280px;
+  height: 18px;
+  border-radius: 999px;
+  background: #e3f0fc;
+  box-shadow: inset 0 2px 4px rgba(40, 80, 140, 0.15);
+}
+
+:root[data-theme='bright'] .shell-launch-bar span {
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.35) 0 8px, transparent 8px 16px),
+    linear-gradient(var(--pri), var(--pri-d));
+  background-size: 45px 100%, 100% 100%;
+  transform: none;
+  width: 0;
+}
+
+:root[data-theme='bright'] .shell[data-view='launching'] .shell-launch-bar span {
+  animation: b-shell-bar var(--shell-launch-ms) ease-in-out both, b-shell-stripes 500ms linear infinite;
+}
+
+@keyframes b-shell-bar {
+  from { width: 8%; }
+  to { width: 100%; }
+}
+
+@keyframes b-shell-stripes {
+  to { background-position: 45px 0, 0 0; }
+}
+
+/* ---------- home button, toast, hand cursor ---------- */
+
+:root[data-theme='bright'] .shell-home {
+  padding: 10px 22px;
+  font: 700 16px var(--fd);
+  color: var(--pri-d);
+  background: #fff;
+  border: 0;
+  box-shadow: var(--soft);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  opacity: 0.92;
+  transition: opacity 200ms, scale 300ms var(--bounce);
+}
+
+:root[data-theme='bright'] .shell-home:hover,
+:root[data-theme='bright'] .shell-home:focus-visible { opacity: 1; background: #fff; scale: 1.08; }
+
+:root[data-theme='bright'] .shell-toast {
+  z-index: 4;
+  font-family: var(--fd);
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  border: 0;
+  box-shadow: var(--soft);
+}
+
+:root[data-theme='bright'] .shell-cursor {
+  top: -36px;
+  left: -36px;
+  width: 72px;
+  height: 72px;
+  background: none;
+  mask: none;
+  -webkit-mask: none;
+  z-index: 5;
+  filter: drop-shadow(0 4px 10px rgba(27, 120, 214, 0.45));
+}
+
+/* Ring: fills with the dwell progress. */
+:root[data-theme='bright'] .shell-cursor::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--pri) calc(var(--dwell) * 1turn), #bfe0ff 0);
+  mask: radial-gradient(circle, transparent 26px, #000 27px);
+  -webkit-mask: radial-gradient(circle, transparent 26px, #000 27px);
+}
+
+/* Big friendly white centre. */
+:root[data-theme='bright'] .shell-cursor span {
+  inset: 10px;
+  background: #fff;
+  box-shadow: inset 0 -4px 0 #dcecfb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='bright'] .shell-cloud,
+  :root[data-theme='bright'] .shell-spark { animation: none; }
+}

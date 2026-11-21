@@ -1,8 +1,15 @@
 // Tile catalogue. Original line-art icons, drawn for this project.
+import { isBright } from '../theme/index.ts'
 import type { TileInfo } from './types.ts'
 
-/** URL of a file in public/art. BASE_URL keeps it working under any deploy base. */
-export const artUrl = (name: string): string => `${import.meta.env.BASE_URL}art/${name}.svg`
+const BRIGHT = isBright()
+
+/** URL of a file in public/art (public/art/bright under the bright theme). BASE_URL keeps it working under any deploy base. */
+export const artUrl = (name: string): string =>
+  BRIGHT ? `${import.meta.env.BASE_URL}art/bright/${name}.svg` : `${import.meta.env.BASE_URL}art/${name}.svg`
+
+/** Neon colours, or the bright island palette. */
+const pick = <T,>(neon: T, bright: T): T => (BRIGHT ? bright : neon)
 
 const svg = (body: string): string =>
   `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`
@@ -36,10 +43,10 @@ export const TILES: readonly TileInfo[] = [
   {
     id: 'boxing',
     title: 'Boxing',
-    tagline: 'Out-punch the sparring drone',
+    tagline: pick('Out-punch the sparring drone', 'Box the island champ'),
     howTo: 'Jab, cross, hook, uppercut. Guard up to block, lean to slip.',
-    accent: '#ff5a1f',
-    accent2: '#ff2d75',
+    accent: pick('#ff5a1f', '#ff5a4e'),
+    accent2: pick('#ff2d75', '#ffb347'),
     icon: GLOVE,
     art: artUrl('tile-boxing'),
     featured: true,
@@ -49,18 +56,18 @@ export const TILES: readonly TileInfo[] = [
     title: 'Goalkeeper',
     tagline: 'Dive, reach, save',
     howTo: 'Shots fly at your goal. Get a hand in the way.',
-    accent: '#38c8ff',
-    accent2: '#3cf2b0',
+    accent: pick('#38c8ff', '#35c26b'),
+    accent2: pick('#3cf2b0', '#46c7d9'),
     icon: GOAL,
     art: artUrl('tile-goalkeeper'),
   },
   {
     id: 'archery',
     title: 'Archery',
-    tagline: 'Draw, hold, release',
+    tagline: pick('Draw, hold, release', 'Draw, aim, bullseye'),
     howTo: 'Pull your hand back to draw, open up to loose the arrow.',
-    accent: '#ffd23c',
-    accent2: '#ff8a1f',
+    accent: pick('#ffd23c', '#ffd23c'),
+    accent2: pick('#ff8a1f', '#ff9a3c'),
     icon: TARGET,
     art: artUrl('tile-archery'),
   },
@@ -69,8 +76,8 @@ export const TILES: readonly TileInfo[] = [
     title: 'Leaderboard',
     tagline: 'Live stats powered by Snowflake',
     howTo: 'Every punch streams to Snowflake. See who hits hardest.',
-    accent: '#a98bff',
-    accent2: '#38c8ff',
+    accent: pick('#a98bff', '#2f9bff'),
+    accent2: pick('#38c8ff', '#8fd3fb'),
     icon: PODIUM,
     art: artUrl('tile-leaderboard'),
   },
