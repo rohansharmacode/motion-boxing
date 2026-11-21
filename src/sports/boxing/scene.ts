@@ -425,6 +425,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   rig.position.set(0, EYE_Y, 0)
   stage.add(rig)
   const camera = new PerspectiveCamera(50, 1, 0.03, 60)
+  let baseFov = 50
+  let fovKick = 0
   // Camera view: third person (default) or first person (?view=fp, or press V to toggle).
   let firstPerson = new URLSearchParams(window.location.search).get('view') === 'fp'
   const onViewKey = (e: KeyboardEvent): void => {
@@ -771,6 +773,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     flashImpact(counter ? IMPACT_FLASH.counter : IMPACT_FLASH.hit)
     // Camera kick toward the punch: a small dip forward, nudged the way the glove travelled.
     const dirX = hand === 'left' ? 1 : -1
+    if (kind !== 'jab' || counter) fovKick = Math.max(fovKick, counter ? 4.5 : 3.5) // heavy-hit FOV punch-in
     kickCam(dirX * 0.4 * strength, -0.3 * strength, -1.4 * strength, -0.35 * strength, dirX * (kind === 'hook' ? 0.6 : 0.25) * strength)
   }
 
@@ -778,6 +781,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     const rollSign = Math.random() < 0.5 ? -1 : 1
     if (!blocked) {
       redFlash = 1
+      fovKick = Math.max(fovKick, 3)
       // Rocked back: the camera snaps back and tilts, then springs home.
       kickCam(rollSign * 0.4, 0.5, 2.6, 1.3, rollSign * 2.4)
       return
@@ -1178,6 +1182,12 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     camera.lookAt(stage.localToWorld(tmpC.copy(shotLook)))
     camera.rotateX(clamp(kick.pitch.x, -0.05, 0.05) * s)
     camera.rotateZ(clamp(kick.roll.x, -0.07, 0.07) * s)
+    if (fovKick > 0) {
+      // Snaps out with the hit, eases back over about 220 ms.
+      fovKick = Math.max(0, fovKick - real * 16)
+      camera.fov = baseFov + fovKick
+      camera.updateProjectionMatrix()
+    }
     redFlash = Math.max(0, redFlash - real / 0.35)
     vignetteMat.opacity = redFlash * HIT_VIGNETTE[post.quality]
     vignette.visible = redFlash > 0
@@ -1207,7 +1217,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     resize(width, height) {
       post.setSize(width, height)
       camera.aspect = Math.max(1, width) / Math.max(1, height)
-      camera.fov = camera.aspect < 0.9 ? 62 : 50 // portrait screens need more height to fit the drone
+      baseFov = camera.aspect < 0.9 ? 62 : 50 // portrait screens need more height to fit the drone
+      camera.fov = baseFov + fovKick
       camera.updateProjectionMatrix()
       const halfH = Math.tan((camera.fov * Math.PI) / 360) * -vignette.position.z * 1.08
       vignette.scale.set(halfH * camera.aspect, halfH, 1)
