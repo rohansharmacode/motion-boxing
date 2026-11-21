@@ -177,6 +177,8 @@ export interface ShootoutResult {
   /** 0..100. */
   savePct?: number
   perfects?: number
+  /** True when this was the guided practice, not a scored shootout. */
+  practice?: boolean
 }
 
 export type KeeperPhase = 'idle' | 'playing' | 'ended'
@@ -186,8 +188,10 @@ export interface KeeperEngine extends SportEngine<KeeperScene> {
   /** Kicks taken so far this shootout (0..KICKS_PER_SHOOTOUT). */
   readonly kickIndex: number
   readonly results: readonly KickResult[]
-  /** Start a 5-kick shootout. */
-  startShootout(): void
+  /** Start a 5-kick shootout, or with practice: true the 3 slow guided practice shots (no telemetry). */
+  startShootout(opts?: { practice?: boolean }): void
+  /** True while the guided practice runs. */
+  readonly practice: boolean
   /** Level for the next shootout (and the rest of the current one). */
   setDifficulty(level: Difficulty): void
   readonly difficulty: Difficulty
@@ -268,6 +272,10 @@ export interface KeeperHud {
   setScoreboard(results: readonly KickResult[], total: number): void
   /** Short callout such as SAVED!, GOAL, PUNCHED CLEAR, GET READY. */
   callout(text: string, tone: 'good' | 'bad' | 'info'): void
+  /** "Practice first (20 s)" toggle on the start screen. onChange fires when the player flips it. */
+  setPracticeChoice(on: boolean, onChange: (on: boolean) => void): void
+  /** One practice prompt line at the bottom with a Skip button. null hides it. */
+  setPractice(prompt: string | null, onSkip?: () => void): void
   /** Grade popup (PERFECT! / GOOD SAVE / FINGERTIP! / MISSED) with combo and points. */
   gradePopup(grade: SaveGrade, combo: number, points: number): void
   setInputMode(mode: InputMode): void

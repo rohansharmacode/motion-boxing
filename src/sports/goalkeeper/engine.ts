@@ -3,7 +3,7 @@
 // All time is driven by update(dtMs); no timers.
 
 import { DIFFICULTY_PARAMS, rampSteps, rampedSpeed } from './difficulty.ts'
-import { planShot, tellAt } from './shots.ts'
+import { PRACTICE_KICKS, planPracticeShot, planShot, tellAt } from './shots.ts'
 import { gradeSave, kickPoints, nextCombo, resultGrade, scoreKicks } from './grading.ts'
 import type { ShotPlan } from './shots.ts'
 import type { Difficulty } from './difficulty.ts'
@@ -189,6 +189,8 @@ export function createKeeperEngine(opts?: {
   let leftSaves = 0
   let rightSaves = 0
   let difficulty: Difficulty = 'normal'
+  let practice = false
+  let kicksTotal = KICKS_PER_SHOOTOUT
   /** Real saves this round (glove or body), for the auto-ramp. */
   let roundSaves = 0
   let combo = 0
@@ -306,13 +308,15 @@ export function createKeeperEngine(opts?: {
     kick = n
     stage = 'idle'
     stageMs = 0
-    plan = planShot(
-      n,
-      rng,
-      results.map((r) => r.zone),
-      DIFFICULTY_PARAMS[difficulty],
-      rampedSpeed(difficulty, roundSaves),
-    )
+    plan = practice
+      ? planPracticeShot(n)
+      : planShot(
+          n,
+          rng,
+          results.map((r) => r.zone),
+          DIFFICULTY_PARAMS[difficulty],
+          rampedSpeed(difficulty, roundSaves),
+        )
     plan.tell.kind = plan.shot
     if (plan.fake) plan.fake.kind = plan.shot
     telegraphStart = -1
@@ -388,6 +392,7 @@ export function createKeeperEngine(opts?: {
     stageMs = 0
     slowMoTotal = slowMoLeft = outcome === 'save' ? SLOWMO_SAVE_MS : SLOWMO_GOAL_MS
     for (const cb of kickCbs) cb(result)
+    if (practice) return // practice never reaches the server or the leaderboard
     telemetry.emit({
       event_type: outcome === 'save' ? 'SAVE' : 'GOAL',
       peak_velocity: result.peakVelocity,
@@ -451,6 +456,11 @@ export function createKeeperEngine(opts?: {
       bestCombo: scored.bestCombo,
       savePct: results.length > 0 ? Math.round((saves / results.length) * 100) : 0,
       perfects: scored.perfects,
+    }
+    if (practice) {
+      summary.practice = true
+      for (const cb of endCbs) cb(summary)
+      return
     }
     telemetry.flush()
     flushAcc = 0
@@ -690,7 +700,7 @@ export function createKeeperEngine(opts?: {
         stage = resolved ? 'result' : 'recover'
       } else if (stage === 'result') {
         ballVisible = false
-        if (kick + 1 >= KICKS_PER_SHOOTOUT) {
+        if (kick + 1 >= kicksTotal) {
           endShootout()
           return
         }
@@ -721,7 +731,7 @@ export function createKeeperEngine(opts?: {
   }
 
   function queueTickIfDue(dtMs: number): void {
-    if (phase !== 'playing') return
+    if (phase !== 'playing' || practice) return
     tickAcc += dtMs
     while (tickAcc >= TICK_MS) {
       tickAcc -= TICK_MS
@@ -825,8 +835,10 @@ export function createKeeperEngine(opts?: {
       copyPose(pointerCur, pointerPose(target))
     },
 
-    startShootout() {
+    startShootout(opts?: { practice?: boolean }) {
       if (disposed) return
+      practice = opts?.practice === true
+      kicksTotal = practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT
       results = []
       slowMoLeft = 0
       timeScale = 1
@@ -882,6 +894,10 @@ export function createKeeperEngine(opts?: {
 
       queueTickIfDue(dt)
       pushScene()
+    },
+
+    get practice() {
+      return practice
     },
 
     setDifficulty(level: Difficulty) {

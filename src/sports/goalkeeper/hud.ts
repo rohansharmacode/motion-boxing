@@ -106,6 +106,8 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
     document.createTextNode(' mouse mode  '),
     el('span', 'gk-kbd', 'R'),
     document.createTextNode(' restart  '),
+    el('span', 'gk-kbd', 'P'),
+    document.createTextNode(' practice  '),
     el('span', 'gk-kbd', '`'),
     document.createTextNode(' debug'),
   )
@@ -143,7 +145,13 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       }
     }
   }
-  start.append(startKicker, title, howTo, levelPicker(), startActions, startNote)
+  const practiceLabel = el('label', 'gk-practice-choice')
+  const practiceBox = el('input')
+  practiceBox.type = 'checkbox'
+  let onPracticeChoice: (on: boolean) => void = () => {}
+  practiceBox.addEventListener('change', () => onPracticeChoice(practiceBox.checked))
+  practiceLabel.append(practiceBox, document.createTextNode(' Practice first (20 s, 3 slow shots)'))
+  start.append(startKicker, title, howTo, levelPicker(), practiceLabel, startActions, startNote)
 
   // ---------- loading ----------
   const loading = el('section', 'gk-panel gk-loading')
@@ -216,6 +224,18 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
     corner.setAttribute('aria-label', 'Home')
     play.append(corner)
   }
+  // Practice prompt: one line at a time, bottom centre (clear of the webcam preview), with Skip.
+  const practiceBar = el('div', 'gk-practice')
+  practiceBar.hidden = true
+  const practiceText = el('p', 'gk-practice-text')
+  practiceText.setAttribute('aria-live', 'polite')
+  const practiceSkip = button('Skip practice', true)
+  practiceSkip.classList.add('gk-practice-skip')
+  practiceSkip.append(' ', el('span', 'gk-kbd', 'S'))
+  practiceBar.append(el('span', 'gk-practice-tag', 'PRACTICE'), practiceText, practiceSkip)
+  play.append(practiceBar)
+  let onSkip: () => void = () => {}
+  practiceSkip.addEventListener('click', () => onSkip())
   const telegraph = el('div', 'gk-telegraph')
   telegraph.setAttribute('aria-hidden', 'true')
   play.append(telegraph)
@@ -361,6 +381,22 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
         node.remove()
       }, CALLOUT_MS)
       timers.add(id)
+    },
+
+    setPracticeChoice(on: boolean, onChange: (on: boolean) => void) {
+      practiceBox.checked = on
+      onPracticeChoice = onChange
+    },
+
+    setPractice(prompt: string | null, skip?: () => void) {
+      if (skip) onSkip = skip
+      practiceBar.hidden = prompt === null
+      if (prompt !== null && practiceText.textContent !== prompt) {
+        practiceText.textContent = prompt
+        practiceText.classList.remove('gk-practice-in')
+        void practiceText.offsetWidth // restart the fade-in for each new line
+        practiceText.classList.add('gk-practice-in')
+      }
     },
 
     gradePopup(grade: SaveGrade, combo: number, points: number) {

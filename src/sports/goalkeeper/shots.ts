@@ -107,3 +107,31 @@ export function planShot(
 export function tellAt(plan: Pick<ShotPlan, 'tell' | 'fake' | 'fakeUntil'>, p: number): StrikerTell {
   return plan.fake && p < plan.fakeUntil ? plan.fake : plan.tell
 }
+
+// ---------- guided practice ----------
+
+export const PRACTICE_KICKS = 3
+/** Practice balls fly this much slower than a normal kick 0. */
+export const PRACTICE_SPEED = 0.6
+/** Left, right, then a high centre ball (so the third arrow shows the "high" colour). */
+const PRACTICE_TARGETS: readonly { x: number; y: number }[] = [
+  { x: -2.1, y: 1.15 },
+  { x: 2.1, y: 1.15 },
+  { x: 0, y: 1.95 },
+]
+
+/** Fixed, slow, spin-free practice shot `i` (0..PRACTICE_KICKS-1). Same every time, no fakes. */
+export function planPracticeShot(i: number): ShotPlan {
+  const p = PRACTICE_TARGETS[Math.max(0, Math.min(PRACTICE_TARGETS.length - 1, Math.floor(i)))]
+  const zone = zoneOf(p.x, p.y)
+  return {
+    zone,
+    target: { x: p.x, y: p.y, z: 0 },
+    omega: { x: 0, y: 0, z: 0 },
+    flightTime: 0.95 / PRACTICE_SPEED,
+    tell: tellOf(p.x, zone),
+    shot: 'straight',
+    fake: null,
+    fakeUntil: 0,
+  }
+}
