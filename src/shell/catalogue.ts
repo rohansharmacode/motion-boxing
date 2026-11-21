@@ -32,6 +32,11 @@ const TARGET = svg(`
   <circle cx="28" cy="36" r="4"/>
   <path d="M28 36L54 10M47 10h7v7M54 10l-4 1" />`)
 
+const VERSUS = svg(`
+  <circle cx="18" cy="26" r="10"/>
+  <circle cx="46" cy="26" r="10"/>
+  <path d="M6 54c0-9 5-15 12-15s12 6 12 15M34 54c0-9 5-15 12-15s12 6 12 15"/>
+  <path d="M27 10l5 8 5-8" stroke-width="2.6"/>`)
 const PODIUM = svg(`
   <path d="M8 54h48"/>
   <rect x="24" y="26" width="16" height="28" rx="2"/>
@@ -85,6 +90,16 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#22e5ff', '#46c7d9'),
     icon: FIGURE,
     art: artUrl('tile-customise'),
+  },
+  {
+    id: 'versus',
+    title: '1v1 Online',
+    tagline: 'Box a friend on another laptop',
+    howTo: 'Make a room, share the 4-letter code, and fight live over the internet.',
+    accent: pick('#ff2e88', '#ff6b6b'),
+    accent2: pick('#22e5ff', '#2f9bff'),
+    icon: VERSUS,
+    art: BRIGHT ? artUrl('tile-boxing') : `${import.meta.env.BASE_URL}art/neon/tile-boxing.svg`,
   },
   {
     id: 'leaderboard',

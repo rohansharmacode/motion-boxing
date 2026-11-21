@@ -509,7 +509,20 @@ const customise = (ctx: GameContext): Promise<GameSession> =>
 const archery = (ctx: GameContext): Promise<GameSession> =>
   import('./sports/archery/index.ts').then((m) => m.startArchery(ctx))
 
-mountShell({ launchers: { boxing: startBoxing, goalkeeper, archery, leaderboard, customise } })
+/** 1v1 tile: start boxing, then open the online lobby from its start screen. */
+async function startVersus(ctx: GameContext): Promise<GameSession> {
+  const session = await startBoxing(ctx)
+  const t0 = performance.now()
+  const open = (): void => {
+    const entry = document.querySelector<HTMLButtonElement>('.vs-entry')
+    if (entry && !entry.hidden) entry.click()
+    else if (!ctx.signal.aborted && performance.now() - t0 < 8000) setTimeout(open, 150)
+  }
+  open()
+  return session
+}
+
+mountShell({ launchers: { boxing: startBoxing, goalkeeper, archery, leaderboard, customise, versus: startVersus } })
 // Every menu works hands-only: point with a raised hand, hold on a button until the ring fills.
 mountHandNav({ video: el('#webcam', HTMLVideoElement) })
 
