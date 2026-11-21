@@ -87,11 +87,30 @@ function correctFor(intent: string, t: Tally): number {
 function renderTally(): void {
   const body = $('tally').querySelector('tbody')!
   body.replaceChildren(
-    ...rows.map((r) => {
+    ...rows.map((r, i) => {
       const tr = document.createElement('tr')
       const cells = [`${r.light} / ${r.dist} m / ${r.intent}`, r.thrown, r.tally.jab, r.tally.cross, r.tally.hook, r.tally.uppercut, r.tally.guard, r.tally.slip, r.tally.duck,
         r.intent === 'idle' ? `${r.tally.jab + r.tally.cross + r.tally.hook + r.tally.uppercut} false` : `${r.correct}/${r.thrown}`]
       for (const c of cells) { const td = document.createElement('td'); td.textContent = String(c); tr.append(td) }
+      // Delete a bad trial (wrong setup typed, interrupted, ...). It is also left out of the CSV.
+      const del = document.createElement('button')
+      del.textContent = 'Delete'
+      del.title = 'Remove this row'
+      del.onclick = () => {
+        // Two clicks: the first arms the button, so a stray click never loses a trial.
+        if (del.textContent !== 'Sure?') {
+          del.textContent = 'Sure?'
+          del.classList.add('on')
+          setTimeout(() => { del.textContent = 'Delete'; del.classList.remove('on') }, 3000)
+          return
+        }
+        rows.splice(i, 1)
+        log(`deleted row: ${cells[0]}`)
+        renderTally()
+      }
+      const td = document.createElement('td')
+      td.append(del)
+      tr.append(td)
       return tr
     }),
   )
