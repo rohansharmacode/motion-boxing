@@ -18,7 +18,5 @@
 <circle cx="414" cy="224" r="34" fill="#ff8a7a" fill-opacity=".4" stroke="#fff" stroke-width="5" stroke-dasharray="10 7" stroke-linecap="round"/>
 <text x="226" y="230" text-anchor="middle" font-family="Fredoka, Nunito, 'Arial Rounded MT Bold', sans-serif" font-weight="700" font-size="16" fill="#fff" >L</text><text x="414" y="230" text-anchor="middle" font-family="Fredoka, Nunito, 'Arial Rounded MT Bold', sans-serif" font-weight="700" font-size="16" fill="#fff" >R</text>
 </g>
-<g filter="url(#qsh)"><rect x="140" y="24" width="360" height="40" rx="20" fill="#fff"/></g>
-<text x="320" y="50" text-anchor="middle" font-family="Fredoka, Nunito, 'Arial Rounded MT Bold', sans-serif" font-weight="700" font-size="17" fill="#1f8fd0" >Shoulders on the line · Hold guard 2s</text>
 
 </svg>

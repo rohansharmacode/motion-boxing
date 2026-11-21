@@ -84,7 +84,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   // Kinetic HUD: live stats, then the post-match screen with the Cortex coach card and leaderboard.
   // It also bridges this round's motion events to the server (src/api/boxingLink.ts, mock mode
   // without VITE_API_URL). ?hud=classic keeps the original in-game HUD.
-  const hud = new URLSearchParams(location.search).get('hud') === 'classic' ? createBoxingHud(ui) : createKineticHud(ui, { ctx })
+  const classicHud = new URLSearchParams(location.search).get('hud') === 'classic'
+  const hud = classicHud ? createBoxingHud(ui) : createKineticHud(ui, { ctx })
   const telemetry = createTelemetry()
   const overlay = createPoseOverlay(overlayCanvas)
   const trackingHint = createTrackingHint(ui)
@@ -125,7 +126,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function setState(next: BoxingState): void {
     state = next
     document.body.dataset.state = next
-    overlay.setGuide(next === 'calibrating')
+    // The Kinetic HUD draws its own stance guide; two guides on top of each other only confuse.
+    overlay.setGuide(next === 'calibrating' && classicHud)
     trackingHint.setActive((next === 'fighting' || next === 'tutorial') && pipeline !== null)
     if (next !== 'tutorial') endTutorial()
   }
