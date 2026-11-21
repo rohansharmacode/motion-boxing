@@ -808,3 +808,77 @@
   color: #22e5ff;
 }
 .shell:not(.shell--channels) .shell-tile--versus .shell-tile-icon { display: none; }
+
+/* ---------- Grid-world finish (original): glowing circuit traces with a light pulse,
+   glossy sheen and thin inner edge light on each tile, detailed icon frames. ---------- */
+.shell-tile-circuit { display: none; }
+.shell:not(.shell--channels) .shell-tile-circuit {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask: url('/art/neon/circuit.svg') center / 100% 100% no-repeat;
+  mask: url('/art/neon/circuit.svg') center / 100% 100% no-repeat;
+  background: color-mix(in srgb, var(--a) 42%, transparent);
+  filter: drop-shadow(0 0 3px var(--a));
+}
+/* The pulse: a bright band that sweeps through the traces only (masked by the parent). */
+.shell:not(.shell--channels) .shell-tile-circuit::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, #f2f7ff 45%, var(--a) 60%, transparent);
+  transform: translateX(-120%);
+  will-change: transform;
+  animation: shell-trace-run 4.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+.shell:not(.shell--channels) .shell-tile:nth-child(2n) .shell-tile-circuit::before { animation-delay: -1.4s; animation-duration: 5s; }
+.shell:not(.shell--channels) .shell-tile:nth-child(3n) .shell-tile-circuit::before { animation-delay: -2.7s; animation-duration: 3.6s; }
+.shell:not(.shell--channels) .shell-tile:is(:hover, :focus) .shell-tile-circuit { background: color-mix(in srgb, var(--a) 55%, transparent); }
+.shell:not(.shell--channels) .shell-tile:is(:hover, :focus) .shell-tile-circuit::before { animation-duration: 1.4s; }
+@keyframes shell-trace-run { to { transform: translateX(440%); } }
+
+/* Glossy black-glass sheen + thin inner light line along the edge. */
+.shell:not(.shell--channels) .shell-tile-shine {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 1;
+  animation: none;
+  transform: none;
+  pointer-events: none;
+  background:
+    linear-gradient(172deg, rgba(242, 247, 255, 0.09) 0%, rgba(242, 247, 255, 0.02) 34%, transparent 35%),
+    linear-gradient(90deg, transparent 6%, color-mix(in srgb, var(--a) 70%, transparent) 50%, transparent 94%) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent 6%, color-mix(in srgb, var(--a) 40%, transparent) 50%, transparent 94%) bottom / 100% 1px no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(242, 247, 255, 0.06), inset 0 0 24px color-mix(in srgb, var(--a) 14%, transparent);
+}
+
+/* Icon frame: notched corners, inner trace ring, small node lights. */
+.shell:not(.shell--channels) .shell-tile-icon {
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--a) 22%, transparent), transparent 70%),
+    #070a17;
+  box-shadow: 4px 4px 0 #03050d, inset 0 0 0 3px #070a17, inset 0 0 0 4px color-mix(in srgb, var(--a) 35%, transparent), 0 0 14px color-mix(in srgb, var(--a) 35%, transparent);
+}
+.shell:not(.shell--channels) .shell-tile-icon svg { filter: drop-shadow(0 0 4px var(--a)); }
+.shell:not(.shell--channels) .shell-tile-icon::before,
+.shell:not(.shell--channels) .shell-tile-icon::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: var(--a);
+  box-shadow: 0 0 6px var(--a);
+}
+.shell:not(.shell--channels) .shell-tile-icon::before { top: -4px; right: 10px; }
+.shell:not(.shell--channels) .shell-tile-icon::after { bottom: 10px; left: -4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shell:not(.shell--channels) .shell-tile-circuit::before { animation: none; display: none; }
+}

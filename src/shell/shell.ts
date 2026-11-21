@@ -331,6 +331,7 @@ export function mountShell(options: ShellOptions): Shell {
     b.append(
       ...art,
       span('shell-tile-scrim'),
+      span('shell-tile-circuit'),
       span('shell-tile-glow'),
       span('shell-tile-shine'),
       ...(ready ? [] : [span('shell-tile-badge', 'Coming soon')]),

@@ -2,6 +2,7 @@
 // World frame and zones: see ./types.ts. Camera sits behind the keeper (z > 0) looking toward -z.
 
 import * as THREE from 'three'
+import { buildTronArena } from '../shared/tronArena.ts'
 import type {
   KeeperPart,
   KeeperPose,
@@ -261,6 +262,32 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       ),
     )
   }
+
+  // ---------- neon-grid arena dressing (towers, floor circuits, light runners) ----------
+  const tron = buildTronArena({
+    seed: 7,
+    circuits: [
+      { x0: -30, x1: 30, z0: -20, z1: -32 },
+      { x0: -34, x1: -22, z0: -18, z1: 4 },
+      { x0: 22, x1: 34, z0: -18, z1: 4 },
+    ],
+    tracks: [
+      [-30, -23, 30, -23],
+      [30, -29, -30, -29],
+      [-26, 3, -26, -31],
+      [26, -31, 26, 3],
+    ],
+    towers: [
+      { x0: -55, x1: -14, z0: -42, z1: -64 },
+      { x0: 14, x1: 55, z0: -42, z1: -64 },
+      { x0: -50, x1: -36, z0: -8, z1: -36 },
+      { x0: 36, x1: 50, z0: -8, z1: -36 },
+    ],
+    towerCount: 22,
+    towerHeight: [8, 26],
+    motes: { x0: -30, x1: 30, z0: -40, z1: 0, y: 8 },
+  })
+  scene.add(tron.group)
 
   // ---------- pitch ----------
   {
@@ -1367,6 +1394,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       updateNet(dt)
       updateFrame(dt)
       updateZone(dt)
+      tron.update(time)
       shakeAmt *= Math.exp(-dt * 5.5)
       if (shakeAmt < 0.002) shakeAmt = 0
       const a = shakeAmt * shakeAmt * 0.14 + shakeAmt * 0.04
@@ -1384,6 +1412,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     },
 
     dispose(): void {
+      tron.dispose()
       const geos = new Set<THREE.BufferGeometry>()
       const mats = new Set<THREE.Material>()
       scene.traverse((o) => {
