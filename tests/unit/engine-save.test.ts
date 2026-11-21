@@ -3,7 +3,7 @@
 // Time is driven only by engine.update(dt); the striker is seeded with mulberry32.
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import type { KeeperEngine, KickResult, ShootoutResult, StrikerPhase } from '../../src/sports/goalkeeper/types.ts'
-import { createKeeperEngine } from '../../src/sports/goalkeeper/engine.ts'
+import { HITSTOP_MS, createKeeperEngine } from '../../src/sports/goalkeeper/engine.ts'
 import { TELEGRAPH_MS, mulberry32 } from '../../src/sports/goalkeeper/striker.ts'
 import { KICKS_PER_SHOOTOUT } from '../../src/sports/goalkeeper/types.ts'
 import {
@@ -168,7 +168,7 @@ describe('keeper engine: shootout and save detection', () => {
     expect(h.scene.count('flashGoal')).toBe(0)
   })
 
-  test('a save drops timeScale to about 0.3, then it returns to 1', () => {
+  test('a save freezes the world (hit-stop), drops timeScale to about 0.3, then it returns to 1', () => {
     const h = setup(11)
     h.engine.startShootout()
     let saveFrame = -1
@@ -184,14 +184,21 @@ describe('keeper engine: shootout and save detection', () => {
     )
     expect(h.kicks[0].outcome).toBe('save')
     expect(scales[0]).toBeCloseTo(1, 9) // not yet recomputed at the save frame
-    const minScale = Math.min(...scales)
+    // Hit-stop first: the world is frozen (0) for about HITSTOP_MS, then the 0.3 slow-mo.
+    const frozen = scales.filter((s) => s === 0).length
+    expect(frozen * DT).toBeGreaterThanOrEqual(HITSTOP_MS - DT)
+    expect(frozen * DT).toBeLessThanOrEqual(HITSTOP_MS + DT)
+    const firstMoving = scales.findIndex((s, i) => i > 0 && s > 0)
+    expect(scales.slice(1, firstMoving).every((s) => s === 0)).toBe(true)
+    const minScale = Math.min(...scales.filter((s) => s > 0))
     expect(minScale).toBeCloseTo(0.3, 6)
     // Held at 0.3 for a while (60% of 700 ms), then eases back to exactly 1 within ~1 s.
     expect(scales.filter((s) => Math.abs(s - 0.3) < 1e-9).length).toBeGreaterThanOrEqual(20)
     expect(scales[scales.length - 1]).toBe(1)
     const firstOne = scales.findIndex((s, i) => i > 1 && s === 1)
-    expect(firstOne * DT).toBeGreaterThan(600)
-    expect(firstOne * DT).toBeLessThan(800)
+    // The 700 ms slow-mo starts after the hit-stop.
+    expect(firstOne * DT).toBeGreaterThan(600 + HITSTOP_MS)
+    expect(firstOne * DT).toBeLessThan(800 + HITSTOP_MS)
   })
 
   test('a glove already moving fast before the telegraph never yields a reaction under 100 ms', () => {

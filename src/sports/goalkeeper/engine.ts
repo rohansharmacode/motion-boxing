@@ -3,8 +3,10 @@
 // All time is driven by update(dtMs); no timers.
 
 import { DIFFICULTY_PARAMS, rampSteps, rampedSpeed } from './difficulty.ts'
-import { PRACTICE_KICKS, planPracticeShot, planShot, tellAt } from './shots.ts'
+import { planPracticeShot, planShot, tellAt } from './shots.ts'
 import { gradeSave, kickPoints, nextCombo, resultGrade, scoreKicks } from './grading.ts'
+import { bestReaction, dailyKey, dailySeed, planDailyRound, roundOver, suddenGrade } from './modes.ts'
+import type { RoundMode } from './modes.ts'
 import type { ShotPlan } from './shots.ts'
 import type { Difficulty } from './difficulty.ts'
 import { OneEuroVec3 } from './filter.ts'
@@ -33,7 +35,6 @@ import {
 } from './striker.ts'
 import { createKeeperTelemetry } from './telemetry.ts'
 import {
-  KICKS_PER_SHOOTOUT,
   type BallState,
   type BodyFrame,
   type Calibration,
@@ -121,6 +122,19 @@ function round3(x: number): number {
   return Math.round(x * 1000) / 1000
 }
 const GLOVE_PARTS = ['left', 'right'] as const
+/** World freeze on a glove/body save, real ms (impact feel before the slow-mo). */
+export const HITSTOP_MS = 80
+
+/** Copy of a precomputed daily shot so per-kick edits (tell.kind) never touch the stored plan. */
+function cloneShot(s: ShotPlan): ShotPlan {
+  return {
+    ...s,
+    target: { ...s.target },
+    omega: { ...s.omega },
+    tell: { ...s.tell },
+    fake: s.fake ? { ...s.fake } : null,
+  }
+}
 
 function scaleInto(v: Vec3, k: number): void {
   v.x *= k
@@ -204,7 +218,13 @@ export function createKeeperEngine(opts?: {
   let rightSaves = 0
   let difficulty: Difficulty = 'normal'
   let practice = false
-  let kicksTotal = KICKS_PER_SHOOTOUT
+  let mode: RoundMode = 'classic'
+  let dailyPlans: ShotPlan[] = []
+  let dailyDate = ''
+  /** Extra wait before the first kick so the kickoff countdown can play. */
+  let firstIdleMs = 0
+  /** Real ms left of the save hit-stop (world frozen). */
+  let hitStopLeft = 0
   /** Real saves this round (glove or body), for the auto-ramp. */
   let roundSaves = 0
   let combo = 0
@@ -298,7 +318,7 @@ export function createKeeperEngine(opts?: {
   function stageDuration(s: Stage): number {
     switch (s) {
       case 'idle':
-        return IDLE_MS
+        return kick === 0 ? Math.max(IDLE_MS, firstIdleMs) : IDLE_MS
       case 'runup':
         return RUNUP_MS
       case 'telegraph':
@@ -324,7 +344,9 @@ export function createKeeperEngine(opts?: {
     stageMs = 0
     plan = practice
       ? planPracticeShot(n)
-      : planShot(
+      : mode === 'daily'
+        ? cloneShot(dailyPlans[Math.min(n, dailyPlans.length - 1)])
+        : planShot(
           n,
           rng,
           results.map((r) => r.zone),
@@ -405,6 +427,7 @@ export function createKeeperEngine(opts?: {
     stage = 'result'
     stageMs = 0
     slowMoTotal = slowMoLeft = outcome === 'save' ? SLOWMO_SAVE_MS : SLOWMO_GOAL_MS
+    if (outcome === 'save' && part !== null) hitStopLeft = HITSTOP_MS
     for (const cb of kickCbs) cb(result)
     if (practice) return // practice never reaches the server or the leaderboard
     telemetry.emit({
@@ -425,6 +448,7 @@ export function createKeeperEngine(opts?: {
         flightTime: round3(plan.flightTime),
         offTarget,
         source: source(),
+        mode,
         difficulty,
         saveGrade: grade,
         combo,
@@ -471,6 +495,10 @@ export function createKeeperEngine(opts?: {
       savePct: results.length > 0 ? Math.round((saves / results.length) * 100) : 0,
       perfects: scored.perfects,
     }
+    summary.mode = mode
+    summary.bestReactionMs = bestReaction(results)
+    if (mode === 'sudden') summary.grade = suddenGrade(saves)
+    if (mode === 'daily') summary.dailyKey = dailyDate
     if (practice) {
       summary.practice = true
       for (const cb of endCbs) cb(summary)
@@ -495,6 +523,8 @@ export function createKeeperEngine(opts?: {
         bestSpeed: best,
         score: summary.score,
         avgReactionMs: summary.avgReactionMs,
+        bestReactionMs: summary.bestReactionMs,
+        mode,
         difficulty,
         grade: summary.grade,
         bestCombo: summary.bestCombo,
@@ -708,7 +738,7 @@ export function createKeeperEngine(opts?: {
         stage = resolved ? 'result' : 'recover'
       } else if (stage === 'result') {
         ballVisible = false
-        if (kick + 1 >= kicksTotal) {
+        if (roundOver(mode, results)) {
           endShootout()
           return
         }
@@ -843,10 +873,16 @@ export function createKeeperEngine(opts?: {
       pointerPoseInto(pointerCur, target)
     },
 
-    startShootout(opts?: { practice?: boolean }) {
+    startShootout(opts?: { practice?: boolean; mode?: RoundMode; countdownMs?: number; date?: Date }) {
       if (disposed) return
-      practice = opts?.practice === true
-      kicksTotal = practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT
+      mode = opts?.practice === true ? 'practice' : (opts?.mode ?? 'classic')
+      practice = mode === 'practice'
+      firstIdleMs = Math.max(0, opts?.countdownMs ?? 0)
+      hitStopLeft = 0
+      if (mode === 'daily') {
+        dailyDate = dailyKey(opts?.date ?? new Date())
+        dailyPlans = planDailyRound(dailySeed(dailyDate))
+      }
       results = []
       slowMoLeft = 0
       timeScale = 1
@@ -880,8 +916,10 @@ export function createKeeperEngine(opts?: {
 
       // Slow-mo after a save or goal scales only the game world (striker, ball). Pose velocities and
       // reaction timing stay on real time.
-      timeScale = slowMoScale()
-      if (slowMoLeft > 0) slowMoLeft = Math.max(0, slowMoLeft - dt)
+      // Hit-stop: freeze the world for a beat on a save, then the slow-mo eases it back.
+      timeScale = hitStopLeft > 0 ? 0 : slowMoScale()
+      if (hitStopLeft > 0) hitStopLeft = Math.max(0, hitStopLeft - dt)
+      else if (slowMoLeft > 0) slowMoLeft = Math.max(0, slowMoLeft - dt)
       if (phase === 'playing') {
         advanceStage(dt * timeScale)
         // advanceStage may end the shootout; physics only while playing.
@@ -904,6 +942,9 @@ export function createKeeperEngine(opts?: {
 
     get practice() {
       return practice
+    },
+    get mode() {
+      return mode
     },
 
     setDifficulty(level: Difficulty) {
