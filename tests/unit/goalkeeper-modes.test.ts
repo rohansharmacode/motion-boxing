@@ -8,6 +8,8 @@ import { mulberry32 } from '../../src/sports/goalkeeper/striker.ts'
 import type { KeeperEngine, KickResult, ShootoutResult, StrikerPhase } from '../../src/sports/goalkeeper/types.ts'
 import { KICKS_PER_SHOOTOUT } from '../../src/sports/goalkeeper/types.ts'
 import { createFakeScene, recordMotionEvents } from './helpers/keeper-fakes.ts'
+import { pointsFor } from '../../src/api/serverAdapter.ts'
+import type { MotionEvent } from '../../src/api/types.ts'
 
 const DT = 1000 / 60
 const MAX_FRAMES = 60 * 60
@@ -191,5 +193,19 @@ describe('seeded replays', () => {
 
   test('different seeds give a different shootout', () => {
     expect(replay(77, 'hard')).not.toEqual(replay(78, 'hard'))
+  })
+})
+
+describe('server adapter stays in step with the graded score', () => {
+  test.each([21, 22, 23])('sum of server points equals the end-screen score (seed %i)', (seed) => {
+    const h = setup(seed)
+    h.engine.setDifficulty('easy')
+    h.engine.startShootout()
+    run(h, keeper(250))
+    const events = saveEvents()
+    // The adapter honours metrics.points, so the server leaderboard sums exactly these.
+    const serverSum = events.reduce((a, e) => a + pointsFor(e as unknown as MotionEvent), 0)
+    expect(serverSum).toBe(h.ends[0].score)
+    for (const e of events) expect(typeof e.metrics.points).toBe('number')
   })
 })
