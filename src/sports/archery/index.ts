@@ -40,6 +40,8 @@ const CAMERA_COPY: Record<StartupErrorKind, string> = {
 }
 
 let uiSfx: Sfx | null = null
+/** M mute, kept across launches (module scope, like uiSfx). Covers the game sfx and the UI clicks. */
+let muted = false
 
 export interface ArcheryOptions {
   /** Skip the start screen: 'mouse' or 'camera'. */
@@ -70,15 +72,18 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
 
   uiSfx ??= createSfx() // shell sfx has no dispose: share one AudioContext across launches
   const sfx = createArcherySfx()
+  sfx.setMuted(muted)
   const scene = createArcheryScene()
   stage.append(scene.canvas, video)
   const hud = createArcheryHud(ui, {
     cornerHome: !embedded,
     onHome: () => {
-      uiSfx?.back()
+      if (!muted) uiSfx?.back()
       ctx.exit()
     },
-    onButton: () => uiSfx?.select(),
+    onButton: () => {
+      if (!muted) uiSfx?.select()
+    },
   })
   const telemetry = createArcheryTelemetry()
   const engine = createArcheryEngine({ telemetry })
@@ -91,7 +96,8 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
   let tracker: BodyTracker | null = null
   let starting = false
   let debugOpen = false
-  let muted = false
+  /** Camera start generation: startMouse bumps it so a pending startCamera drops its result. */
+  let camGen = 0
   let inStartMouse = false
   let windLevel = -1
   const timers = new Set<number>()
@@ -108,8 +114,10 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
     canvas: scene.canvas,
     onToggle: (on) => {
       hud.setInputMode(on ? 'mouse' : 'camera')
-      // D on the start screen starts a mouse game (startMouse itself also lands here: skip that).
-      if (on && !initialized && !inStartMouse && !starting) startMouse()
+      // D before the first round (start screen, camera loading, calibration, error card) starts a
+      // mouse game at once; a pending camera start is cancelled via camGen. startMouse itself also
+      // lands here: skip that.
+      if (on && !initialized && !inStartMouse) startMouse()
       else if (!on && !tracker && initialized) hud.callout('NO CAMERA · PRESS D', 'info')
     },
   })
@@ -188,15 +196,31 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
   async function startCamera(): Promise<void> {
     if (starting || disposed) return
     starting = true
+    const gen = ++camGen
+    // Superseded (D pressed, session gone): drop the result.
+    const stale = (): boolean => disposed || ctx.signal.aborted || gen !== camGen
     stopCamera()
     input.setMouse(false)
     hud.setInputMode('camera')
     hud.showLoading('Starting camera…')
     try {
-      const p = await startPosePipeline(video)
-      if (disposed || ctx.signal.aborted) {
-        p.stop()
+      let p = await startPosePipeline(video)
+      // Stop the shared pipeline only if it is ours: a borrowed one may belong to another sport.
+      if (stale()) {
+        if (p.video === video) p.stop()
         return
+      }
+      if (!(p.video.srcObject instanceof MediaStream)) {
+        // Got a pipeline that was stopped while we waited (e.g. the previous session's, disposed
+        // mid-start). stop() reset the singleton, so this call starts a fresh one we own.
+        p = await startPosePipeline(video)
+        if (stale()) {
+          if (p.video === video) p.stop()
+          return
+        }
+        if (!(p.video.srcObject instanceof MediaStream)) {
+          throw new StartupError('camera-other', 'Shared pose pipeline was stopped during startup')
+        }
       }
       pipeline = p
       ownsPipeline = p.video === video
@@ -211,7 +235,7 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
       let calibrated = false
       hud.showCalibration(0, 'no-pose')
       unsubscribe = p.subscribe((frame) => {
-        if (disposed) return
+        if (disposed || gen !== camGen) return
         if (tracker) {
           engine.onPoseFrame(tracker.push(frame))
           return
@@ -223,13 +247,14 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
           calibrated = true
           const cal = c.calibration
           later(READY_PAUSE_MS, () => {
+            if (gen !== camGen || initialized) return
             tracker = createBodyTracker(cal, ARCHERY_TRACKER_FILTER)
             begin(cal)
           })
         }
       })
     } catch (err) {
-      if (disposed) return
+      if (stale()) return // a late error must not cover a mouse round
       const kind = err instanceof StartupError ? err.kind : 'camera-other'
       console.warn('[archery] camera failed', err)
       hud.showError(CAMERA_COPY[kind], () => void startCamera(), startMouse)
@@ -241,6 +266,11 @@ export async function startArchery(ctx: GameContext, opts: ArcheryOptions = {}):
   // ---------- mouse path ----------
   function startMouse(): void {
     if (disposed) return
+    if (!initialized) {
+      // Mouse chosen before any round: cancel a pending or calibrating camera start.
+      camGen++
+      stopCamera()
+    }
     inStartMouse = true
     input.setMouse(true)
     inStartMouse = false

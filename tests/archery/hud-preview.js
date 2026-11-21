@@ -49,7 +49,7 @@ function fakeCamera() {
   video.classList.add('ar-live')
 }
 
-const hud = createArcheryHud(ui, { cornerHome: !embedded, onHome: () => console.log('home'), onButton: () => {} })
+const hud = createArcheryHud(ui, { cornerHome: !embedded, onHome: () => console.debug('home'), onButton: () => {} })
 const noop = () => {}
 
 function shot(arrow, score, stability, extra = {}) {

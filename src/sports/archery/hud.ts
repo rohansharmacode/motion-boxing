@@ -326,8 +326,12 @@ export function createArcheryHud(root: HTMLElement, opts: ArcheryHudOptions = {}
     timers.add(id)
   }
 
+  // Tracks the view focus was last moved for. Starts null so the first
+  // showStart counts as a change even though data-view starts as 'start'.
+  let focusedView: View | null = null
   function setView(view: View, focus?: HTMLElement): void {
-    const changed = hud.dataset.view !== view
+    const changed = focusedView !== view
+    focusedView = view
     hud.dataset.view = view
     if (host) host.dataset.arView = view
     if (changed && focus) {
@@ -519,15 +523,9 @@ export function createArcheryHud(root: HTMLElement, opts: ArcheryHudOptions = {}
       shotLayer.replaceChildren()
       callouts.replaceChildren()
       const win = result.total >= 35
-      if (win) {
-        const img = el('img', 'ar-end-art')
-        img.src = '/art/title-win.svg'
-        img.alt = 'Great round'
-        img.decoding = 'async'
-        endHead.replaceChildren(img)
-      } else {
-        endHead.replaceChildren(el('p', 'ar-end-heading', 'ROUND COMPLETE'))
-      }
+      endHead.replaceChildren(
+        el('p', win ? 'ar-end-heading ar-end-heading--win' : 'ar-end-heading', win ? 'GREAT ROUND' : 'ROUND COMPLETE'),
+      )
       end.classList.toggle('ar-end--win', win)
       endTotal.replaceChildren(
         el('span', 'ar-end-num', String(result.total)),

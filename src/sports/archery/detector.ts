@@ -5,7 +5,8 @@
 //
 // Flow: idle -> drawing (tension above 0.15, bow hand locked) -> armed (tension > ARM_TENSION for
 // ARM_HOLD_MS) -> release on a fast snap away from the bow or a fast drop of the draw hand, but only once
-// the draw hand has held still at full draw (settled). Low tension for 300 ms is a let-down.
+// the draw hand has held still at full draw (settled, pulled back from its closest approach to the bow hand),
+// with the bow arm still. Low tension for 300 ms is a let-down.
 import { OneEuroFilter } from '../../pose/oneEuro.ts'
 import type { OneEuroParams } from '../../pose/oneEuro.ts'
 import { LM } from '../../pose/types.ts'
@@ -73,9 +74,27 @@ const LETDOWN_TENSION = 0.3
 const LETDOWN_MS = 300
 /** SW. A wrist further than this below the shoulder line means arms down: tension reads 0, no draw. */
 const DRAW_MAX_DROP_SW = 1.2
+/**
+ * SW. Once the bow hand is locked, a draw wrist further than this above the shoulder line is a hand on the
+ * head, not an anchor (cheek or chin sits about 0.3 to 0.5 SW up): tension reads 0, no draw. The bow wrist is
+ * not limited, so a bow arm aimed upward keeps its tension.
+ */
+const DRAW_MAX_RISE_SW = 0.8
+/**
+ * SW. A hold only counts once the draw hand has come back this far from its closest approach to the bow hand
+ * in this draw, so a pause while still reaching across (wrists about 1.4 SW apart, already above ARM_TENSION)
+ * followed by the pull is not a hold plus a snap.
+ */
+const PULLBACK_SW = 0.4
+/** SW. A hand gap this wide counts as pulled back anyway (a draw hand raised straight to the chin). */
+const FULL_DRAW_GAP_SW = 1.9
 
 // ---- velocity and release ----
-/** ms. Velocity is a least-squares slope over this trailing window (3 samples at 25 to 30 fps). */
+/**
+ * ms. Velocity is a least-squares slope over this trailing window (3 samples at 25 to 30 fps). After a skipped
+ * frame, or below 25 fps, older samples (up to HISTORY_GAP_MS back) are taken until the span reaches
+ * VEL_MIN_SPAN_MS, so one 66 ms gap still yields a velocity.
+ */
 const VEL_WINDOW_MS = 80
 /** ms. Timestamp jitter allowed at the window edge. */
 const VEL_SLACK_MS = 5
@@ -102,6 +121,27 @@ const DIR_COS = 0.5
 const BOW_FALL_RATIO = 0.6
 /** ms. The trigger must hold on frames spanning at least this (two frames at 30 fps), so one glitch cannot fire. */
 const CONFIRM_MS = 25
+/**
+ * ms. Frame interval above which (below about 20 fps) a quick snap spans a single fast frame. There the next
+ * frame confirms the trigger without being fast itself, as long as the draw hand is still LOW_FPS_CONFIRM_SW
+ * past its held position in the trigger direction (a landmark glitch snaps back, a release does not).
+ */
+const LOW_FPS_DT_MS = 50
+const LOW_FPS_CONFIRM_SW = 0.15
+/**
+ * The bow arm must stay put while the string goes: a trigger does not fire while the bow wrist, averaged over
+ * the trigger frames, moves faster than this times the draw wrist (both arms lowering or swinging) and faster
+ * than BOW_STILL_MIN_SPEED. A real snap measures under about 0.4 even with a shaky bow arm, lowering both
+ * arms about 0.6 to 1.1.
+ */
+const BOW_STILL_RATIO = 0.5
+/** SW/s. Bow wrist speed always allowed on a trigger frame (tremor and landmark noise). */
+const BOW_STILL_MIN_SPEED = 0.6
+/**
+ * ms. Null or untracked frames up to this long keep the settled hold, so one dropped frame just before the
+ * snap does not swallow the release. Longer gaps clear it (the hold is rebuilt once tracking is back).
+ */
+const HOLD_GRACE_MS = 150
 /** ms. Release tension and aim are sampled this long before the release motion started. */
 const PRE_RELEASE_MS = 100
 const RING_MS = 1500
@@ -201,13 +241,16 @@ function angle3(a: Joint, b: Joint, c: Joint): number {
   return Math.acos(Math.min(1, Math.max(-1, cos))) * DEG
 }
 
-/** Least-squares slope of the samples within VEL_WINDOW_MS of t, units per second. */
+/**
+ * Least-squares slope of the samples within VEL_WINDOW_MS of t, units per second. When those span less than
+ * VEL_MIN_SPAN_MS (a skipped frame or a low frame rate), older samples within HISTORY_GAP_MS are added.
+ */
 function regress(hist: readonly Rel[], t: number): Vec2 | null {
   let n = 0, su = 0, suu = 0, sx = 0, sy = 0, sux = 0, suy = 0
   let oldest = t
   for (let i = hist.length - 1; i >= 0; i--) {
     const s = hist[i]
-    if (t - s.t > VEL_WINDOW_MS + VEL_SLACK_MS) break
+    if (t - s.t > VEL_WINDOW_MS + VEL_SLACK_MS && (t - oldest >= VEL_MIN_SPAN_MS || t - s.t > HISTORY_GAP_MS)) break
     const u = (s.t - t) / 1000
     n++
     su += u
@@ -255,6 +298,10 @@ export function createArcheryDetector(): ArcheryDetector {
   let tension = 0
   let tensionRaw = 0
   let gateOk = false
+  /** |x_left - x_right| this frame, live SW. */
+  let gap = 0
+  /** Smallest gap since the draw started (gate open), live SW. */
+  let minGap = Infinity
   let aboveSince: number | null = null
   let relaxedSince: number | null = null
   let armedT = 0
@@ -265,13 +312,15 @@ export function createArcheryDetector(): ArcheryDetector {
   /** Current hold of the draw hand (slow at tension > ARM_TENSION), and the last finished one. */
   let restStart: number | null = null
   let restEnd = 0
+  /** Draw wrist rel position on the newest hold frame. */
+  let restDraw: Vec2 = { x: 0, y: 0 }
   /** Consecutive non-holding frames inside the current hold (one is tolerated as noise). */
   let restBreaks = 0
   let lastRest: { start: number; end: number } | null = null
   /** Peak draw-hand speed since the last hold ended. */
   let motionPeak = 0
-  /** First frame of a release trigger, waiting for confirmation. */
-  let pending: { t: number; trigger: ReleaseTrigger } | null = null
+  /** First frame of a release trigger, waiting for confirmation, with the summed wrist speeds of its frames. */
+  let pending: { t: number; trigger: ReleaseTrigger; n: number; drawSum: number; bowSum: number } | null = null
 
   let ring: Snapshot[] = []
   let sway: SwaySample[] = []
@@ -375,6 +424,7 @@ export function createArcheryDetector(): ArcheryDetector {
     aboveSince = null
     relaxedSince = null
     flipVotes = 0
+    minGap = gap
     clearMotion()
   }
 
@@ -420,6 +470,26 @@ export function createArcheryDetector(): ArcheryDetector {
     return snap ? 'snap' : null
   }
 
+  /** The bow wrist stayed put over the trigger frames, so this is not both arms lowering or swinging. */
+  function bowStill(p: { n: number; drawSum: number; bowSum: number }): boolean {
+    if (p.n === 0) return true
+    return p.bowSum / p.n <= Math.max(BOW_STILL_MIN_SPEED, (BOW_STILL_RATIO * p.drawSum) / p.n)
+  }
+
+  /** Low frame rates: the draw hand is still well past its held position in the trigger direction. */
+  function stillPast(trigger: ReleaseTrigger, bow: WristState, draw: WristState): boolean {
+    const dx = draw.rel.x - restDraw.x
+    const dy = draw.rel.y - restDraw.y
+    if (trigger === 'drop') return dy >= LOW_FPS_CONFIRM_SW
+    const awaySign = Math.sign(draw.rel.x - bow.rel.x) || (bow.hand === 'left' ? 1 : -1)
+    return dx * awaySign >= LOW_FPS_CONFIRM_SW
+  }
+
+  /** The draw hand is pulled back from its closest approach to the bow hand (see PULLBACK_SW). */
+  function pulledBack(): boolean {
+    return gap >= minGap + PULLBACK_SW || gap >= FULL_DRAW_GAP_SW
+  }
+
   /** Newest snapshot at or before t (the oldest one if all are newer). */
   function snapshotAt(t: number): Snapshot | null {
     for (let i = ring.length - 1; i >= 0; i--) if (ring[i].t <= t) return ring[i]
@@ -452,7 +522,7 @@ export function createArcheryDetector(): ArcheryDetector {
   function fire(t: number): ReleaseInfo | null {
     const p = pending
     pending = null
-    if (p === null || bowHand === null) return null
+    if (p === null || bowHand === null || !bowStill(p)) return null
     const hand = bowHand
     // Sample before the motion so the snap itself does not spoil tension, aim or sway.
     const rest = currentRest()
@@ -489,17 +559,18 @@ export function createArcheryDetector(): ArcheryDetector {
     const v = draw.vel
     // The hand flew out of view or glitched mid-release: the motion was already seen, fire now.
     if (pending !== null && (v === null || draw.teleported)) return fire(t)
-    if (v === null) {
-      clearMotion()
-      return null
-    }
+    // No velocity yet (history just restarted): keep the hold. RELEASE_WINDOW_MS still lets a stale one expire.
+    if (v === null) return null
+    // Below about 20 fps a quick snap spans one fast frame: the next one confirms it if the hand stayed out.
+    if (pending !== null && dtEst > LOW_FPS_DT_MS && stillPast(pending.trigger, bow, draw)) return fire(t)
     const speed = Math.hypot(v.x, v.y)
-    if (speed < SETTLE_SPEED && tension > ARM_TENSION) {
+    if (speed < SETTLE_SPEED && tension > ARM_TENSION && pulledBack()) {
       if (restStart === null) restStart = t
       restEnd = t
       restBreaks = 0
       motionPeak = 0
       pending = null
+      restDraw = { x: draw.rel.x, y: draw.rel.y }
       return null
     }
     // One fast frame inside a hold is landmark noise; the hold ends on the second in a row.
@@ -519,8 +590,14 @@ export function createArcheryDetector(): ArcheryDetector {
       pending = null
       return null
     }
-    if (pending === null) pending = { t, trigger }
+    if (pending === null) pending = { t, trigger, n: 0, drawSum: 0, bowSum: 0 }
     else pending.trigger = trigger
+    // Unknown bow velocity (its history just restarted) adds nothing, so it counts as still.
+    if (bow.vel !== null) {
+      pending.n++
+      pending.drawSum += speed
+      pending.bowSum += Math.hypot(bow.vel.x, bow.vel.y)
+    }
     return t - pending.t >= CONFIRM_MS ? fire(t) : null
   }
 
@@ -543,15 +620,16 @@ export function createArcheryDetector(): ArcheryDetector {
   function lose(t: number | null): DrawSample {
     const now = t ?? clock + dtEst
     clock = now
+    // The wrist history is kept: trackWrist restarts it after a gap over HISTORY_GAP_MS, and a shorter one
+    // then reads like a skipped frame.
     for (const w of wrists) {
-      w.hist = []
       w.vel = null
       w.teleported = false
     }
     aboveSince = null
     const release = pending !== null ? fire(now) : null
-    clearMotion()
     lostMs = lastGoodT === null ? Infinity : now - lastGoodT
+    if (lostMs > HOLD_GRACE_MS) clearMotion()
     if (lostMs > LOST_MS) {
       if (phase !== 'idle') toIdle()
       recovered = false
@@ -585,8 +663,10 @@ export function createArcheryDetector(): ArcheryDetector {
     lostMs = 0
 
     const [l, r] = wrists
-    tensionRaw = clamp01((Math.abs(l.rel.x - r.rel.x) - TENSION_MIN_SW) / (TENSION_MAX_SW - TENSION_MIN_SW))
+    gap = Math.abs(l.rel.x - r.rel.x)
+    tensionRaw = clamp01((gap - TENSION_MIN_SW) / (TENSION_MAX_SW - TENSION_MIN_SW))
     gateOk = l.rel.y < DRAW_MAX_DROP_SW && r.rel.y < DRAW_MAX_DROP_SW
+    if (bowHand !== null && wristOf(otherHand(bowHand)).rel.y < -DRAW_MAX_RISE_SW) gateOk = false
     tension = gateOk ? tensionRaw : 0
     if (tensionRaw < DRAW_START_TENSION || !gateOk) startTension = DRAW_START_TENSION
     sway.push({ t, l: l.resid2, r: r.resid2 })
@@ -614,6 +694,7 @@ export function createArcheryDetector(): ArcheryDetector {
         relaxedSince = null
       }
     }
+    if (phase !== 'idle' && gateOk) minGap = Math.min(minGap, gap)
     const release = phase !== 'idle' ? updateRelease(t) : null
 
     if (phase === 'armed' && bowHand !== null) {
@@ -673,6 +754,8 @@ export function createArcheryDetector(): ArcheryDetector {
         armedMs: phase === 'armed' && lastT !== null ? lastT - armedT : 0,
         lostMs: num(lostMs),
         gate: gateOk ? 1 : 0,
+        gap: num(gap),
+        minGap: num(minGap),
         needsRecover: recovered ? 0 : 1,
         lastTrigger,
         releases,

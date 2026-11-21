@@ -43,7 +43,11 @@ const IMPACT_BULLSEYE_MS = 2300
 // ---- camera aim ----
 /** Target-plane metres per shoulder width of bow-wrist movement. */
 const AIM_GAIN = 1.0
-/** The reticle starts this far off the bull (random angle) so the player has to steer onto it. */
+/**
+ * The reticle starts this far off the bull so the player has to steer onto it. The start sits on the bow
+ * arm's outward side (or above or below the bull): a straight bow arm cannot reach further out, so the
+ * correction back to the bull is always an inward or vertical wrist move.
+ */
 const AIM_START_MIN = 0.3
 const AIM_START_MAX = 0.55
 /** Keep aim points sane before solveLaunch. */
@@ -81,6 +85,8 @@ const SHAKE_BULLSEYE = 0.5
 const SHAKE_MISS = 0.08
 /** Steadiness (0..1) at which the camera hint switches from "Hold steady" to "Release!". */
 const STEADY_HINT = 0.6
+/** Tracking must be lost this long (engine ms) before the "Step back" hint shows, so one dropped frame does not flash it. */
+const UNTRACKED_HINT_MS = 200
 
 // ---- telemetry ----
 const TICK_MS = 200
@@ -164,6 +170,10 @@ export function createArcheryEngine(opts: {
   let aimOrigin: Vec2 | null = null
   let camBase: Vec2 | null = null // aimOrigin + gain * sample.aim, no sway
   let lastBowHand: Hand | null = null
+  /** Engine clock when the camera last went from tracked to untracked, or null while tracked. */
+  let lostSince: number | null = null
+  /** Last hint computed from a tracked sample this aim, kept through short dropouts. */
+  let camHint: string | null = null
 
   // ---- mouse input ----
   let mouse: { aim: Vec2; drawing: boolean } | null = null
@@ -222,10 +232,16 @@ export function createArcheryEngine(opts: {
       y: scale * SWAY_Y_M * Math.sin((2 * Math.PI * t) / SWAY_Y_PERIOD_MS + 1.7 * swayPhase),
     }
   }
-  function pickOrigin(): Vec2 {
+  /**
+   * Aim start point for a camera draw, on a half-disc around the bull. Mirror view: a left bow hand is on
+   * the left of the screen, so its outward direction is -x (and +x for a right bow hand). The aim moves
+   * with the bow wrist in screen x, so an origin on the outward side is corrected by moving the wrist inward.
+   */
+  function pickOrigin(hand: Hand): Vec2 {
     const r = AIM_START_MIN + (AIM_START_MAX - AIM_START_MIN) * rng()
     const a = rng() * 2 * Math.PI
-    return { x: TARGET_CENTER.x + r * Math.cos(a), y: TARGET_CENTER.y + r * Math.sin(a) }
+    const out = hand === 'left' ? -1 : 1
+    return { x: TARGET_CENTER.x + out * Math.abs(r * Math.cos(a)), y: TARGET_CENTER.y + r * Math.sin(a) }
   }
   function curHand(): Hand {
     return (mouseActive() ? null : sample?.bowHand) ?? lastBowHand ?? 'left'
@@ -234,7 +250,11 @@ export function createArcheryEngine(opts: {
     phase = p
     phaseMs = 0
     const a = p === 'ended' ? shots.length : arrow
-    for (const cb of phaseCbs) cb(p, a)
+    for (const cb of phaseCbs.slice()) {
+      // A listener disposed or moved the phase on: the rest would hear a stale phase.
+      if (disposed || phase !== p) break
+      cb(p, a)
+    }
   }
 
   function resetMouseDraw(): void {
@@ -260,6 +280,7 @@ export function createArcheryEngine(opts: {
     resetMouseDraw()
     detector.reset()
     sample = null
+    camHint = null
     scene?.setWind(wind)
     setPhase('nock')
   }
@@ -267,6 +288,7 @@ export function createArcheryEngine(opts: {
   function enterAiming(): void {
     detector.reset()
     sample = null
+    camHint = null
     aimOrigin = null
     camBase = null
     resetMouseDraw()
@@ -291,7 +313,8 @@ export function createArcheryEngine(opts: {
       windAccel: wind,
       targetCenterAt: (ms) => targetCenterAt(a, t0 + ms, ph),
     })
-    pending = { info: { ...info, tension }, speed, flight, source: src }
+    const shot: PendingShot = { info: { ...info, tension }, speed, flight, source: src }
+    pending = shot
     flightT = 0
     arrowPos.x = from.x
     arrowPos.y = from.y
@@ -337,8 +360,11 @@ export function createArcheryEngine(opts: {
         source: src,
       },
     })
-    for (const cb of releaseCbs) cb(pending.info, a)
-    if (phase !== 'aiming' || disposed) return // a callback restarted or disposed
+    for (const cb of releaseCbs.slice()) {
+      if (disposed || pending !== shot || phase !== 'aiming') break // a callback restarted or disposed
+      cb(shot.info, a)
+    }
+    if (disposed || pending !== shot || phase !== 'aiming') return
     setPhase('flight')
   }
 
@@ -401,7 +427,10 @@ export function createArcheryEngine(opts: {
     pending = null
     impactHoldMs = bullseye ? IMPACT_BULLSEYE_MS : IMPACT_MS
     setPhase('impact')
-    for (const cb of shotCbs) cb(result)
+    for (const cb of shotCbs.slice()) {
+      if (disposed) break
+      cb(result)
+    }
   }
 
   function advanceFlight(gdt: number): void {
@@ -555,10 +584,18 @@ export function createArcheryEngine(opts: {
   function hint(steadiness: number | null): string | null {
     if (phase !== 'aiming') return null
     if (mouseActive() || !calibration) return HINT_MOUSE
-    if (!sample || !sample.tracked) return HINT_UNTRACKED
-    if (sample.phase === 'idle') return HINT_IDLE
-    if (sample.phase === 'drawing') return HINT_DRAWING
-    return (steadiness ?? 0) >= STEADY_HINT ? HINT_RELEASE : HINT_HOLD
+    // No sample yet this aim (enterAiming cleared it): the next pose frame decides.
+    if (!sample) return camHint ?? HINT_IDLE
+    if (!sample.tracked) {
+      if (lostSince !== null && clock - lostSince >= UNTRACKED_HINT_MS) return HINT_UNTRACKED
+      return camHint ?? HINT_IDLE
+    }
+    let h: string
+    if (sample.phase === 'idle') h = HINT_IDLE
+    else if (sample.phase === 'drawing') h = HINT_DRAWING
+    else h = (steadiness ?? 0) >= STEADY_HINT ? HINT_RELEASE : HINT_HOLD
+    camHint = h
+    return h
   }
 
   function pushScene(tension: number, drawPhase: DrawPhase, steadiness: number | null): void {
@@ -678,7 +715,10 @@ export function createArcheryEngine(opts: {
       },
     })
     setPhase('ended')
-    for (const cb of endCbs) cb(result)
+    for (const cb of endCbs.slice()) {
+      if (disposed) break
+      cb(result)
+    }
   }
 
   function advancePhase(dt: number, gdt: number): void {
@@ -721,6 +761,8 @@ export function createArcheryEngine(opts: {
       scene = s
       calibration = cal
       phase = 'idle'
+      lostSince = null
+      camHint = null
       stopSlowMo()
       s.reset()
       s.setTarget({ x: TARGET_CENTER.x, y: TARGET_CENTER.y })
@@ -738,15 +780,17 @@ export function createArcheryEngine(opts: {
         return
       }
       sample = s
+      if (s.tracked) lostSince = null
+      else if (lostSince === null) lostSince = clock
       if (s.bowHand) lastBowHand = s.bowHand
       if (phase !== 'aiming' || mouseActive()) return
-      if (s.phase === 'armed' && !aimOrigin) aimOrigin = pickOrigin()
+      if (s.phase === 'armed' && !aimOrigin) aimOrigin = pickOrigin(s.bowHand ?? curHand())
       if (aimOrigin) {
         camBase = { x: aimOrigin.x + AIM_GAIN * finite(s.aim.x, 0), y: aimOrigin.y + AIM_GAIN * finite(s.aim.y, 0) }
       }
       const r = s.release
       if (r) {
-        const o = aimOrigin ?? pickOrigin()
+        const o = aimOrigin ?? pickOrigin(r.bowHand ?? curHand())
         const sw = swayAt(1)
         const aim = {
           x: o.x + AIM_GAIN * finite(r.aim.x, 0) + sw.x,

@@ -1185,6 +1185,11 @@ body.ar-page {
   color: var(--ar-cyan);
 }
 
+.ar-end-heading--win {
+  color: var(--ar-gold);
+  text-shadow: 0 0 24px rgba(255, 184, 0, 0.45);
+}
+
 .ar-end-total {
   margin-top: 4px;
   font-family: var(--ar-display);
