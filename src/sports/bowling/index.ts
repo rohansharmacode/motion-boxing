@@ -44,9 +44,19 @@ const ARM_BELOW_SW = 0.35
 /** Arming hold: wrist slower than this (SW/s) for ARM_HOLD_MS. */
 const ARM_STILL_SW = 1.0
 const ARM_HOLD_MS = 100
-/** Release: upward speed above this (SW/s) while crossing this line below the shoulders. */
+/**
+ * Release: upward speed above this (SW/s) once the wrist has risen RELEASE_RISE_SW above the lowest point of its
+ * armed swing and is within RELEASE_BELOW_SW of the shoulder line. Tuned on 30 recorded real swings (motion lab):
+ * desk-safe swings peak at chest height, about 0.3 to 0.5 SW below the shoulders, so the old 0.15 line almost never
+ * fired.
+ */
 const RELEASE_VY_SW = 1.8
-const RELEASE_BELOW_SW = 0.15
+const RELEASE_BELOW_SW = 0.55
+const RELEASE_RISE_SW = 0.2
+/** Real swings drift sideways 0 to 35 degrees at release; this gain keeps aim but stops most throws hitting the 8 degree clamp (gutter). */
+const SWING_ANGLE_GAIN = 0.3
+/** An armed wrist stays armed down to this visibility: fast swings blur and MediaPipe's confidence dips mid-swing. */
+const ARMED_MIN_VISIBILITY = 0.3
 /** Ball speed from peak swing speed, m/s. */
 const speedFromSwing = (peak: number): number => Math.max(5.2, Math.min(10.2, 4.8 + peak * 1.45))
 /** Release angle clamp, degrees. */
@@ -470,22 +480,24 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   // ---------- camera ----------
   type WristState = { x: number; y: number; t: number; stillSince: number }
   const wrists: Record<'left' | 'right', WristState | null> = { left: null, right: null }
-  let armed: 'left' | 'right' | null = null
-  let peak = 0
+  /** Per hand: lowest wrist y (body space) since it armed, or null when not armed. Both hands arm on their own, so a resting hand never blocks the swinging one. */
+  const armedLow: Record<'left' | 'right', number | null> = { left: null, right: null }
+  const peaks: Record<'left' | 'right', number> = { left: 0, right: 0 }
+  const anyArmed = (): boolean => armedLow.left !== null || armedLow.right !== null
   function onBody(b: BodyFrame): void {
     const ls = b.body[LM.L_SHOULDER]
     const rs = b.body[LM.R_SHOULDER]
     const sY = (ls.y + rs.y) / 2
     const cX = (ls.x + rs.x) / 2
     // Align: torso slides the ball (+-0.65 SW -> +-0.45 m); locked once a swing is armed.
-    if (phase === 'ready' && !armed && ls.visibility > 0.5 && rs.visibility > 0.5)
+    if (phase === 'ready' && !anyArmed() && ls.visibility > 0.5 && rs.visibility > 0.5)
       startX = Math.max(-ALIGN_HALF, Math.min(ALIGN_HALF, (cX / 0.65) * ALIGN_HALF))
     for (const side of ['left', 'right'] as const) {
       const w = b.body[side === 'left' ? LM.L_WRIST : LM.R_WRIST]
       const prev = wrists[side]
-      if (w.visibility < 0.5) {
+      if (w.visibility < (armedLow[side] !== null ? ARMED_MIN_VISIBILITY : 0.5)) {
         wrists[side] = null
-        if (armed === side) disarm()
+        if (armedLow[side] !== null) disarm(side)
         continue
       }
       const st: WristState = { x: w.x, y: w.y, t: b.t, stillSince: prev?.stillSince ?? b.t }
@@ -497,29 +509,37 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
       const vy = (w.y - prev.y) / dt
       if (Math.hypot(vx, vy) > ARM_STILL_SW) st.stillSince = b.t
       if (phase !== 'ready') {
-        if (armed) disarm()
+        if (anyArmed()) disarm()
         continue
       }
       // Arm: wrist below the shoulder line (desk-safe, chest to waist) and held still briefly.
-      if (!armed && w.y > sY + ARM_BELOW_SW && b.t - st.stillSince >= ARM_HOLD_MS) {
-        armed = side
-        peak = 0
-        setState('SWING ARMED')
-        blip([880], 0.04)
+      if (armedLow[side] === null && w.y > sY + ARM_BELOW_SW && b.t - st.stillSince >= ARM_HOLD_MS) {
+        const first = !anyArmed()
+        armedLow[side] = w.y
+        peaks[side] = 0
+        if (first) {
+          setState('SWING ARMED')
+          blip([880], 0.04)
+        }
       }
-      if (armed !== side) continue
-      if (-vy > peak) peak = -vy
-      if (vy < -RELEASE_VY_SW && w.y <= sY + RELEASE_BELOW_SW) {
-        const angle = (Math.atan2(vx, -vy) * 180) / Math.PI
-        armed = null
+      const low = armedLow[side]
+      if (low === null) continue
+      if (w.y > low) armedLow[side] = w.y
+      if (-vy > peaks[side]) peaks[side] = -vy
+      if (vy < -RELEASE_VY_SW && w.y <= Math.min(sY + RELEASE_BELOW_SW, (armedLow[side] ?? w.y) - RELEASE_RISE_SW)) {
+        const angle = ((Math.atan2(vx, -vy) * 180) / Math.PI) * SWING_ANGLE_GAIN
+        const peak = peaks[side]
+        armedLow.left = armedLow.right = null
         bowl({ speed: speedFromSwing(peak), angle })
-      } else if (w.y < sY - 0.3) disarm() // hand came up without a real swing
+      } else if (w.y < sY - 0.3) disarm(side) // hand came up without a real swing
     }
   }
-  function disarm(): void {
-    armed = null
-    peak = 0
-    if (phase === 'ready') setState('ALIGN')
+  function disarm(side?: 'left' | 'right'): void {
+    for (const h of side ? [side] : (['left', 'right'] as const)) {
+      armedLow[h] = null
+      peaks[h] = 0
+    }
+    if (phase === 'ready' && !anyArmed()) setState('ALIGN')
   }
   function setState(text: 'ALIGN' | 'SWING ARMED' | 'ROLLING'): void {
     stateEl.textContent = text
