@@ -1,10 +1,6 @@
 /* Kinetic Ring UI: neon cyber-arcade meets live sports broadcast graphics.
    Palette from pitch/team-names.md: navy 0B1026, cyan 22E5FF, pink FF2E88. */
 
-@import '@fontsource/chakra-petch/500.css';
-@import '@fontsource/chakra-petch/700.css';
-@import '@fontsource/rajdhani/500.css';
-@import '@fontsource/rajdhani/700.css';
 
 :root {
   --navy: #0b1026;
@@ -16,32 +12,19 @@
   --amber: #ffb72e;
   --white: #f3f6ff;
   --muted: #8b96c9;
-  --display: 'Chakra Petch', 'Rajdhani', system-ui, sans-serif;
-  --body: 'Rajdhani', system-ui, sans-serif;
+  --display: var(--font-display, 'Bebas Neue'), 'Outfit', system-ui, sans-serif;
+  --body: var(--font-body, 'Outfit'), system-ui, sans-serif;
   --skew: -12deg;
   --glow-cyan: 0 0 12px rgba(34, 229, 255, 0.55), 0 0 32px rgba(34, 229, 255, 0.2);
   --glow-pink: 0 0 12px rgba(255, 46, 136, 0.6), 0 0 32px rgba(255, 46, 136, 0.25);
 }
 
-* { box-sizing: border-box; }
+/* Scoped: the game owns html/body/#ui. Page-level rules for the demo live in demo.css. */
+[class^='kr-'], [class^='kr-'] *, [class^='kr-'] *::before, [class^='kr-'] *::after { box-sizing: border-box; }
+.kr-screen { pointer-events: auto; color: var(--white); font-family: var(--body); font-size: 18px; -webkit-font-smoothing: antialiased; }
+.kr-hud { pointer-events: none; color: var(--white); }
 
-html, body {
-  margin: 0;
-  height: 100%;
-  background: var(--navy);
-  color: var(--white);
-  font-family: var(--body);
-  font-size: 18px;
-  overflow: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-#stage, #ui { position: fixed; inset: 0; }
-#ui { pointer-events: none; z-index: 10; }
-#ui > * { pointer-events: auto; }
-#ui > .kr-hud { pointer-events: none; }
-
-button { font: inherit; color: inherit; }
+.kr-screen button, .kr-hud button { font: inherit; color: inherit; }
 
 /* ---------- shared bits ---------- */
 

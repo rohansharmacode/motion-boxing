@@ -1,0 +1,4 @@
+/* Demo page only: page-level layout the real game provides itself. */
+html, body { margin: 0; height: 100%; background: var(--navy); color: var(--white); font-family: var(--body); overflow: hidden; }
+#stage, #ui { position: fixed; inset: 0; }
+#ui { pointer-events: none; z-index: 10; }

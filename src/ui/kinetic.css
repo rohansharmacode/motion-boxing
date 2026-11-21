@@ -1,0 +1,87 @@
+/* Kinetic HUD layer for the real game (src/ui/KineticHud.ts).
+   .kr-big scales the HUD so it reads from ~2 m on a laptop or projector:
+   rule of thumb ≥ 2.5vw for numbers, ≥ 1.6vw for labels, thick high-contrast bars. */
+
+.kr-kinetic { position: absolute; inset: 0; pointer-events: none; z-index: 20; font-family: var(--body); color: var(--white); }
+.kr-kinetic > .kr-screen { pointer-events: auto; }
+
+/* ---------- 2 m readable HUD ---------- */
+.kr-big .kr-hud-top { top: 2vh; left: 2vw; right: 2vw; gap: 2vw; }
+.kr-big .kr-fighter-name { font-size: clamp(22px, 2.2vw, 40px); padding: 0.3em 0.8em; border-width: 6px; }
+.kr-big .kr-hp-num { font-size: clamp(20px, 1.9vw, 34px); color: var(--white); font-weight: 700; }
+.kr-big .kr-hp { width: min(36vw, 720px); height: clamp(28px, 4.2vh, 52px); border-width: 3px; }
+.kr-big .kr-timer { min-width: 13vw; padding: 0.6vh 1.6vw 0.4vh; border-width: 3px; }
+.kr-big .kr-timer-value { font-size: clamp(56px, 7.5vw, 140px); }
+.kr-big .kr-timer-label { font-size: clamp(14px, 1.2vw, 22px); }
+.kr-big .kr-hud-bottom { left: 2vw; right: 2vw; bottom: 3vh; }
+.kr-big .kr-combo-num { font-size: clamp(90px, 11vw, 200px); }
+.kr-big .kr-combo-label { font-size: clamp(18px, 1.8vw, 32px); }
+.kr-big .kr-speed { width: clamp(280px, 26vw, 480px); padding: 1.4vh 1.4vw; border-top-width: 5px; }
+.kr-big .kr-speed-label { font-size: clamp(14px, 1.2vw, 22px); }
+.kr-big .kr-speed-type { font-size: clamp(22px, 2.2vw, 40px); }
+.kr-big .kr-speed-value { font-size: clamp(56px, 6vw, 110px); }
+.kr-big .kr-speed-value small { font-size: clamp(18px, 1.6vw, 28px); }
+.kr-big .kr-speed-bar { height: clamp(10px, 1.4vh, 18px); }
+.kr-big .kr-speed-best { font-size: clamp(16px, 1.4vw, 24px); }
+.kr-big .kr-guard { width: clamp(220px, 20vw, 380px); }
+.kr-big .kr-guard-head { font-size: clamp(16px, 1.5vw, 26px); }
+.kr-big .kr-guard-bar { height: clamp(12px, 1.6vh, 20px); }
+.kr-big .kr-hud-banner { font-size: clamp(40px, 5vw, 90px); }
+.kr-big .kr-hud-mode { top: calc(2vh + clamp(56px, 7.5vw, 140px) + clamp(14px, 1.2vw, 22px) + 4vh); }
+.kr-big .kr-chip { font-size: clamp(14px, 1.2vw, 20px); }
+
+/* Drone telegraph: pulsing red edges, visible in peripheral vision. */
+.kr-telegraph {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 0 1vw rgba(255, 46, 136, 0.9), inset 0 0 18vw rgba(255, 46, 136, 0.55);
+  transition: opacity 0.12s;
+}
+.kr-telegraph.kr-on { opacity: 1; animation: kr-tele 0.3s ease-in-out infinite alternate; }
+@keyframes kr-tele { from { opacity: 0.55; } to { opacity: 1; } }
+
+/* ---------- start / loading / error ---------- */
+.kr-k-start { background-color: rgba(11, 16, 38, 0.92); }
+.kr-k-col { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; width: min(760px, 92vw); }
+.kr-k-title {
+  margin: 0;
+  font: 400 clamp(72px, 11vw, 168px)/0.85 var(--display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 4px 4px 0 var(--pink), var(--glow-cyan);
+}
+.kr-k-title span { color: var(--cyan); }
+.kr-k-title.kr-k-err { font-size: clamp(48px, 7vw, 96px); color: var(--pink); text-shadow: 3px 3px 0 var(--navy-3); }
+.kr-k-sub { margin: 0; font-size: clamp(18px, 1.8vw, 26px); color: var(--muted); }
+.kr-k-hint { margin: 0; font-size: 16px; color: var(--muted); }
+.kr-k-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.kr-k-name {
+  width: min(460px, 84vw);
+  padding: 12px 18px;
+  background: rgba(11, 16, 38, 0.85);
+  border: 2px solid var(--navy-3);
+  border-bottom-color: var(--cyan);
+  color: var(--white);
+  font: 400 40px/1 var(--display);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  outline: none;
+}
+.kr-k-name:focus { border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+
+/* Debug panel (backquote). */
+.kr-debug {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--lime);
+  font: 12px/1.4 ui-monospace, Menlo, monospace;
+  pointer-events: none;
+}

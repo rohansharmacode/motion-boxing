@@ -570,7 +570,10 @@ function savePlayerRec(rec: PlayerRecord) {
 export async function createPlayer(displayName: string): Promise<Player> {
   const name = normName(displayName);
   const cached = readPlayerRec(name);
-  if (cached && (cached.live || USE_MOCK)) return { ...cached.player, display_name: name };
+  if (cached && (cached.live || USE_MOCK)) {
+    rememberPlayer({ ...cached.player, display_name: name });
+    return { ...cached.player, display_name: name };
+  }
 
   if (!USE_MOCK) {
     try {
@@ -582,6 +585,7 @@ export async function createPlayer(displayName: string): Promise<Player> {
           created_at: typeof data.created_at === 'string' ? data.created_at : new Date().toISOString(),
         };
         savePlayerRec({ player, live: true });
+        rememberPlayer(player);
         return player;
       }
       throw new Error('players: unexpected response shape');
@@ -593,6 +597,7 @@ export async function createPlayer(displayName: string): Promise<Player> {
   // Mock / fallback: reuse the stable local id (also used by legacy createSession).
   const player = cached?.player ?? mockPlayer(name, playerIdFor(name));
   savePlayerRec({ player, live: false });
+  rememberPlayer({ ...player, display_name: name });
   return { ...player, display_name: name };
 }
 
@@ -640,4 +645,63 @@ export async function getLeaderboard(sport: Sport, limit = 10): Promise<Leaderbo
 /** Legacy shortcut (sync): new TelemetrySession(opts) with a local player id + client session id. */
 export function createSession(opts: { displayName: string; sport: Sport }): TelemetrySession {
   return new TelemetrySession(opts);
+}
+
+// ---------------------------------------------------------------------------
+// Low-level hooks for adapters that already build full MOTION_EVENTS rows
+// (src/api/boxingLink.ts bridges Rohan's boxing telemetry through these).
+// ---------------------------------------------------------------------------
+
+const LAST_PLAYER_KEY = 'kr.lastPlayer';
+
+/** The player who last called createPlayer on this browser (for leaderboard highlighting). */
+export function getLastPlayer(): Player | null {
+  try {
+    const v: unknown = JSON.parse(storageGet(LAST_PLAYER_KEY) ?? 'null');
+    return isRecord(v) && typeof v.player_id === 'string' && typeof v.display_name === 'string'
+      ? { player_id: v.player_id, display_name: v.display_name }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberPlayer(p: Player): void {
+  storageSet(LAST_PLAYER_KEY, JSON.stringify({ player_id: p.player_id, display_name: p.display_name }));
+}
+
+/** Queue complete rows for the 2 s batched upload (no-op in mock mode). */
+export function queueEvents(events: readonly MotionEvent[]): void {
+  for (const ev of events) enqueue(ev);
+}
+
+/** Send everything queued now, ignoring backoff. Never rejects. */
+export function flushQueue(): Promise<boolean> {
+  return drain(true);
+}
+
+/**
+ * POST /api/session/end for a server session, then fetch the leaderboard.
+ * Falls back to the mock coach on any failure. Never rejects.
+ */
+export async function finishSession(req: SessionEndRequest, serverSessionId: string | null): Promise<SessionEndResponse> {
+  if (USE_MOCK || !serverSessionId || !serverSport(req.sport)) return mockSessionEnd(req);
+  try {
+    await drain(true);
+    const data = await request<unknown>('POST', '/api/session/end', { session_id: serverSessionId }, END_TIMEOUT_MS);
+    const coach = parseCoach(isRecord(data) ? data.coach : null);
+    if (!coach) throw new Error('session/end: unexpected response shape');
+    recordMockScore({
+      player_id: req.player_id,
+      display_name: req.display_name,
+      sport: req.sport,
+      score: req.final_score,
+      max_speed: req.stats.maxSpeed ? round(req.stats.maxSpeed, 1) : null,
+    });
+    const board = await getLeaderboard(req.sport, 10);
+    return { coach, leaderboard: board.entries, form_score: null, source: 'live' };
+  } catch (err) {
+    console.warn('[api] session/end failed, using mock coach', err);
+    return mockSessionEnd(req);
+  }
 }
