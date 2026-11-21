@@ -1,9 +1,15 @@
 // Singleton webcam + MediaPipe PoseLandmarker loop (research doc section 4, Shared Pose Pipeline).
-// Runs on the main thread for now. One detection per new camera frame, x mirrored once here.
-// MediaPipe is imported lazily so the library stays out of the initial bundle.
+// Tracking runs in a Web Worker (pose.worker.ts) so rendering never waits on inference: each new camera
+// frame becomes a transferred ImageBitmap, frames are skipped while the worker is busy, and results come
+// back as packed arrays. If workers or ImageBitmaps are unavailable, or the worker fails to start, the same
+// loop runs on the main thread. x is mirrored once here. ?worker=0 forces the main-thread path.
 import type { Landmark as RawLandmark, NormalizedLandmark, PoseLandmarker } from '@mediapipe/tasks-vision'
 import { StartupError } from './types.ts'
 import type { Joint, PoseFrame, StartupErrorKind } from './types.ts'
+import { LANDMARKS, STRIDE } from './workerProtocol.ts'
+import { createFrameClock } from './frameClock.ts'
+import type { FrameMeta } from './frameClock.ts'
+import type { TrackerAttempt, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
 
 /** WASM runtime. The version in this URL must match @mediapipe/tasks-vision in package.json. */
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
@@ -37,6 +43,8 @@ export interface PosePipeline {
   readonly videoWidth: number
   readonly videoHeight: number
   readonly delegate: 'GPU' | 'CPU'
+  /** Where tracking runs. */
+  readonly mode: 'worker' | 'main'
   /** Moving average of detectForVideo duration, ms. */
   readonly inferenceMs: number
   /** cb gets every processed frame (null when no pose). Returns an unsubscribe function. */
@@ -110,22 +118,101 @@ async function openCamera(): Promise<MediaStream> {
   }
 }
 
+/** GPU gets the full model, CPU the lite one (the full model is too slow for 30 fps on most CPUs). */
+function trackerAttempts(): Array<{ delegate: Delegate; model: string }> {
+  const forced = modelOverride()
+  const all: Array<{ delegate: Delegate; model: string }> = [
+    { delegate: 'GPU', model: forced === 'lite' ? MODEL_LITE : MODEL_FULL },
+    { delegate: 'GPU', model: MODEL_LITE },
+    { delegate: 'CPU', model: forced === 'full' ? MODEL_FULL : MODEL_LITE },
+  ]
+  const seen = new Set<string>()
+  return all.filter((a) => {
+    const key = a.delegate + a.model
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+const absolute = (url: string): string => new URL(url, location.href).href
+
+function workerAllowed(): boolean {
+  try {
+    if (new URLSearchParams(location.search).get('worker') === '0') return false
+  } catch {
+    // no location: fall through
+  }
+  return typeof Worker === 'function' && typeof createImageBitmap === 'function' && typeof OffscreenCanvas === 'function'
+}
+
+interface WorkerTracker {
+  worker: Worker
+  delegate: Delegate
+}
+
+/** Starts pose.worker.ts and waits for its tracker. Rejects (and terminates the worker) on any failure. */
+function startWorker(): Promise<WorkerTracker> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./pose.worker.ts', import.meta.url), { type: 'module', name: 'pose-tracker' })
+    } catch (err) {
+      reject(err)
+      return
+    }
+    const fail = (why: unknown): void => {
+      clearTimeout(timer)
+      worker.onmessage = null
+      worker.onerror = null
+      worker.terminate()
+      reject(why instanceof Error ? why : new Error(String(why)))
+    }
+    const timer = setTimeout(() => fail(new Error('Pose worker took too long to start')), TRACKER_TIMEOUT_MS)
+    worker.onerror = (e) => fail(new Error(e.message || 'Pose worker failed to load'))
+    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      const msg = e.data
+      if (msg.type === 'ready') {
+        clearTimeout(timer)
+        worker.onmessage = null
+        worker.onerror = null
+        resolve({ worker, delegate: msg.delegate })
+      } else if (msg.type === 'error' && msg.fatal) {
+        fail(new Error(msg.message))
+      }
+    }
+    const lite = absolute(MODEL_LITE)
+    const attempts: TrackerAttempt[] = trackerAttempts().map((a) => ({ ...a, model: absolute(a.model), lite }))
+    const init: WorkerRequest = {
+      type: 'init',
+      wasmBase: WASM_BASE,
+      attempts,
+      options: { detection: MIN_DETECTION_CONFIDENCE, presence: MIN_PRESENCE_CONFIDENCE, tracking: MIN_TRACKING_CONFIDENCE },
+    }
+    worker.postMessage(init)
+  })
+}
+
+/** Unpacks a worker landmark array into mirrored Joints, reusing out's objects when it has them. */
+export function unpackJoints(packed: Float32Array, mirror: 'image' | 'world', out: Joint[] = []): Joint[] {
+  for (let i = 0; i < LANDMARKS; i++) {
+    const o = i * STRIDE
+    const x = packed[o]
+    const j = out[i] ?? (out[i] = { x: 0, y: 0, z: 0, visibility: 0 })
+    j.x = mirror === 'image' ? 1 - x : -x
+    j.y = packed[o + 1]
+    j.z = packed[o + 2]
+    j.visibility = packed[o + 3]
+  }
+  out.length = LANDMARKS
+  return out
+}
+
 async function buildLandmarker(): Promise<Tracker> {
   try {
     const { FilesetResolver, PoseLandmarker } = await loadVision()
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
-    // GPU gets the full model, CPU the lite one (the full model is too slow for 30 fps on most CPUs).
-    const forced = modelOverride()
-    const attempts: Array<{ delegate: Delegate; model: string }> = [
-      { delegate: 'GPU', model: forced === 'lite' ? MODEL_LITE : MODEL_FULL },
-      { delegate: 'GPU', model: MODEL_LITE },
-      { delegate: 'CPU', model: forced === 'full' ? MODEL_FULL : MODEL_LITE },
-    ]
-    const tried = new Set<string>()
-    for (const { delegate, model } of attempts) {
-      const key = delegate + model
-      if (tried.has(key)) continue
-      tried.add(key)
+    for (const { delegate, model } of trackerAttempts()) {
       try {
         const landmarker = await PoseLandmarker.createFromOptions(fileset, {
           baseOptions: { modelAssetPath: model, delegate },
@@ -198,42 +285,83 @@ async function attachStream(video: HTMLVideoElement, stream: MediaStream): Promi
   if (!stream.getVideoTracks().some((t) => t.readyState === 'live')) throw new Error('Camera track ended')
 }
 
+/** Where tracking runs once started: a worker, or a landmarker on this thread. */
+type Engine =
+  | { kind: 'worker'; worker: Worker; delegate: Delegate }
+  | { kind: 'main'; landmarker: PoseLandmarker; delegate: Delegate }
+  /** Between a worker failure and its main-thread replacement: frames are skipped. */
+  | { kind: 'pending'; delegate: Delegate }
+
+/** Worker first, main thread as the fallback. Rejects only with StartupError. */
+async function createEngine(): Promise<Engine> {
+  if (workerAllowed()) {
+    try {
+      const w = await startWorker()
+      return { kind: 'worker', worker: w.worker, delegate: w.delegate }
+    } catch (err) {
+      console.warn('Pose worker unavailable, tracking on the main thread', err)
+    }
+  }
+  const t = await createLandmarker()
+  return { kind: 'main', landmarker: t.landmarker, delegate: t.delegate }
+}
+
+function closeEngine(e: Engine): void {
+  if (e.kind === 'worker') {
+    e.worker.onmessage = null
+    e.worker.onerror = null
+    try {
+      e.worker.postMessage({ type: 'dispose' } satisfies WorkerRequest)
+    } catch {
+      // already gone
+    }
+    e.worker.terminate()
+  } else if (e.kind === 'main') {
+    e.landmarker.close()
+  }
+}
+
+/** Width of the frames sent to the worker, px. */
+const INFER_WIDTH = 480
+/** A worker frame that never comes back (crash, hang) must not stall tracking forever, ms. */
+const WORKER_FRAME_TIMEOUT_MS = 2000
+
 async function launch(video: HTMLVideoElement, onStop: () => void): Promise<PosePipeline> {
   // Load the tracker while the camera permission prompt is open; fail fast on either error.
-  const trackerP = createLandmarker()
+  const engineP = createEngine()
   let stream: MediaStream
   try {
     stream = await openCamera()
   } catch (err) {
-    trackerP.then((t) => t.landmarker.close(), () => {})
+    engineP.then(closeEngine, () => {})
     throw err
   }
 
-  let tracker: Tracker
+  let engine: Engine
   try {
-    tracker = await trackerP
+    engine = await engineP
   } catch (err) {
     stopStream(stream)
     throw err
   }
-  const { landmarker, delegate } = tracker
 
   try {
     await attachStream(video, stream)
   } catch (err) {
     stopStream(stream)
     video.srcObject = null
-    landmarker.close()
+    closeEngine(engine)
     throw new StartupError('camera-other', `Video playback failed: ${String(err)}`)
   }
 
   const subscribers = new Set<(frame: PoseFrame | null) => void>()
   let running = true
-  let lastT = -Infinity
   let lastVideoTime = -1
   let inferenceMs = 0
   let warnedFrame = false
   let warnedSubscriber = false
+  /** Worker path: a frame is in flight since this time, null when idle. */
+  let busySince: number | null = null
 
   const publish = (frame: PoseFrame | null): void => {
     for (const cb of subscribers) {
@@ -246,14 +374,18 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     }
   }
 
-  const detectFrame = (): void => {
+  const noteInference = (ms: number): void => {
+    inferenceMs = inferenceMs === 0 ? ms : inferenceMs + INFERENCE_EMA * (ms - inferenceMs)
+  }
+
+  /** Frames are stamped with the camera's capture time, so wrist speeds do not jitter with load. */
+  const clock = createFrameClock()
+
+  const detectOnMain = (landmarker: PoseLandmarker, t: number): void => {
     const now = performance.now()
-    const t = now > lastT ? now : lastT + 1
-    lastT = t
     try {
       const result = landmarker.detectForVideo(video, t)
-      const ms = performance.now() - now
-      inferenceMs = inferenceMs === 0 ? ms : inferenceMs + INFERENCE_EMA * (ms - inferenceMs)
+      noteInference(performance.now() - now)
       const image = result.landmarks[0]
       const world = result.worldLandmarks[0]
       publish(image && world ? { t, image: image.map(toImage), world: world.map(toWorld) } : null)
@@ -263,13 +395,89 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     }
   }
 
+  /** The worker died after starting: carry on with a main-thread landmarker rather than end the game. */
+  const fallBackToMain = (why: string): void => {
+    if (!running || engine.kind !== 'worker') return
+    console.warn(`Pose worker failed (${why}); tracking on the main thread`)
+    closeEngine(engine)
+    busySince = null
+    createLandmarker().then(
+      (t) => {
+        if (!running) {
+          t.landmarker.close()
+          return
+        }
+        engine = { kind: 'main', landmarker: t.landmarker, delegate: t.delegate }
+      },
+      () => lost('Pose tracker stopped'),
+    )
+    // Until the landmarker arrives, ticks skip frames.
+    engine = { kind: 'pending', delegate: engine.delegate }
+  }
+
+  const wireWorker = (w: Worker): void => {
+    w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      if (!running) return
+      const msg = e.data
+      if (msg.type === 'result') {
+        busySince = null
+        noteInference(msg.inferenceMs)
+        publish(
+          msg.image && msg.world
+            ? { t: msg.t, image: unpackJoints(msg.image, 'image'), world: unpackJoints(msg.world, 'world') }
+            : null,
+        )
+      } else if (msg.type === 'ready') {
+        if (engine.kind === 'worker') engine.delegate = msg.delegate
+      } else if (msg.type === 'error') {
+        busySince = null
+        if (msg.fatal) fallBackToMain(msg.message)
+        else if (!warnedFrame) {
+          console.warn('Pose frame failed (logged once)', msg.message)
+          warnedFrame = true
+        }
+      }
+    }
+    w.onerror = (e) => fallBackToMain(e.message || 'worker error')
+  }
+  if (engine.kind === 'worker') wireWorker(engine.worker)
+
+  const sendToWorker = (w: Worker, t: number): void => {
+    const now = performance.now()
+    if (busySince !== null) {
+      // Skip frames while the worker is busy; recover if one never comes back.
+      if (now - busySince < WORKER_FRAME_TIMEOUT_MS) return
+      busySince = null
+    }
+    busySince = now
+    // Inference size: the model works on 256x256 internally, so 480x360 loses nothing and halves conversion.
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    const scale = vw > 0 && vh > 0 ? Math.min(1, INFER_WIDTH / vw) : 1
+    const resize: ImageBitmapOptions =
+      scale < 1 ? { resizeWidth: Math.round(vw * scale), resizeHeight: Math.round(vh * scale), resizeQuality: 'low' } : {}
+    createImageBitmap(video, resize).then(
+      (bitmap) => {
+        if (!running || engine.kind !== 'worker' || engine.worker !== w) {
+          bitmap.close()
+          return
+        }
+        const msg: WorkerRequest = { type: 'frame', bitmap, t, captureT: t }
+        w.postMessage(msg, [bitmap])
+      },
+      () => {
+        busySince = null
+      },
+    )
+  }
+
   // Schedule the next tick before processing, so nothing thrown below can stop the loop.
   const useVfc = typeof video.requestVideoFrameCallback === 'function'
   const schedule = (): void => {
     if (useVfc) video.requestVideoFrameCallback(tick)
     else requestAnimationFrame(tick)
   }
-  const tick = (): void => {
+  const tick = (now: number, meta?: FrameMeta): void => {
     if (!running) return
     schedule()
     if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
@@ -277,7 +485,8 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
       if (video.currentTime === lastVideoTime) return
       lastVideoTime = video.currentTime
     }
-    detectFrame()
+    if (engine.kind === 'worker') sendToWorker(engine.worker, clock.stamp(now, meta))
+    else if (engine.kind === 'main') detectOnMain(engine.landmarker, clock.stamp(now, meta))
   }
   schedule()
 
@@ -288,7 +497,7 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     video.removeEventListener('emptied', onEmptied)
     stopStream(stream)
     if (video.srcObject === stream) video.srcObject = null
-    landmarker.close()
+    closeEngine(engine)
     onStop()
   }
 
@@ -316,7 +525,12 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     video,
     videoWidth: video.videoWidth,
     videoHeight: video.videoHeight,
-    delegate,
+    get delegate() {
+      return engine.delegate
+    },
+    get mode() {
+      return engine.kind === 'worker' ? 'worker' : 'main'
+    },
     get inferenceMs() {
       return inferenceMs
     },

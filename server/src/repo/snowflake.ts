@@ -248,7 +248,7 @@ export const SQL = {
            TO_VARCHAR(ended_at, ${TS})   AS ended_at,
            score, total_punches, avg_speed, max_speed, avg_reaction_ms, best_reaction_ms, accuracy,
            ai_coach_json:badge::STRING AS badge
-    FROM SESSIONS WHERE player_id = ?
+    FROM SESSIONS WHERE player_id = ? AND LOWER(COALESCE(sport, 'boxing')) = 'boxing'
     ORDER BY started_at DESC NULLS LAST LIMIT ${limit}`;
   },
 

@@ -12,6 +12,8 @@ type BoxingState = 'start' | 'loading' | 'calibrating' | 'tutorial' | 'fighting'
 
 /** Longest frame step fed to the game, ms (a hidden tab must not jump the round). */
 const MAX_DT_MS = 50
+/** Fixed game logic step, ms (120 Hz). */
+const STEP_MS = 1000 / 120
 const DEBUG_INTERVAL_MS = 100
 const NOOP_SESSION: GameSession = { dispose() {} }
 
@@ -44,6 +46,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     { StartupError },
     { createBoxingTutorial, tutorialNeeded },
     { createTrackingHint },
+    { createQualityGovernor },
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
@@ -62,6 +65,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./pose/types.ts'),
     import('./sports/boxing/tutorial.ts'),
     import('./pose/trackingHint.ts'),
+    import('./pose/qualityGovernor.ts'),
   ])
   // Nothing has been created yet, so there is nothing to dispose.
   if (ctx.signal.aborted) return NOOP_SESSION
@@ -89,6 +93,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   const telemetry = createTelemetry()
   const overlay = createPoseOverlay(overlayCanvas)
   const trackingHint = createTrackingHint(ui)
+  const governor = createQualityGovernor()
   // Every punch the camera reads bursts on that fist in the preview, so players see what registered.
   const flashPunches = (a: BoxingActions): BoxingActions => {
     for (const p of a.punches) overlay.flash(p.hand, p.kind.toUpperCase())
@@ -219,6 +224,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
 
   function onFrame(frame: PoseFrame | null): void {
     frames++
+    if (frame) lastPoseT = frame.t
     overlay.draw(frame, state === 'fighting' && engine.debug.guard === 1)
     trackingHint.push(frame)
     if (state === 'calibrating' && calibrator) {
@@ -254,6 +260,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
       pipeline = p
       overlay.resize(p.videoWidth, p.videoHeight)
       document.body.dataset.delegate = p.delegate
+      document.body.dataset.poseMode = p.mode
       aspect = p.videoWidth / p.videoHeight
       stopFrames = p.subscribe(onFrame)
       beginCalibration()
@@ -327,6 +334,10 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
 
   // ---------- one animation loop per session ----------
   let last = performance.now()
+  let stepAcc = 0
+  /** Capture time of the newest pose frame, for the latency readout. */
+  let lastPoseT: number | null = null
+  let latencyMs = 0
   let fps = 0
   let statAcc = 0
   let statFrames = 0
@@ -334,11 +345,26 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function loop(now: number): void {
     if (disposed) return
     raf = requestAnimationFrame(loop)
-    const dt = Math.min(Math.max(now - last, 0), MAX_DT_MS)
+    const rawDt = Math.max(now - last, 0)
+    const dt = Math.min(rawDt, MAX_DT_MS)
     last = now
+    // Automatic quality: low under ~50 fps or when tracking is slow, back to high after fast frames.
+    const nextQuality = governor.update(rawDt, pipeline ? pipeline.inferenceMs : 0)
+    if (nextQuality) scene.setQuality(nextQuality)
     if (keyboard.enabled) engine.onActions(keyboard.poll())
-    engine.update(dt)
+    // Fixed 120 Hz game logic ("Fix Your Timestep"): drone timing, telegraph windows and hit-stop run the
+    // same on every laptop whatever its frame rate. MAX_DT_MS bounds the steps after a hitch.
+    stepAcc += dt
+    while (stepAcc >= STEP_MS) {
+      engine.update(STEP_MS)
+      stepAcc -= STEP_MS
+    }
     scene.render()
+    // Movement-to-screen latency: age of the newest pose (camera capture time) when this frame was drawn.
+    if (lastPoseT !== null) {
+      const age = performance.now() - lastPoseT
+      if (age >= 0 && age < 1000) latencyMs = latencyMs === 0 ? age : latencyMs + 0.1 * (age - latencyMs)
+    }
 
     statFrames++
     statAcc += dt
@@ -355,6 +381,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
         ...engine.debug,
         fps,
         inferenceMs: pipeline ? Math.round(pipeline.inferenceMs * 10) / 10 : 0,
+        latencyMs: Math.round(latencyMs),
+        poseMode: pipeline ? pipeline.mode : 'none',
         delegate: pipeline ? pipeline.delegate : 'none',
         quality: scene.quality,
       })
@@ -437,6 +465,8 @@ if (!document.head.querySelector('link[rel="preconnect"][href="https://cdn.jsdel
 }
 const prefetch = (): void => {
   import('./pose/pipeline.ts').then((m) => m.prefetchPoseAssets()).catch(() => {})
+  // Three.js is the biggest chunk (about 590 kB): fetch and parse it while the player browses the dashboard.
+  import('three').catch(() => {})
 }
 if (typeof requestIdleCallback === 'function') requestIdleCallback(prefetch, { timeout: 3000 })
 else setTimeout(prefetch, 1500)

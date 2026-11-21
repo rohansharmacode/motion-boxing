@@ -122,7 +122,9 @@ function archeryRing(ev: MotionEvent): number | null {
 
 /**
  * Points for one event. The server's score is the sum of these, so the game uses the same
- * function for the score it shows: header and leaderboard always agree.
+ * function for the score it shows: header and leaderboard always agree. For the keeper,
+ * goalkeeperLink.ts sets metrics.points per save so the sum matches the engine's once-rounded
+ * shootout score; the formula below is the fallback for events without it.
  * Goalkeeper: the engine's arcade score per kick (save 1000, +250 reaction < 450 ms, +150 punch
  * clearance, + accuracy/2; goal 0). Archery: the ring score 0..10.
  */

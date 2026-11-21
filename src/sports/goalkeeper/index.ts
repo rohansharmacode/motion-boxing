@@ -6,6 +6,7 @@ import type { PosePipeline } from '../../pose/pipeline.ts'
 import { createCalibrator } from '../../pose/calibration.ts'
 import { createBodyTracker } from '../../pose/body.ts'
 import { createTrackingHint } from '../../pose/trackingHint.ts'
+import { createQualityGovernor } from '../../pose/qualityGovernor.ts'
 import type { BodyTracker } from '../../pose/body.ts'
 import { StartupError } from '../../pose/types.ts'
 import type { StartupErrorKind } from '../../pose/types.ts'
@@ -64,6 +65,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   root.append(stage, ui)
   ctx.host.append(root)
   const trackingHint = createTrackingHint(ui)
+  const governor = createQualityGovernor()
 
   uiSfx ??= createSfx() // shell sfx has no dispose: share one AudioContext across launches
   const sfx = createKeeperSfx()
@@ -302,8 +304,11 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   function frame(now: number): void {
     if (disposed) return
     raf = requestAnimationFrame(frame)
-    const dt = Math.min(Math.max(now - last, 0), 250)
+    const rawDt = Math.max(now - last, 0)
+    const dt = Math.min(rawDt, 250)
     last = now
+    const nextQuality = governor.update(rawDt, pipeline ? pipeline.inferenceMs : 0)
+    if (nextQuality) scene.setQuality(nextQuality)
     if (dt > 0) fps += (1000 / dt - fps) * 0.05
 
     engine.setPointer(input.mouseOn ? input.target() : null)
