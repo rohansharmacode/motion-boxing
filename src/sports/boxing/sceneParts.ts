@@ -604,6 +604,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const head = new Group()
   head.position.y = DRONE.headY
   const headModel = new Group()
+  headModel.scale.setScalar(0.8) // smaller head so the guard gloves sit in front of it, not inside it
   head.add(headModel)
   const helmet = new Mesh(new SphereGeometry(0.125, 48, 32), headShell)
   helmet.scale.set(0.92, 1.08, 1)
