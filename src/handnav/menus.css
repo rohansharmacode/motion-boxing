@@ -1,0 +1,48 @@
+/* Menu screens inside a game (boxing start / results / error, 1v1 lobby): calmer and hand-sized.
+   Only applies while a menu shows; fight HUDs are untouched. The double-id prefix wins over
+   src/theme/minimal.css (single-id prefix) without !important. */
+
+:root:not(#_):not(#__) body:is([data-state='start'], [data-state='ended'], [data-state='error']) .kr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 260px;
+  height: 64px;
+  padding: 0 24px;
+  clip-path: none;
+  border-radius: 12px;
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  transform: none;
+  filter: none;
+}
+
+:root:not(#_):not(#__) body:is([data-state='start'], [data-state='ended'], [data-state='error']) .kr-k-row { gap: 24px; }
+
+/* Flat title, no neon bloom. */
+:root:not(#_):not(#__) .kr-k-title { text-shadow: none; }
+
+/* Home button: hand-sized while a menu shows (it shrinks back to an icon during play). */
+:root:not(#_):not(#__) body:not([data-state='fighting']):not([data-state='tutorial']):not([data-state='calibrating']):not([data-state='loading']) .shell[data-view='game'] .shell-home {
+  left: 24px;
+  bottom: 24px;
+  width: auto;
+  height: 64px;
+  padding: 0 24px;
+  gap: 10px;
+  font-size: 18px;
+  border-radius: 12px;
+  opacity: 1;
+}
+
+/* 1v1 lobby: same button height as every other menu. */
+:root:not(#_):not(#__) .vs-entry {
+  height: 64px;
+  padding: 0 32px;
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+:root:not(#_):not(#__) .vs-btn { min-height: 64px; border-radius: 12px; font-size: 18px; }
+:root:not(#_):not(#__) .vs-link { min-height: 56px; padding: 0 24px; font-size: 16px; }
+:root:not(#_):not(#__) .kr-k-name { box-shadow: none; }

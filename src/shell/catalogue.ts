@@ -39,6 +39,11 @@ const PODIUM = svg(`
   <rect x="40" y="42" width="16" height="12" rx="2"/>
   <path d="M32 8l2.6 5.4 5.9.8-4.3 4.1 1 5.8L32 21.3 26.8 24l1-5.8-4.3-4.1 5.9-.8z" stroke-width="2.4"/>`)
 
+const FIGURE = svg(`
+  <circle cx="32" cy="16" r="8"/>
+  <path d="M18 56V40c0-8 6-13 14-13s14 5 14 13v16"/>
+  <path d="M26 56V44M38 56V44"/>`)
+
 export const TILES: readonly TileInfo[] = [
   {
     id: 'boxing',
@@ -70,6 +75,16 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#ff8a1f', '#ff9a3c'),
     icon: TARGET,
     art: artUrl('tile-archery'),
+  },
+  {
+    id: 'customise',
+    title: 'Customise',
+    tagline: 'Make your fighter yours',
+    howTo: 'Pick your colours, gloves and look. Your fighter keeps them in every sport.',
+    accent: pick('#3cf2b0', '#35c26b'),
+    accent2: pick('#22e5ff', '#46c7d9'),
+    icon: FIGURE,
+    art: artUrl('tile-customise'),
   },
   {
     id: 'leaderboard',
