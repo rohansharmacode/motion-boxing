@@ -2,6 +2,7 @@
 import './style.css'
 import './fonts/index.ts'
 import { mountShell } from './shell/index.ts'
+import { mountHandNav } from './handnav/index.ts'
 import type { GameContext, GameSession } from './shell/index.ts'
 import type { BodyTracker } from './pose/body.ts'
 import type { Calibrator } from './pose/calibration.ts'
@@ -49,6 +50,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     { createTrackingHint },
     { createQualityGovernor },
     { createVersus },
+    { createCountdownOverlay },
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
@@ -69,6 +71,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./pose/trackingHint.ts'),
     import('./pose/qualityGovernor.ts'),
     import('./sports/boxing/versus/index.ts'),
+    import('./sports/boxing/countdown.ts'),
   ])
   const { loadLook } = await import('./custom/look.ts')
   const robot = loadLook()
@@ -110,7 +113,16 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     reset: () => rawDetector.reset(),
   }
   const sfx = createBoxingSfx()
-  const engine = createBoxingEngine({ hud, telemetry, detector, sfx, getPlayerName: () => hud.playerName })
+  const countdown = createCountdownOverlay(ui)
+  const engine = createBoxingEngine({
+    hud,
+    telemetry,
+    detector,
+    sfx,
+    getPlayerName: () => hud.playerName,
+    countdownBeats: 3,
+    showCountdown: (n) => countdown.show(n),
+  })
   const keyboard = createKeyboardFallback()
   // Online 1v1 across two laptops: lobby button on the start screen, room relay in server/src/versus.ts.
   const versus = createVersus(ui, {
@@ -379,9 +391,11 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     // same on every laptop whatever its frame rate. MAX_DT_MS bounds the steps after a hitch.
     stepAcc += dt
     while (stepAcc >= STEP_MS) {
-      engine.update(STEP_MS)
+      engine.step(STEP_MS)
       stepAcc -= STEP_MS
     }
+    // Scene animation, effects and HUD sync once per rendered frame (not once per logic step).
+    engine.present(dt)
     scene.render()
     // Movement-to-screen latency: age of the newest pose (camera capture time) when this frame was drawn.
     if (lastPoseT !== null) {
@@ -426,6 +440,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     keyboard.dispose()
     versus.dispose()
     engine.dispose()
+    countdown.dispose()
     scene.dispose()
     sfx.dispose()
     endTutorial()
@@ -481,6 +496,8 @@ const customise = (ctx: GameContext): Promise<GameSession> =>
   import('./custom/screen.ts').then((m) => m.startCustomise(ctx))
 
 mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard, customise } })
+// Every menu works hands-only: point with a raised hand, hold on a button until the ring fills.
+mountHandNav({ video: el('#webcam', HTMLVideoElement) })
 
 // Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
 const prefetch = (): void => {

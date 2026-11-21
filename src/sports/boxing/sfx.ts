@@ -111,15 +111,40 @@ export function createBoxingSfx(): BoxingSfx {
     },
 
     punch(kind: PunchKind, landed: boolean, counter: boolean) {
-      const heavy = kind === 'cross' || kind === 'uppercut'
-      noise({ dur: 0.12, vol: 0.25, filter: { type: 'bandpass', f0: 500, f1: 2200, q: 1.2 } })
+      const heavy = kind === 'cross' || kind === 'uppercut' || kind === 'hook'
+      // Whoosh as the glove leaves, then the impact lands with the glove (scene PUNCH_OUT_MS = 90 ms).
+      noise({ dur: 0.1, vol: 0.22, filter: { type: 'bandpass', f0: 700, f1: 2600, q: 1.2 } })
       if (!landed) return
-      tone({ type: 'sine', f0: heavy ? 120 : 160, f1: heavy ? 38 : 55, dur: heavy ? 0.22 : 0.14, vol: heavy ? 0.9 : 0.65, at: 0.04 })
-      noise({ dur: 0.06, vol: 0.4, at: 0.04, filter: { type: 'lowpass', f0: heavy ? 1200 : 1800 } })
+      const at = 0.085
+      // Crack (bright transient), body (mid noise) and a sub thump with a pitch drop: reads as weight.
+      noise({ dur: 0.025, vol: 0.55, at, filter: { type: 'highpass', f0: 3000 } })
+      noise({ dur: 0.09, vol: 0.5, at, filter: { type: 'lowpass', f0: heavy ? 1400 : 2000, f1: 300 } })
+      tone({ type: 'sine', f0: heavy ? 150 : 190, f1: heavy ? 40 : 60, dur: heavy ? 0.26 : 0.16, vol: heavy ? 1 : 0.75, at })
+      tone({ type: 'square', f0: heavy ? 90 : 120, f1: 45, dur: 0.07, vol: 0.12, at, filter: { type: 'lowpass', f0: 600 } })
       if (counter) {
-        tone({ type: 'triangle', f0: 1760, f1: 2640, dur: 0.18, vol: 0.18, at: 0.06 })
-        tone({ type: 'triangle', f0: 2640, f1: 3520, dur: 0.22, vol: 0.14, at: 0.12 })
+        tone({ type: 'triangle', f0: 1760, f1: 2640, dur: 0.18, vol: 0.18, at: at + 0.02 })
+        tone({ type: 'triangle', f0: 2640, f1: 3520, dur: 0.22, vol: 0.14, at: at + 0.08 })
       }
+    },
+
+    countdown(n: number) {
+      if (n > 0) {
+        tone({ type: 'square', f0: 660, dur: 0.16, vol: 0.12, filter: { type: 'lowpass', f0: 2400 } })
+        tone({ type: 'sine', f0: 1320, dur: 0.12, vol: 0.08 })
+      } else {
+        tone({ type: 'square', f0: 990, dur: 0.4, vol: 0.14, filter: { type: 'lowpass', f0: 3200 } })
+        tone({ type: 'sine', f0: 1980, dur: 0.3, vol: 0.1 })
+        noise({ dur: 0.3, vol: 0.15, attack: 0.02, filter: { type: 'bandpass', f0: 1200, f1: 4000, q: 1 } })
+      }
+    },
+
+    finisher() {
+      // Huge crunch on contact, then the metal pop of the head coming off and a low boom.
+      noise({ dur: 0.05, vol: 0.8, at: 0.085, filter: { type: 'highpass', f0: 2000 } })
+      noise({ dur: 0.35, vol: 0.6, at: 0.085, filter: { type: 'lowpass', f0: 2500, f1: 150 } })
+      tone({ type: 'sine', f0: 110, f1: 28, dur: 0.7, vol: 1, at: 0.085 })
+      tone({ type: 'square', f0: 1800, f1: 600, dur: 0.18, vol: 0.12, at: 0.2, filter: { type: 'bandpass', f0: 1600, q: 5 } })
+      tone({ type: 'triangle', f0: 2400, f1: 2200, dur: 0.5, vol: 0.08, at: 0.22 })
     },
 
     combo(count: number) {

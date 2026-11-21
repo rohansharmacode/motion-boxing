@@ -1,4 +1,4 @@
-// Boxing rules engine: HP, round clock, drone AI, combos, counters, KO slow motion and telemetry.
+// Boxing rules engine: HP, round clock, countdown, drone AI, combos, counters, KO finisher and telemetry.
 // Time comes only from dtMs, so a round can be replayed deterministically with a seeded deps.random.
 import type { BodyFrame, Calibration } from '../../pose/types.ts'
 import { createPosePredictor } from '../../pose/predict.ts'
@@ -61,10 +61,16 @@ const COMBO_GAP_MS = 900
 const COMBO_STEP = 0.1
 const COMBO_MULT_MAX = 1.5
 const COMBO_CALLOUTS = [3, 5, 8]
-/** Real ms of slow motion between the drone KO and the round end. */
-const KO_SLOWMO_MS = 1200
-const KO_TIME_SCALE = 0.25
-const HITSTOP_MS = 40
+/** Real ms the KO finisher (head off, takedown) plays before the round ends. Full speed, no slow motion. */
+const KO_FINISH_MS = 2600
+/** Impact frames: the scene freezes this long on contact (about 4 frames at 60 fps; counters 6). */
+const HITSTOP_MS = 65
+const COUNTER_HITSTOP_MS = 95
+const PLAYER_HITSTOP_MS = 70
+/** The finishing blow holds longest, so the head pop reads. */
+const KO_HITSTOP_MS = 170
+/** One beat of the 3-2-1 countdown, ms. */
+const COUNTDOWN_BEAT_MS = 800
 const TICK_MS = 200
 const HUD_TIMER_MS = 100
 /** Longest step we simulate, so a hidden tab does not burn the round in one frame. */
@@ -114,6 +120,10 @@ export function createBoxingEngine(deps: {
   sfx?: BoxingSfx
   getPlayerName?: () => string
   random?: () => number
+  /** Round-start 3-2-1-FIGHT. Off (0) by default so tests start fighting at once. */
+  countdownBeats?: number
+  /** Shows the countdown: 3, 2, 1, 0 = FIGHT, null = hide. */
+  showCountdown?: (n: number | null) => void
 }): BoxingEngine {
   const { hud, telemetry, detector, sfx } = deps
   const random = deps.random ?? Math.random
@@ -143,8 +153,11 @@ export function createBoxingEngine(deps: {
   let punchLog: RoundLog['punches'] = []
   let defenceLog: RoundLog['defences'] = []
   let guardMs = 0
-  /** Real ms of KO slow motion left; above 0 the fight is frozen and the round ends when it runs out. */
+  /** Real ms of the KO finisher left; above 0 the fight is frozen and the round ends when it runs out. */
   let koLeftMs = 0
+  /** Countdown ms left before the bell; the fight clock and drone wait while it runs. */
+  let countdownMs = 0
+  let countdownShown = -1
 
   // Defence, per source, combined into guard and slip.
   let poseGuard = false
@@ -183,8 +196,8 @@ export function createBoxingEngine(deps: {
   let lastLandedMs = 0
 
   const msLeft = (): number => Math.max(0, ROUND_MS - roundMs)
-  /** Punches and drone attacks count only while fighting and not in the KO slow motion. */
-  const live = (): boolean => phase === 'fighting' && koLeftMs === 0
+  /** Punches and drone attacks count only while fighting, after the countdown and before the KO finisher. */
+  const live = (): boolean => phase === 'fighting' && koLeftMs === 0 && countdownMs === 0
 
   function resetRoundState(): void {
     playerHp = MAX_HP
@@ -204,6 +217,8 @@ export function createBoxingEngine(deps: {
     defenceLog = []
     guardMs = 0
     koLeftMs = 0
+    countdownMs = 0
+    countdownShown = -1
     attack = null
     nextAttackMs = FIRST_ATTACK_MS
     lastPattern = null
@@ -263,13 +278,14 @@ export function createBoxingEngine(deps: {
     for (const cb of endCallbacks) cb(result)
   }
 
-  /** Drone at 0 HP: slow motion for KO_SLOWMO_MS real time, then update() ends the round. */
+  /** Drone at 0 HP: the finisher plays for KO_FINISH_MS real time, then update() ends the round. */
   function startKo(): void {
-    koLeftMs = KO_SLOWMO_MS
+    koLeftMs = KO_FINISH_MS
     bot.reset()
     stopAction()
     scene?.droneKO()
-    scene?.setTimeScale(KO_TIME_SCALE)
+    scene?.hitstop(KO_HITSTOP_MS)
+    sfx?.finisher?.()
     sfx?.ko(true)
   }
 
@@ -372,7 +388,7 @@ export function createBoxingEngine(deps: {
       damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult)
       droneHp = Math.max(0, round1(droneHp - damage))
       scene.droneHit(hit, damage, counter)
-      scene.hitstop(HITSTOP_MS)
+      scene.hitstop(counter ? COUNTER_HITSTOP_MS : HITSTOP_MS)
       hud.flashPunch(punch, true, counter)
       hud.setHp(playerHp, droneHp)
       if (COMBO_CALLOUTS.includes(combo)) hud.callout(`${combo} HIT COMBO`, 'good')
@@ -496,7 +512,7 @@ export function createBoxingEngine(deps: {
       hitsTaken++
       playerHp = Math.max(0, round1(playerHp - full))
       scene?.playerHit(false)
-      scene?.hitstop(HITSTOP_MS)
+      scene?.hitstop(PLAYER_HITSTOP_MS)
       hud.callout(slip ? WRONG_DODGE[a.pattern] : guard ? 'GUARD DOWN' : 'HIT', 'bad')
       sfx?.playerHit()
       setCombo(0)
@@ -548,6 +564,37 @@ export function createBoxingEngine(deps: {
     if (roundMs >= ROUND_MS) endRound('time')
   }
 
+  /** Show 3, 2, 1 while counting down, then FIGHT and the bell as the clock starts. */
+  function tickCountdown(): void {
+    const beats = deps.countdownBeats ?? 0
+    if (beats === 0) return
+    const n = countdownMs > 0 ? Math.ceil(countdownMs / COUNTDOWN_BEAT_MS) : 0
+    if (n === countdownShown) return
+    countdownShown = n
+    deps.showCountdown?.(n)
+    sfx?.countdown?.(n)
+    if (n === 0) sfx?.bell()
+  }
+
+  function step(dtMs: number): void {
+    const dt = Math.min(Math.max(dtMs, 0), MAX_DT_MS)
+    if (phase === 'fighting' && koLeftMs > 0) {
+      koLeftMs = Math.max(0, koLeftMs - dt)
+      if (koLeftMs === 0) endRound('ko-win')
+    } else if (phase === 'fighting' && countdownMs > 0) {
+      countdownMs = Math.max(0, countdownMs - dt)
+      tickCountdown()
+    } else if (phase === 'fighting') {
+      fight(dt)
+    }
+  }
+
+  function present(dtMs: number): void {
+    if (phase !== 'idle') pushGuardState()
+    scene?.update(dtMs)
+    hud.setGuard(shownGuard)
+  }
+
   const engine: BoxingEngine = {
     get phase() {
       return phase
@@ -579,15 +626,17 @@ export function createBoxingEngine(deps: {
     startRound() {
       resetRoundState()
       scene?.resetRound()
-      scene?.setTimeScale(1)
       telemetry.startRound()
       hud.setHp(playerHp, droneHp)
       hud.setTimer(ROUND_MS)
       hud.setCounts({ ...counts })
       hud.setTelegraph(null)
       hud.setCombo(0)
-      sfx?.bell()
+      const beats = deps.countdownBeats ?? 0
+      countdownMs = beats * COUNTDOWN_BEAT_MS
+      if (countdownMs === 0) sfx?.bell()
       phase = 'fighting'
+      tickCountdown()
     },
 
     onPoseFrame(body: BodyFrame | null) {
@@ -601,20 +650,12 @@ export function createBoxingEngine(deps: {
       apply(actions, 'keyboard')
     },
 
+    step,
+    present,
+
     update(dtMs: number) {
-      const dt = Math.min(Math.max(dtMs, 0), MAX_DT_MS)
-      if (phase === 'fighting' && koLeftMs > 0) {
-        koLeftMs = Math.max(0, koLeftMs - dt)
-        if (koLeftMs === 0) {
-          scene?.setTimeScale(1)
-          endRound('ko-win')
-        }
-      } else if (phase === 'fighting') {
-        fight(dt)
-      }
-      if (phase !== 'idle') pushGuardState()
-      scene?.update(dtMs)
-      hud.setGuard(shownGuard)
+      step(dtMs)
+      present(dtMs)
     },
 
     flushTelemetry,
@@ -633,8 +674,9 @@ export function createBoxingEngine(deps: {
     },
 
     abortRound() {
-      scene?.setTimeScale(1)
       koLeftMs = 0
+      if (countdownMs > 0) deps.showCountdown?.(null)
+      countdownMs = 0
       phase = 'idle'
       lastResult = null
       stopAction()
@@ -690,7 +732,7 @@ export function createBoxingEngine(deps: {
 
     dispose() {
       versus = null
-      if (koLeftMs > 0) scene?.setTimeScale(1)
+      if (countdownMs > 0) deps.showCountdown?.(null)
       endCallbacks = []
       resetRoundState()
       detectorDebug = {}

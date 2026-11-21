@@ -32,17 +32,17 @@ const TARGET = svg(`
   <circle cx="28" cy="36" r="4"/>
   <path d="M28 36L54 10M47 10h7v7M54 10l-4 1" />`)
 
-const ROBOT = svg(`
-  <path d="M14 30a18 18 0 0 1 36 0v8a12 12 0 0 1-12 12H26a12 12 0 0 1-12-12z"/>
-  <path d="M20 33h24" stroke-width="5"/>
-  <path d="M32 12V6"/>`)
-
 const PODIUM = svg(`
   <path d="M8 54h48"/>
   <rect x="24" y="26" width="16" height="28" rx="2"/>
   <rect x="8" y="36" width="16" height="18" rx="2"/>
   <rect x="40" y="42" width="16" height="12" rx="2"/>
   <path d="M32 8l2.6 5.4 5.9.8-4.3 4.1 1 5.8L32 21.3 26.8 24l1-5.8-4.3-4.1 5.9-.8z" stroke-width="2.4"/>`)
+
+const FIGURE = svg(`
+  <circle cx="32" cy="16" r="8"/>
+  <path d="M18 56V40c0-8 6-13 14-13s14 5 14 13v16"/>
+  <path d="M26 56V44M38 56V44"/>`)
 
 export const TILES: readonly TileInfo[] = [
   {
@@ -77,6 +77,16 @@ export const TILES: readonly TileInfo[] = [
     art: artUrl('tile-archery'),
   },
   {
+    id: 'customise',
+    title: 'Customise',
+    tagline: 'Make your fighter yours',
+    howTo: 'Pick your colours, gloves and look. Your fighter keeps them in every sport.',
+    accent: pick('#3cf2b0', '#35c26b'),
+    accent2: pick('#22e5ff', '#46c7d9'),
+    icon: FIGURE,
+    art: artUrl('tile-customise'),
+  },
+  {
     id: 'leaderboard',
     title: 'Leaderboard',
     tagline: 'Live stats powered by Snowflake',
@@ -85,15 +95,5 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#38c8ff', '#8fd3fb'),
     icon: PODIUM,
     art: artUrl('tile-leaderboard'),
-  },
-  {
-    id: 'customise',
-    title: 'Customise',
-    tagline: 'Make the robot yours',
-    howTo: 'Pick colours, a head and gloves, and name your robot. Shows in boxing and online 1v1.',
-    accent: pick('#38c8ff', '#2f9bff'),
-    accent2: pick('#a47bff', '#8fd3fb'),
-    icon: ROBOT,
-    art: artUrl('tile-customise'),
   },
 ]

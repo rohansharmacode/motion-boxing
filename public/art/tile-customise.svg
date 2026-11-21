@@ -1,19 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Customise tile artwork: a neon robot head with colour swatches">
-  <rect width="640" height="400" fill="#0d1018"/>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="320" cy="300" r="120" stroke="#262b37" stroke-width="2"/>
-    <path d="M250 190a70 70 0 0 1 140 0v30a50 50 0 0 1-50 50h-40a50 50 0 0 1-50-50z" fill="#1a2230" stroke="#38c8ff" stroke-width="6"/>
-    <path d="M268 200h104" stroke="#9be8ff" stroke-width="16"/>
-    <path d="M320 120V96" stroke="#38c8ff" stroke-width="6"/>
-    <circle cx="320" cy="88" r="9" fill="#9be8ff"/>
-    <path d="M296 290v24h48v-24" stroke="#38c8ff" stroke-width="6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Customise your fighter tile artwork">
+  <defs>
+    <linearGradient id="cu-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a1026"/>
+      <stop offset="1" stop-color="#10213a"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#cu-bg)"/>
+  <g fill="none" stroke="#3cf2b0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="320" cy="120" r="42"/>
+    <path d="M240 340v-80c0-44 36-74 80-74s80 30 80 74v80"/>
   </g>
   <g>
-    <circle cx="140" cy="140" r="22" fill="#38c8ff"/>
-    <circle cx="140" cy="200" r="22" fill="#ff5a1f"/>
-    <circle cx="140" cy="260" r="22" fill="#ff2d95"/>
-    <circle cx="500" cy="140" r="22" fill="#7dff4a"/>
-    <circle cx="500" cy="200" r="22" fill="#a47bff"/>
-    <circle cx="500" cy="260" r="22" fill="#ffc83a"/>
+    <rect x="200" y="300" width="56" height="40" rx="14" fill="#22e5ff"/>
+    <rect x="384" y="300" width="56" height="40" rx="14" fill="#ff5a6e"/>
+  </g>
+  <g>
+    <circle cx="500" cy="110" r="18" fill="#22e5ff"/>
+    <circle cx="500" cy="170" r="18" fill="#ff5a6e"/>
+    <circle cx="500" cy="230" r="18" fill="#ffd23c"/>
+    <circle cx="500" cy="290" r="18" fill="#a98bff"/>
   </g>
 </svg>
