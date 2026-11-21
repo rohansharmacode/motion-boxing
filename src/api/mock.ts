@@ -4,6 +4,8 @@
 
 import type {
   CoachCard,
+  Highlight,
+  HighlightsResponse,
   LeaderboardEntry,
   LeaderboardResponse,
   Player,
@@ -228,4 +230,31 @@ export async function mockSessionEnd(req: SessionEndRequest): Promise<SessionEnd
     form_score: form,
     source: 'mock',
   };
+}
+
+// ---------- highlights feed ----------
+
+/** Plausible highlights from the mock leaderboard (and this browser's own best), newest first. */
+export async function mockHighlights(limit = 10): Promise<HighlightsResponse> {
+  await sleep(jitter(80, 200));
+  const board = rank(loadBoard('BOXING'));
+  const now = Date.now();
+  const kinds = ['speed_record', 'punch_milestone', 'reaction_record', 'personal_best_speed'] as const;
+  const highlights: Highlight[] = board.slice(0, Math.max(1, limit)).map((e, i) => {
+    const kind = kinds[i % kinds.length];
+    const value =
+      kind === 'punch_milestone' ? 100 * (5 - (i % 4)) : kind === 'reaction_record' ? 205 + i * 17 : Math.max(2.5, (e.max_speed ?? 4) - i * 0.05);
+    return {
+      highlight_id: `mock-${kind}-${e.player_id}`,
+      created_at: new Date(now - (i * 4 + 1) * 60_000).toISOString(),
+      kind,
+      player_id: e.player_id,
+      name: e.display_name,
+      session_id: `mock-${i}`,
+      value: Math.round(value * 100) / 100,
+      unit: kind === 'punch_milestone' ? 'punches' : kind === 'reaction_record' ? 'ms' : 'SW/s',
+      message: '',
+    };
+  });
+  return { available: true, highlights, source: 'mock' };
 }

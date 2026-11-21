@@ -14,6 +14,7 @@ import { getLastPlayer, getLeaderboard } from '../api/client';
 import type { LeaderboardEntry, LeaderboardResponse, Sport } from '../api/types';
 import { artImg, el, ensurePositioned, html, isTyping, prefersReducedMotion } from './dom';
 import { ICONS } from './icons';
+import { HighlightsTicker } from './HighlightsTicker';
 import type { GameContext, GameSession } from './shellTypes';
 
 export interface LeaderboardScreenOptions {
@@ -47,6 +48,9 @@ export class LeaderboardScreen {
   private readonly source = el('span', { class: 'kr-src kr-src-pending' }, 'Connecting…');
   private readonly updated = el('span', { class: 'kr-board-updated' }, '');
   private readonly refreshBar = el('div', { class: 'kr-board-refresh' });
+  /** "Live from Snowflake" highlights ticker, between the sport tabs and the table. */
+  private readonly tickerHost = el('div', { class: 'kr-board-ticker' });
+  private ticker: HighlightsTicker | null = null;
   private readonly speedHead = el('span', {}, 'Top SW/s');
   private readonly cache = new Map<Sport, LeaderboardResponse>();
   private readonly lastScores = new Map<string, number>();
@@ -96,6 +100,7 @@ export class LeaderboardScreen {
           this.source,
         ),
         el('nav', { class: 'kr-board-tabs', role: 'tablist', 'aria-label': 'Sport' }, ...this.tabs),
+        this.tickerHost,
         el(
           'div',
           { class: 'kr-board-table' },
@@ -115,6 +120,7 @@ export class LeaderboardScreen {
     ensurePositioned(parent);
     parent.append(this.element);
     window.addEventListener('keydown', this.onKey);
+    this.ticker = new HighlightsTicker(this.tickerHost, { playerId: opts.playerId });
     this.setSport(this.sport, true);
     this.interval = window.setInterval(() => void this.refresh(), this.refreshMs);
   }
@@ -157,6 +163,8 @@ export class LeaderboardScreen {
     this.disposed = true;
     clearInterval(this.interval);
     window.removeEventListener('keydown', this.onKey);
+    this.ticker?.destroy();
+    this.ticker = null;
     this.element.remove();
   }
 

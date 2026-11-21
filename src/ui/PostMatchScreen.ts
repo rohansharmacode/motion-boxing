@@ -13,6 +13,7 @@
 import type { CoachCard, LeaderboardEntry, RoundResult, RoundStats, SessionEndResponse } from '../api/types';
 import { artImg, el, ensurePositioned, html, isTyping, leave, prefersReducedMotion } from './dom';
 import { ICONS } from './icons';
+import { HighlightsTicker } from './HighlightsTicker';
 import type { GameContext } from './shellTypes';
 
 export interface PostMatchScreenOptions {
@@ -56,6 +57,9 @@ export class PostMatchScreen {
   private readonly opts: PostMatchScreenOptions;
   private readonly coachBody = el('div', { class: 'kr-panel-body' });
   private readonly lbBody = el('div', { class: 'kr-panel-body' });
+  /** "Live from Snowflake" highlights ticker under the buttons. */
+  private readonly tickerHost = el('div', { class: 'kr-post-ticker' });
+  private ticker: HighlightsTicker | null = null;
   private readonly source = el('span', { class: 'kr-src kr-src-pending' }, 'Connecting…');
   private readonly rematchBtn: HTMLButtonElement;
   private loadingTimer = 0;
@@ -84,7 +88,7 @@ export class PostMatchScreen {
           el(
             'div',
             {},
-            el('div', { class: 'kr-post-chips' }, el('span', { class: 'kr-live' }, el('span', {}, 'Final')), this.source),
+            el('div', { class: 'kr-post-chips' }, el('span', { class: 'kr-live' }, el('span', {}, 'Final')), this.source, this.tickerHost),
             resultTitle(opts.result, won),
           ),
           el('div', { class: 'kr-result-score' }, el('span', { class: 'kr-label' }, 'Score'), scoreNum),
@@ -108,6 +112,7 @@ export class PostMatchScreen {
     this.showLoading();
     ensurePositioned(parent);
     parent.append(this.element);
+    this.ticker = new HighlightsTicker(this.tickerHost, { playerId: opts.playerId });
     window.addEventListener('keydown', this.onKey);
     this.countUp(scoreNum, opts.score);
     requestAnimationFrame(() => this.rematchBtn.focus({ preventScroll: true }));
@@ -154,6 +159,8 @@ export class PostMatchScreen {
   }
 
   private cleanup() {
+    this.ticker?.destroy();
+    this.ticker = null;
     window.removeEventListener('keydown', this.onKey);
     clearInterval(this.loadingTimer);
     cancelAnimationFrame(this.raf);

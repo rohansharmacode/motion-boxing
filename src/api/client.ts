@@ -15,11 +15,13 @@
 // No Promise from this module rejects: any network error, non-2xx or timeout falls back to
 // mock data (source: 'mock'). Mock mode = VITE_API_URL empty or VITE_USE_MOCK === 'true'.
 
-import { mockLeaderboard, mockPlayer, mockSessionEnd, recordMockScore } from './mock';
+import { mockHighlights, mockLeaderboard, mockPlayer, mockSessionEnd, recordMockScore } from './mock';
 import { parseCoach, parseLeaderboard, serverSport, toServerEvent } from './serverAdapter';
 import type { MotionEvent as LibMotionEvent } from '../lib/motion';
 import type {
   ApiStatus,
+  Highlight,
+  HighlightsResponse,
   LeaderboardResponse,
   MotionEvent,
   MotionEventDetail,
@@ -31,6 +33,7 @@ import type {
   SessionEndResponse,
   Sport,
   StartSessionResponse,
+  UploadStats,
 } from './types';
 
 export const MOTION_EVENT = 'motion-event';
@@ -178,7 +181,44 @@ function persistOutbox() {
   else storageSet(OUTBOX_KEY, JSON.stringify(outbox));
 }
 
+// ---- upload stats (live Snowflake counter) ----
+let rowsSent = 0;
+let rowsCaptured = 0;
+let lastBatch = 0;
+let lastSentAt = 0;
+const uploadListeners = new Set<(s: UploadStats) => void>();
+let notifyQueued = false;
+
+/** Rows captured / accepted by the server since page load. Cheap: no allocation beyond the snapshot. */
+export function getUploadStats(): UploadStats {
+  const { mode, queued } = getApiStatus();
+  return { mode, sent: rowsSent, captured: rowsCaptured, queued, lastBatch, lastSentAt };
+}
+
+/**
+ * Subscribe to upload changes (new rows captured, a batch accepted, the API going offline).
+ * Calls back once straight away; returns an unsubscribe function. Bursts are coalesced to one
+ * callback per microtask, so a HUD can update its DOM directly in the callback.
+ */
+export function onUploadStats(cb: (s: UploadStats) => void): () => void {
+  uploadListeners.add(cb);
+  cb(getUploadStats());
+  return () => uploadListeners.delete(cb);
+}
+
+function notifyUpload(): void {
+  if (notifyQueued || uploadListeners.size === 0) return;
+  notifyQueued = true;
+  queueMicrotask(() => {
+    notifyQueued = false;
+    const s = getUploadStats();
+    for (const cb of uploadListeners) cb(s);
+  });
+}
+
 function enqueue(ev: MotionEvent) {
+  rowsCaptured++;
+  notifyUpload();
   if (USE_MOCK) return; // nothing to send; the session keeps its own copy for stats()
   outbox.push(ev);
   capOutbox();
@@ -195,6 +235,12 @@ async function sendOnce(): Promise<'done' | 'more' | 'failed'> {
     backoffMs = 0;
     nextAttemptAt = 0;
     persistOutbox();
+    if (payload.length) {
+      rowsSent += payload.length;
+      lastBatch = payload.length;
+      lastSentAt = Date.now();
+    }
+    notifyUpload();
     return outbox.length ? 'more' : 'done';
   } catch (err) {
     // A 4xx (other than timeout/rate limit) will never succeed: drop the batch instead of
@@ -210,6 +256,7 @@ async function sendOnce(): Promise<'done' | 'more' | 'failed'> {
     nextAttemptAt = Date.now() + backoffMs;
     persistOutbox();
     console.warn(`[api] events batch failed (${batch.length}), retrying in ${backoffMs / 1000}s`, err);
+    notifyUpload();
     return 'failed';
   }
 }
@@ -706,5 +753,44 @@ export async function finishSession(req: SessionEndRequest, serverSessionId: str
   } catch (err) {
     console.warn('[api] session/end failed, using mock coach', err);
     return mockSessionEnd(req);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Highlights feed (GET /api/highlights, Snowflake Streams + Tasks -> T_HIGHLIGHTS)
+// ---------------------------------------------------------------------------
+
+/** Kinds worth showing to players; suspicious_speed is an anti-cheat flag, not a highlight. */
+const SHOWN_HIGHLIGHT_KINDS = new Set(['speed_record', 'reaction_record', 'personal_best_speed', 'punch_milestone']);
+
+function parseHighlights(v: unknown): Highlight[] | null {
+  const rows = isRecord(v) && Array.isArray(v.highlights) ? v.highlights : Array.isArray(v) ? v : null;
+  if (!rows) return null;
+  return rows.filter(isRecord).map((h, i) => ({
+    highlight_id: String(h.highlight_id ?? `h-${i}`),
+    created_at: String(h.created_at ?? ''),
+    kind: String(h.kind ?? ''),
+    player_id: String(h.player_id ?? ''),
+    name: String(h.name ?? 'Player'),
+    session_id: String(h.session_id ?? ''),
+    value: typeof h.value === 'number' && Number.isFinite(h.value) ? h.value : null,
+    unit: String(h.unit ?? ''),
+    message: String(h.message ?? ''),
+  }));
+}
+
+/** Latest highlights, newest first, player-facing kinds only. Never rejects; falls back to mock. */
+export async function getHighlights(limit = 10): Promise<HighlightsResponse> {
+  const n = Math.max(1, Math.min(50, Math.floor(limit) || 10));
+  if (USE_MOCK) return mockHighlights(n);
+  try {
+    const data = await request<unknown>('GET', `/api/highlights?limit=${Math.min(50, n * 2)}`);
+    const rows = parseHighlights(data);
+    if (!rows) throw new Error('highlights: unexpected response shape');
+    const available = !(isRecord(data) && data.available === false);
+    return { available, highlights: rows.filter((h) => SHOWN_HIGHLIGHT_KINDS.has(h.kind)).slice(0, n), source: 'live' };
+  } catch (err) {
+    console.warn('[api] highlights failed, using mock', err);
+    return mockHighlights(n);
   }
 }
