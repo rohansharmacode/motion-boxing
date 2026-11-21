@@ -29,6 +29,7 @@ export function createFakeScene(): FakeScene {
       return undefined
     },
     resize: rec('resize'),
+    setQuality: rec('setQuality'),
     setKeeper: rec('setKeeper'),
     setBall: rec('setBall'),
     setStriker: rec('setStriker'),
