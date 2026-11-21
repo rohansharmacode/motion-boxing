@@ -7,6 +7,8 @@ import type { Landmark as RawLandmark, NormalizedLandmark, PoseLandmarker } from
 import { StartupError } from './types.ts'
 import type { Joint, PoseFrame, StartupErrorKind } from './types.ts'
 import { LANDMARKS, STRIDE } from './workerProtocol.ts'
+import { createFrameClock } from './frameClock.ts'
+import type { FrameMeta } from './frameClock.ts'
 import type { TrackerAttempt, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
 
 /** WASM runtime. The version in this URL must match @mediapipe/tasks-vision in package.json. */
@@ -352,7 +354,6 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
 
   const subscribers = new Set<(frame: PoseFrame | null) => void>()
   let running = true
-  let lastT = -Infinity
   let lastVideoTime = -1
   let inferenceMs = 0
   let warnedFrame = false
@@ -375,15 +376,11 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     inferenceMs = inferenceMs === 0 ? ms : inferenceMs + INFERENCE_EMA * (ms - inferenceMs)
   }
 
-  const nextT = (now: number): number => {
-    const t = now > lastT ? now : lastT + 1
-    lastT = t
-    return t
-  }
+  /** Frames are stamped with the camera's capture time, so wrist speeds do not jitter with load. */
+  const clock = createFrameClock()
 
-  const detectOnMain = (landmarker: PoseLandmarker): void => {
+  const detectOnMain = (landmarker: PoseLandmarker, t: number): void => {
     const now = performance.now()
-    const t = nextT(now)
     try {
       const result = landmarker.detectForVideo(video, t)
       noteInference(performance.now() - now)
@@ -443,7 +440,7 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
   }
   if (engine.kind === 'worker') wireWorker(engine.worker)
 
-  const sendToWorker = (w: Worker): void => {
+  const sendToWorker = (w: Worker, t: number): void => {
     const now = performance.now()
     if (busySince !== null) {
       // Skip frames while the worker is busy; recover if one never comes back.
@@ -451,14 +448,13 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
       busySince = null
     }
     busySince = now
-    const t = nextT(now)
     createImageBitmap(video).then(
       (bitmap) => {
         if (!running || engine.kind !== 'worker' || engine.worker !== w) {
           bitmap.close()
           return
         }
-        const msg: WorkerRequest = { type: 'frame', bitmap, t, captureT: now }
+        const msg: WorkerRequest = { type: 'frame', bitmap, t, captureT: t }
         w.postMessage(msg, [bitmap])
       },
       () => {
@@ -473,7 +469,7 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     if (useVfc) video.requestVideoFrameCallback(tick)
     else requestAnimationFrame(tick)
   }
-  const tick = (): void => {
+  const tick = (now: number, meta?: FrameMeta): void => {
     if (!running) return
     schedule()
     if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
@@ -481,8 +477,8 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
       if (video.currentTime === lastVideoTime) return
       lastVideoTime = video.currentTime
     }
-    if (engine.kind === 'worker') sendToWorker(engine.worker)
-    else if (engine.kind === 'main') detectOnMain(engine.landmarker)
+    if (engine.kind === 'worker') sendToWorker(engine.worker, clock.stamp(now, meta))
+    else if (engine.kind === 'main') detectOnMain(engine.landmarker, clock.stamp(now, meta))
   }
   schedule()
 
