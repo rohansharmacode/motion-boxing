@@ -336,3 +336,95 @@
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- neon, quieter (Vercel-like): flat surfaces, 1px borders, mono icons, one accent on focus ---------- */
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-bg { background: #0a0a0b; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile {
+  border: 1px solid #26272b;
+  border-radius: 12px;
+  background: #111113;
+  box-shadow: none;
+}
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile::after {
+  inset: -1px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #ededed;
+}
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile-art,
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile-glyph { background: #111113; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile-glyph svg :is(circle, path, rect, line, polyline, polygon) { stroke: #8f8f96; transition: stroke 160ms ease; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile-glyph svg [fill]:not([fill='none']) { fill: #8f8f96; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile:is(:hover, :focus-visible, :focus) .ch-tile-glyph svg :is(circle, path, rect, line, polyline, polygon) { stroke: var(--a); }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile:is(:hover, :focus-visible, :focus) .ch-tile-glyph svg [fill]:not([fill='none']) { fill: var(--a); }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile-title {
+  font: 500 clamp(15px, 1.35vw, 19px) / 1 var(--ch-display);
+  letter-spacing: -0.01em;
+  color: #ededed;
+  border-top: 1px solid #26272b;
+}
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-tile--empty { border-color: #1a1b1e; background: #0d0d0f; box-shadow: none; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-bar-shape path:first-of-type { fill: #0f0f11; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-bar-shape path:last-of-type { stroke: #26272b; stroke-width: 1; opacity: 1; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-clock { font-weight: 500; letter-spacing: -0.03em; }
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-date { color: #8f8f96; letter-spacing: 0.08em; }
+
+/* Start screen, quieter: flat background, sentence-case title, white primary button, 1px borders. */
+:root:not(#_)[data-theme='neon'] .kr-backdrop { background: #0a0a0b; }
+:root:not(#_)[data-theme='neon'] .kr-backdrop::before,
+:root:not(#_)[data-theme='neon'] .kr-backdrop::after { display: none; }
+:root:not(#_)[data-theme='neon'] .kr-k-start { background-color: rgba(10, 10, 11, 0.86); }
+:root:not(#_)[data-theme='neon'] .kr-k-title {
+  font: 600 clamp(44px, 6vw, 80px) / 1 'Geist Sans', system-ui, sans-serif;
+  letter-spacing: -0.045em;
+  text-transform: none;
+  color: #ededed;
+}
+:root:not(#_)[data-theme='neon'] .kr-k-title span { color: #8f8f96; }
+:root:not(#_)[data-theme='neon'] .kr-k-sub { font-size: clamp(15px, 1.3vw, 18px); color: #a1a1aa; }
+:root:not(#_)[data-theme='neon'] .kr-k-hint { font-size: 13px; color: #71717a; }
+:root:not(#_)[data-theme='neon'] .kr-k-name {
+  width: min(360px, 84vw);
+  padding: 10px 14px;
+  background: #0a0a0b;
+  border: 1px solid #2e2e33;
+  border-radius: 8px;
+  font: 500 17px / 1.3 'Geist Sans', system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none;
+}
+:root:not(#_)[data-theme='neon'] .kr-k-name:focus { border-color: #ededed; box-shadow: 0 0 0 3px rgba(237, 237, 237, 0.12); }
+:root:not(#_)[data-theme='neon'] .kr-btn {
+  padding: 11px 20px;
+  border-radius: 8px;
+  clip-path: none;
+  font: 500 15px / 1 'Geist Sans', system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  transform: none;
+  filter: none;
+}
+:root:not(#_)[data-theme='neon'] .kr-btn.kr-btn-pink { background: #ededed; color: #0a0a0b; }
+:root:not(#_)[data-theme='neon'] .kr-btn.kr-btn-pink:hover:not(:disabled) { background: #ffffff; }
+:root:not(#_)[data-theme='neon'] .kr-btn.kr-btn-ghost { background: transparent; color: #ededed; box-shadow: inset 0 0 0 1px #2e2e33; }
+:root:not(#_)[data-theme='neon'] .kr-btn.kr-btn-ghost:hover:not(:disabled) { box-shadow: inset 0 0 0 1px #71717a; }
+:root:not(#_)[data-theme='neon'] .kr-btn .kr-kbd { border-color: currentColor; color: inherit; opacity: 0.6; }
+:root:not(#_)[data-theme='neon'] .vs-entry {
+  border: 1px solid #2e2e33;
+  border-radius: 8px;
+  background: transparent;
+  color: #a1a1aa;
+  font: 500 14px / 1 'Geist Sans', system-ui, sans-serif;
+  box-shadow: none;
+}
+
+:root:not(#_)[data-theme='neon'] .shell--channels .ch-bar { background: #0f0f11; border-top: 1px solid #1f2024; }
+:root:not(#_)[data-theme='neon'] .kr-btn { letter-spacing: -0.01em; }
+:root:not(#_)[data-theme='neon'] .shell-home {
+  border: 1px solid #2e2e33;
+  border-radius: 8px;
+  background: rgba(10, 10, 11, 0.8);
+  box-shadow: none;
+  color: #ededed;
+  font-weight: 500;
+}

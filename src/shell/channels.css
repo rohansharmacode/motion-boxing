@@ -651,3 +651,4 @@
 :root[data-theme='neon'] .shell--channels .ch-chip[aria-pressed='true'] { border-color: var(--ch-accent); color: var(--ch-accent); }
 
 :root[data-theme='neon'] .shell--channels .shell-toast { bottom: calc(var(--bar-h) + 12px); }
+
