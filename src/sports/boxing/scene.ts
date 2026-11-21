@@ -36,11 +36,13 @@ import {
   createVignetteTexture,
   hdr,
 } from './sceneParts.ts'
-import type { DroneHitPart, GloveParts } from './sceneParts.ts'
+import type { DroneHitPart, DroneParts, GloveParts } from './sceneParts.ts'
 import { STRIKE_TIMING, WIND_MS, blendAttackPose, createPose } from './sceneAttack.ts'
 import { createRenderPipeline } from './scenePost.ts'
 import { buildArenaDressing } from './arenaDressing.ts'
 import { createGloveTrail, createShockwaves } from './sceneFx.ts'
+import { loadRobotBody } from './robotModel.ts'
+import type { RobotBody } from './robotModel.ts'
 import { brightBoxingLook } from '../../theme/bright/boxing.ts'
 import { buildHumanoid } from '../../theme/bright/avatar.ts'
 import { gloveColors, schemeOf } from '../../custom/look.ts'
@@ -296,12 +298,18 @@ function elbowAngle(world: Joint[], j: Glove['joints']): number | null {
   return (Math.acos(clamp((ax * bx + ay * by + az * bz) / (la * lb), -1, 1)) * 180) / Math.PI
 }
 
+/** Bigger gloves (display only; hit tests use the aim point, not the glove size). */
+function scaleGlove(parts: GloveParts): GloveParts {
+  parts.group.scale.multiplyScalar(1.4)
+  return parts
+}
+
 function makeGlove(hand: Hand, robot?: RobotLook): Glove {
   const left = hand === 'left'
   return {
     hand,
     side: left ? -1 : 1,
-    parts: look ? look.buildGlove(hand) : buildGlove(hand, robot),
+    parts: scaleGlove(look ? look.buildGlove(hand) : buildGlove(hand, robot)),
     joints: left
       ? { shoulder: LM.L_SHOULDER, elbow: LM.L_ELBOW, wrist: LM.L_WRIST }
       : { shoulder: LM.R_SHOULDER, elbow: LM.R_ELBOW, wrist: LM.R_WRIST },
@@ -385,7 +393,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   const rig = new Group()
   rig.position.set(0, EYE_Y, 0)
   stage.add(rig)
-  const camera = new PerspectiveCamera(46, 1, 0.03, 60)
+  const camera = new PerspectiveCamera(50, 1, 0.03, 60)
   camera.rotation.order = 'YXZ'
   camera.position.set(VIEW.x, EYE_Y + VIEW.y, VIEW.z)
   camera.rotation.set(VIEW.pitch, VIEW.yaw, 0)
@@ -445,6 +453,22 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     twin.root.rotation.y = Math.PI
     twin.root.position.set(PLAYER_TWIN.x, DRONE.y - EYE_Y, PLAYER_TWIN.z)
   }
+  // Smooth glTF robot bodies (CC0) replace the built-in shapes once loaded; gloves stay separate.
+  let droneRobot: RobotBody | null = null
+  let twinRobot: RobotBody | null = null
+  const useRobot = (parts: DroneParts, tint: number, set: (r: RobotBody) => void): void =>
+    loadRobotBody(parts.body, -DRONE.y, tint, (r) => {
+      if (disposed) return
+      for (const c of parts.body.children) if (c !== r.root && c !== parts.headRoot && !parts.pods.includes(c as Group)) c.visible = false
+      parts.headModel?.traverse((o: Object3D) => (o.visible = o === parts.headModel))
+      parts.head.shell = parts.chest.shell = r.paint
+      set(r)
+    })
+  if (!look) {
+    useRobot(drone, 0xd0386a, (r) => (droneRobot = r))
+    if (twin) useRobot(twin, 0x1d8fae, (r) => (twinRobot = r))
+  }
+  let disposed = false
   const playerBase = playerModel.position.clone()
   rig.add(playerModel)
   /** Continuous body lean from the camera (metres, radians), learned against a slow baseline. */
@@ -767,8 +791,12 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
   /** Finisher: the head pops clean off the body and flies up and away, spinning. */
   function knockHeadOff(push: number): void {
-    const obj = drone.headRoot
-    if (headFly || !obj.parent) return
+    if (headFly) return
+    // Model robot: bake its head off the skinned body; otherwise knock the built-in head group off.
+    const baked = droneRobot?.detachHead() ?? null
+    if (baked) scene.add(baked)
+    const obj = baked ?? drone.headRoot
+    if (!obj.parent) return
     const parent = obj.parent
     headFly = {
       obj,
@@ -779,7 +807,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       spin: new Vector3(HEAD_OFF.spinX, push * HEAD_OFF.spinY, push * HEAD_OFF.spinZ),
       settled: false,
     }
-    scene.attach(obj) // keeps its world transform
+    if (!baked) scene.attach(obj) // keeps its world transform
   }
 
   function updateHead(k: KoState, dt: number): void {
@@ -820,6 +848,10 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     const f = headFly
     if (!f) return
     headFly = null
+    if (droneRobot && f.obj !== drone.headRoot) {
+      droneRobot.reattachHead()
+      return
+    }
     f.parent.add(f.obj)
     f.obj.position.copy(f.pos)
     f.obj.quaternion.copy(f.quat)
@@ -947,6 +979,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   }
 
   function updateDrone(dt: number): void {
+    droneRobot?.tick(dt)
+    twinRobot?.tick(dt)
     const ms = dt * 1000
     const { root, body } = drone
     wobble(knockPitch, 13, 0.35, dt)
@@ -1113,7 +1147,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     resize(width, height) {
       post.setSize(width, height)
       camera.aspect = Math.max(1, width) / Math.max(1, height)
-      camera.fov = camera.aspect < 0.9 ? 62 : 46 // portrait screens need more height to fit the drone
+      camera.fov = camera.aspect < 0.9 ? 62 : 50 // portrait screens need more height to fit the drone
       camera.updateProjectionMatrix()
       const halfH = Math.tan((camera.fov * Math.PI) / 360) * -vignette.position.z * 1.08
       vignette.scale.set(halfH * camera.aspect, halfH, 1)
@@ -1366,6 +1400,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     },
 
     dispose() {
+      disposed = true
       const geometries = new Set<BufferGeometry>()
       const materials = new Set<Material>()
       scene.traverse((obj) => {

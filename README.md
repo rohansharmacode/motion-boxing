@@ -119,3 +119,7 @@ Screenshots from the live account: `docs/snowflake-screens/`.
 ### JetBrains Air usage
 
 > **TODO (team):** describe how we used JetBrains Air during the hackathon: which parts it built or reviewed, a concrete example, and a screenshot. Only list what we actually did.
+
+## Credits
+
+- Fighter robot model: "RobotExpressive" by Tomás Laulhé (Quaternius), CC0 1.0, via the three.js examples (modified by Don McCurdy). `public/models/robot.glb`.
