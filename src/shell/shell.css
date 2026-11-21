@@ -10,7 +10,7 @@
   grid-template-rows: auto auto 1fr auto;
   padding: clamp(16px, 3vw, 40px) clamp(16px, 4vw, 56px);
   gap: clamp(10px, 2vh, 22px);
-  font-family: var(--font-body, 'Outfit', system-ui, sans-serif);
+  font-family: var(--font-body, 'Geist Sans', system-ui, sans-serif);
   color: var(--text, #f4f4f0);
   overflow: hidden;
   isolation: isolate;
@@ -110,7 +110,7 @@
 }
 
 .shell-brand-name {
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-family: var(--font-display, 'Geist Sans', sans-serif);
   font-size: clamp(30px, 4vw, 46px);
   letter-spacing: 0.06em;
   line-height: 1;
@@ -151,7 +151,7 @@
 }
 
 .shell-clock {
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-family: var(--font-display, 'Geist Sans', sans-serif);
   font-size: clamp(26px, 3vw, 38px);
   letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
@@ -378,7 +378,7 @@
 }
 
 .shell-tile-title {
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-family: var(--font-display, 'Geist Sans', sans-serif);
   font-size: clamp(24px, min(17cqh, 12cqw), 104px);
   letter-spacing: 0.04em;
   line-height: 0.95;
@@ -495,7 +495,7 @@
 }
 
 .shell-launch-title {
-  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-family: var(--font-display, 'Geist Sans', sans-serif);
   font-weight: 400;
   font-size: clamp(64px, 10vw, 140px);
   letter-spacing: 0.04em;
