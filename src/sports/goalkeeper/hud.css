@@ -785,3 +785,15 @@ body.gk-page {
   .gk-kicks td { padding: 4px 6px; }
   .gk-end .gk-actions { margin-top: 14px; }
 }
+
+/* ---------- difficulty picker ---------- */
+.gk-levels { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
+.gk-level {
+  min-width: 86px; padding: 8px 16px; border: 0; border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.7);
+  font: 600 14px/1 var(--font-body, 'Outfit', system-ui, sans-serif); letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+}
+.gk-level:hover { color: #fff; }
+.gk-level[aria-checked='true'] { background: #22e6ff; color: #0b0c0f; }
+.gk-level[data-level='hard'][aria-checked='true'] { background: #ff3fd0; }
+.gk-level[data-level='easy'][aria-checked='true'] { background: #3dffb0; }
+.gk-level:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

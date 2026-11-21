@@ -9,6 +9,8 @@ import type {
   KickResult,
   ShootoutResult,
 } from './types.ts'
+import { DIFFICULTIES } from './difficulty.ts'
+import type { Difficulty } from './difficulty.ts'
 
 type View = 'start' | 'loading' | 'error' | 'calibration' | 'play' | 'end'
 
@@ -100,7 +102,39 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
     el('span', 'gk-kbd', '`'),
     document.createTextNode(' debug'),
   )
-  start.append(startKicker, title, howTo, startActions, startNote)
+  // Difficulty picker: a radio group of three pills, shared by the start and end screens.
+  const LEVEL_LABEL: Record<Difficulty, string> = { easy: 'Easy', normal: 'Normal', hard: 'Hard' }
+  let onLevel: (level: Difficulty) => void = () => {}
+  let currentLevel: Difficulty = 'normal'
+  const levelPickers: HTMLElement[] = []
+  function levelPicker(): HTMLElement {
+    const group = el('div', 'gk-levels')
+    group.setAttribute('role', 'radiogroup')
+    group.setAttribute('aria-label', 'Difficulty')
+    for (const level of DIFFICULTIES) {
+      const b = el('button', 'gk-level', LEVEL_LABEL[level])
+      b.type = 'button'
+      b.dataset.level = level
+      b.setAttribute('role', 'radio')
+      b.addEventListener('click', () => {
+        if (level === currentLevel) return
+        markLevel(level)
+        onLevel(level)
+      })
+      group.append(b)
+    }
+    levelPickers.push(group)
+    return group
+  }
+  function markLevel(level: Difficulty): void {
+    currentLevel = level
+    for (const g of levelPickers) {
+      for (const b of g.children) {
+        if (b instanceof HTMLElement) b.setAttribute('aria-checked', String(b.dataset.level === level))
+      }
+    }
+  }
+  start.append(startKicker, title, howTo, levelPicker(), startActions, startNote)
 
   // ---------- loading ----------
   const loading = el('section', 'gk-panel gk-loading')
@@ -185,7 +219,7 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   const again = button('Again')
   endActions.append(again)
   if (opts.onHome) endActions.append(homeButton())
-  end.append(endKicker, endSaves, stats, kicksTable, endActions)
+  end.append(endKicker, endSaves, stats, kicksTable, levelPicker(), endActions)
 
   // ---------- debug ----------
   const debug = el('aside', 'gk-debug')
@@ -303,6 +337,11 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
 
     setTelegraph(on: boolean) {
       telegraph.classList.toggle('gk-on', on)
+    },
+
+    setDifficulty(level: Difficulty, onChange: (level: Difficulty) => void) {
+      onLevel = onChange
+      markLevel(level)
     },
 
     setInputMode(mode: InputMode) {

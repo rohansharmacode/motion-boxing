@@ -20,6 +20,7 @@ import { createKeeperHud } from './hud.ts'
 import { createKeeperInput } from './input.ts'
 import { createKeeperSfx } from './sfx.ts'
 import { KICKS_PER_SHOOTOUT } from './types.ts'
+import { loadDifficulty, saveDifficulty } from './difficulty.ts'
 import type { Calibration, KickResult } from './types.ts'
 
 /** Goalkeeper 1-euro tuning from the doc (minimal lag for reflex lunges). body.ts filters in pixels. */
@@ -84,6 +85,11 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   })
   const telemetry = createKeeperTelemetry()
   const engine = createKeeperEngine({ telemetry })
+  engine.setDifficulty(loadDifficulty())
+  hud.setDifficulty(engine.difficulty, (level) => {
+    engine.setDifficulty(level)
+    saveDifficulty(level)
+  })
 
   let disposed = false
   let initialized = false

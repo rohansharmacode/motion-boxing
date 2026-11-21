@@ -2,6 +2,8 @@
 // reaction and velocity metrics, and MOTION_EVENTS telemetry. Research doc section 3 (Sport 2).
 // All time is driven by update(dtMs); no timers.
 
+import { DIFFICULTY_PARAMS, rampSteps, rampedSpeed } from './difficulty.ts'
+import type { Difficulty } from './difficulty.ts'
 import { OneEuroVec3 } from './filter.ts'
 import { keeperPoseFromBody, pointerPose } from './mapping.ts'
 import {
@@ -185,6 +187,9 @@ export function createKeeperEngine(opts?: {
   let telegraphStart = -1
   let leftSaves = 0
   let rightSaves = 0
+  let difficulty: Difficulty = 'normal'
+  /** Real saves this round (glove or body), for the auto-ramp. */
+  let roundSaves = 0
 
   // ---- body pose ----
   // Doc tuning: minCutoff 1.2 Hz, beta 0.12. Poses here are in metres, where a 5 m/s lunge would raise the
@@ -299,10 +304,12 @@ export function createKeeperEngine(opts?: {
     kick = n
     stage = 'idle'
     stageMs = 0
+    const level = DIFFICULTY_PARAMS[difficulty]
     plan = planKick(
       n,
       rng,
       results.map((r) => r.zone),
+      { speed: rampedSpeed(difficulty, roundSaves), curve: level.curve, spread: level.spread },
     )
     telegraphStart = -1
     ballLaunched = false
@@ -361,7 +368,10 @@ export function createKeeperEngine(opts?: {
       accuracy: clamp(accuracy, 0, 100),
       punch,
       ballSpeed: launchSpeed,
+      difficulty,
+      rampStep: rampSteps(roundSaves),
     }
+    if (outcome === 'save' && part !== null) roundSaves++
     results.push(result)
     stage = 'result'
     stageMs = 0
@@ -424,6 +434,7 @@ export function createKeeperEngine(opts?: {
       avgReactionMs: reactN > 0 ? reactSum / reactN : null,
       bestPeakVelocity: best,
       score: Math.round(score),
+      difficulty,
     }
     telemetry.flush()
     flushAcc = 0
@@ -801,6 +812,7 @@ export function createKeeperEngine(opts?: {
       timeScale = 1
       leftSaves = 0
       rightSaves = 0
+      roundSaves = 0
       telemetry.startRound()
       scene?.reset()
       phase = 'playing'
@@ -849,6 +861,13 @@ export function createKeeperEngine(opts?: {
 
       queueTickIfDue(dt)
       pushScene()
+    },
+
+    setDifficulty(level: Difficulty) {
+      difficulty = level
+    },
+    get difficulty() {
+      return difficulty
     },
 
     flushTelemetry() {

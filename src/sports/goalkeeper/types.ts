@@ -10,6 +10,7 @@
 // ZONES: 9-zone grid, index = row * 3 + col. row 0 = top, row 2 = bottom. col 0 = screen left (-x), col 2 = screen right.
 
 import type { BodyFrame, Calibration, CalibrationStatus } from '../../pose/types.ts'
+import type { Difficulty } from './difficulty.ts'
 
 export type { BodyFrame, Calibration, CalibrationStatus }
 
@@ -141,6 +142,10 @@ export interface KickResult {
   /** True when glove speed toward the ball was high enough for a punch clearance. */
   punch: boolean
   ballSpeed: number
+  /** Level the kick was taken at. */
+  difficulty?: Difficulty
+  /** Auto-ramp step (0 = base speed) the kick was taken at. */
+  rampStep?: number
 }
 
 export interface ShootoutResult {
@@ -152,6 +157,7 @@ export interface ShootoutResult {
   bestPeakVelocity: number
   /** Arcade score: saves * 1000 + bonuses (fast reaction, punch clearance). */
   score: number
+  difficulty?: Difficulty
 }
 
 export type KeeperPhase = 'idle' | 'playing' | 'ended'
@@ -163,6 +169,9 @@ export interface KeeperEngine extends SportEngine<KeeperScene> {
   readonly results: readonly KickResult[]
   /** Start a 5-kick shootout. */
   startShootout(): void
+  /** Level for the next shootout (and the rest of the current one). */
+  setDifficulty(level: Difficulty): void
+  readonly difficulty: Difficulty
   /** Mouse fallback. A goal-plane point both gloves gather around; overrides pose while non-null. */
   setPointer(target: { x: number; y: number } | null): void
   onKickResult(cb: (r: KickResult) => void): void
@@ -241,6 +250,8 @@ export interface KeeperHud {
   /** Short callout such as SAVED!, GOAL, PUNCHED CLEAR, GET READY. */
   callout(text: string, tone: 'good' | 'bad' | 'info'): void
   setInputMode(mode: InputMode): void
+  /** Easy / Normal / Hard picker on the start and end screens. onChange fires on a new pick. */
+  setDifficulty(level: Difficulty, onChange: (level: Difficulty) => void): void
   /** Faint edge pulse while the striker telegraphs (the 0.5 s stance tell). */
   setTelegraph(on: boolean): void
   showEnd(result: ShootoutResult, onAgain: () => void): void
