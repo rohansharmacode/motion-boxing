@@ -1,0 +1,131 @@
+<!doctype html>
+<!-- Motion lab: record real motions for every game and train (score + tune) the detectors on them.
+     Dev server only (npm run dev -> /record.html); not part of the production build. See recordings/README.md. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motion lab: record and train</title>
+    <style>
+      :root { color-scheme: dark; --bg: #0b1020; --card: #141b30; --line: #2a3557; --text: #e6ecff; --muted: #8d9bc4; --accent: #4cc2ff; --rec: #ff5c5c; --ok: #3ddc84; --warn: #ffb020; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 14px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+      header { display: flex; gap: 16px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+      header h1 { font-size: 18px; margin: 0 12px 0 0; }
+      .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+      .seg button { border: 0; border-radius: 0; margin: 0; }
+      .seg button.on { background: var(--accent); color: #001a29; font-weight: 600; }
+      main { padding: 16px 18px; }
+      .cols { display: grid; grid-template-columns: minmax(360px, 560px) 1fr; gap: 18px; align-items: start; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+      .card h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+      button, select, input, textarea { font: inherit; color: inherit; background: #1b2440; border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; margin: 2px; }
+      button { cursor: pointer; }
+      button:disabled { opacity: .45; cursor: default; }
+      button.primary { background: var(--accent); color: #001a29; font-weight: 600; border-color: transparent; }
+      button.rec { background: var(--rec); color: #fff; border-color: transparent; }
+      .stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 10px; overflow: hidden; }
+      .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+      .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .badge { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 6px; background: rgba(0,0,0,.6); font-weight: 600; }
+      .badge.rec { background: var(--rec); }
+      .labels { display: flex; flex-wrap: wrap; gap: 4px; }
+      .labels button.on { background: var(--rec); color: #fff; }
+      .muted { color: var(--muted); }
+      .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--rec); }
+      table { border-collapse: collapse; width: 100%; font-size: 13px; }
+      th, td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: right; white-space: nowrap; }
+      th:first-child, td:first-child { text-align: left; }
+      #events { font: 12px ui-monospace, monospace; max-height: 260px; overflow: auto; }
+      #events div { padding: 1px 0; }
+      .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 12px; }
+      .grid2 label { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12px; }
+      .grid2 input { width: 80px; text-align: right; }
+      pre { white-space: pre-wrap; font: 12px ui-monospace, monospace; background: #0f1528; padding: 8px; border-radius: 6px; margin: 6px 0; }
+      kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 12px; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Motion lab</h1>
+      <div class="seg" id="games"></div>
+      <div class="seg" id="tabs"><button data-tab="record" class="on">Record</button><button data-tab="train">Train</button></div>
+      <span class="muted" id="gameNote"></span>
+    </header>
+    <main>
+      <section id="tab-record" class="cols">
+        <div>
+          <div class="stage"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div class="badge" id="badge">camera off</div></div>
+          <div class="card" style="margin-top:10px">
+            <button class="primary" id="camera">Start camera</button>
+            <span id="calStatus" class="muted"></span>
+            <div id="calHint" class="muted" style="margin-top:4px"></div>
+            <div id="perf" class="muted" style="font-size:12px;margin-top:4px"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h2>Session</h2>
+            <label>Person <input id="person" placeholder="name" size="10" /></label>
+            <label>Distance (m) <input id="dist" value="1.5" size="4" /></label>
+            <label>Lighting <input id="light" value="room" size="10" /></label>
+          </div>
+          <div class="card">
+            <h2>Take</h2>
+            <button id="take" class="primary" disabled>Start take</button>
+            <button id="save" disabled>Save take <kbd>Alt+S</kbd></button>
+            <button id="discard" disabled>Discard</button>
+            <div id="takeInfo" class="muted" style="margin-top:6px"></div>
+            <div class="labels" id="labels" style="margin-top:8px"></div>
+            <div id="howTo" class="muted" style="margin-top:6px"></div>
+            <div style="margin-top:8px">
+              <button id="mark" disabled>Mark rep <kbd>Alt+Space</kbd></button>
+              <button id="end" disabled>End set <kbd>Alt+Enter</kbd></button>
+            </div>
+            <table style="margin-top:8px"><thead><tr><th>Set</th><th>Reps</th><th>Marked</th><th>Detected live</th><th></th></tr></thead><tbody id="sets"></tbody></table>
+          </div>
+          <div class="card">
+            <h2>Live detections <span class="muted" style="text-transform:none;letter-spacing:0">(this game's detector, recalibrated at each take start)</span></h2>
+            <div id="events"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-train" hidden>
+        <div class="card">
+          <h2>Recordings</h2>
+          <button id="reload">Reload list</button>
+          <label><input type="checkbox" id="byPerson" /> Also score per person</label>
+          <span id="recInfo" class="muted"></span>
+          <table style="margin-top:6px"><thead><tr><th><input type="checkbox" id="all" checked /> File</th><th>Person</th><th>Dist</th><th>Light</th><th>Sets</th><th>Size</th></tr></thead><tbody id="recs"></tbody></table>
+        </div>
+        <div class="card" id="noDetector" hidden>
+          <h2>No detector yet</h2>
+          <p class="muted">This game has no discrete motion detector to train yet. Record anyway: the takes stay in <code>recordings/</code> and are scored as soon as a detector exists.</p>
+        </div>
+        <div class="card" id="scoreCard">
+          <h2>Score</h2>
+          <button class="primary" id="score">Score selected recordings</button>
+          <span id="scoreInfo" class="muted"></span>
+          <div id="scoreOut"></div>
+        </div>
+        <div class="card" id="tuneCard">
+          <h2>Tune (boxing thresholds)</h2>
+          <p class="muted" style="margin-top:0">Edit values and press Score to see the effect, or Auto-tune: it tries one step up and down for each value and keeps changes that improve
+            mean F1 minus idle triggers. Check per-person results before trusting it (it can overfit one person).</p>
+          <div class="grid2" id="params"></div>
+          <div style="margin-top:8px">
+            <button id="autotune" class="primary">Auto-tune</button>
+            <label>rounds <input id="rounds" value="2" size="2" /></label>
+            <button id="resetParams">Reset to defaults</button>
+            <button id="copyCfg">Copy overrides (JSON)</button>
+            <span id="tuneInfo" class="muted"></span>
+          </div>
+          <pre id="tuneLog" hidden></pre>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/dev/recordPage.ts"></script>
+  </body>
+</html>
