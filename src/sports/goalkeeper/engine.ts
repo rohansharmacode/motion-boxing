@@ -1,0 +1,838 @@
+// Reflex Keeper engine: striker state machine, fixed-step ball physics, swept glove/torso saves,
+// reaction and velocity metrics, and MOTION_EVENTS telemetry. Research doc section 3 (Sport 2).
+// All time is driven by update(dtMs); no timers.
+
+import { OneEuroVec3 } from './filter.ts'
+import { keeperPoseFromBody, pointerPose } from './mapping.ts'
+import {
+  BALL_RADIUS,
+  GLOVE_RADIUS,
+  GOAL_Z,
+  PENALTY_Z,
+  PHYS_DT,
+  TORSO_RADIUS,
+  inGoalMouth,
+  resolveSave,
+  solveLaunch,
+  stepBall,
+  sweptCapsuleHit,
+  sweptSphereHit,
+} from './physics.ts'
+import {
+  IDLE_MS,
+  KICK_MS,
+  RECOVER_MS,
+  RESULT_MS,
+  RUNUP_MS,
+  TELEGRAPH_MS,
+  planKick,
+} from './striker.ts'
+import { createKeeperTelemetry } from './telemetry.ts'
+import {
+  KICKS_PER_SHOOTOUT,
+  type BallState,
+  type BodyFrame,
+  type Calibration,
+  type KeeperEngine,
+  type KeeperPart,
+  type KeeperPhase,
+  type KeeperPose,
+  type KeeperScene,
+  type KeeperTelemetry,
+  type KickPlan,
+  type KickResult,
+  type ShootoutResult,
+  type StrikerPhase,
+  type StrikerTell,
+  type SweptHit,
+  type Vec3,
+  type Zone,
+} from './types.ts'
+
+/** Internal per-kick stage. 'result' shows the striker in 'recover'. */
+type Stage = StrikerPhase | 'result'
+
+const MAX_DT_MS = 100
+const MAX_SUBSTEPS = 8
+/** No body for this long: hand the scene a null pose (gloves ease to ready). */
+const UNTRACKED_GRACE_MS = 400
+/** Glove speed (m/s) that counts as a decisive reaction. */
+const REACTION_SPEED = 1.8
+/** Glove speed (m/s) toward the ball for a punch clearance. */
+const PUNCH_SPEED = 2.5
+const TICK_MS = 200
+const AUTO_FLUSH_MS = 2500
+/** Velocity EMA weight per new sample. */
+const VEL_EMA = 0.5
+/** Untracked velocity decay time constant, ms. */
+const VEL_DECAY_MS = 150
+/** Collision window around the keeper plane (ball centre z). */
+const COLLIDE_Z_MIN = GOAL_Z - 1.0
+const COLLIDE_Z_MAX = GOAL_Z + 0.3
+/** Failsafe: resolve as off target if the ball has not crossed this long after the planned flight. */
+const FLIGHT_TIMEOUT_S = 1.5
+/** Goal: ball settles inside the net no deeper than this. */
+const NET_DEPTH_Z = 1.2
+
+const NEUTRAL_TELL: StrikerTell = { side: 0, high: false }
+
+function v3(): Vec3 {
+  return { x: 0, y: 0, z: 0 }
+}
+function set3(dst: Vec3, x: number, y: number, z: number): void {
+  dst.x = x
+  dst.y = y
+  dst.z = z
+}
+function cp(dst: Vec3, src: Vec3): void {
+  dst.x = src.x
+  dst.y = src.y
+  dst.z = src.z
+}
+function lerpInto(dst: Vec3, a: Vec3, b: Vec3, t: number): void {
+  dst.x = a.x + (b.x - a.x) * t
+  dst.y = a.y + (b.y - a.y) * t
+  dst.z = a.z + (b.z - a.z) * t
+}
+function len(a: Vec3): number {
+  return Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z)
+}
+function dist(a: Vec3, b: Vec3): number {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  const dz = a.z - b.z
+  return Math.sqrt(dx * dx + dy * dy + dz * dz)
+}
+function clamp(x: number, lo: number, hi: number): number {
+  return x < lo ? lo : x > hi ? hi : x
+}
+function round3(x: number): number {
+  return Math.round(x * 1000) / 1000
+}
+function makePose(): KeeperPose {
+  return { left: v3(), right: v3(), torsoTop: v3(), torsoBottom: v3(), tracked: false }
+}
+function copyPose(dst: KeeperPose, src: KeeperPose): void {
+  cp(dst.left, src.left)
+  cp(dst.right, src.right)
+  cp(dst.torsoTop, src.torsoTop)
+  cp(dst.torsoBottom, src.torsoBottom)
+  dst.tracked = src.tracked
+}
+function closestOnSegmentInto(dst: Vec3, p: Vec3, a: Vec3, b: Vec3): void {
+  const abx = b.x - a.x
+  const aby = b.y - a.y
+  const abz = b.z - a.z
+  const l2 = abx * abx + aby * aby + abz * abz
+  let u = l2 < 1e-12 ? 0 : ((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / l2
+  u = clamp(u, 0, 1)
+  set3(dst, a.x + abx * u, a.y + aby * u, a.z + abz * u)
+}
+
+/** Per-part velocity set (m/s). */
+interface PartVel {
+  left: Vec3
+  right: Vec3
+  torso: Vec3
+}
+function makeVel(): PartVel {
+  return { left: v3(), right: v3(), torso: v3() }
+}
+function zeroVel(v: PartVel): void {
+  set3(v.left, 0, 0, 0)
+  set3(v.right, 0, 0, 0)
+  set3(v.torso, 0, 0, 0)
+}
+function emaInto(dst: Vec3, cur: Vec3, prev: Vec3, dtS: number): void {
+  dst.x += VEL_EMA * ((cur.x - prev.x) / dtS - dst.x)
+  dst.y += VEL_EMA * ((cur.y - prev.y) / dtS - dst.y)
+  dst.z += VEL_EMA * ((cur.z - prev.z) / dtS - dst.z)
+}
+
+export function createKeeperEngine(opts?: {
+  rng?: () => number
+  telemetry?: KeeperTelemetry
+}): KeeperEngine {
+  const rng = opts?.rng ?? Math.random
+  const telemetry = opts?.telemetry ?? createKeeperTelemetry()
+
+  let scene: KeeperScene | null = null
+  let swMetres = 0.4
+  let disposed = false
+
+  // ---- callbacks ----
+  let kickCbs: ((r: KickResult) => void)[] = []
+  let strikerCbs: ((phase: StrikerPhase, kick: number) => void)[] = []
+  let endCbs: ((r: ShootoutResult) => void)[] = []
+
+  // ---- engine clock & phase ----
+  let clock = 0 // ms of update-driven time
+  let phase: KeeperPhase = 'idle'
+  let results: KickResult[] = []
+  let kick = 0
+  let stage: Stage = 'idle'
+  let stageMs = 0
+  let lastSceneStriker: StrikerPhase | null = null
+  let plan: KickPlan | null = null
+  let telegraphStart = -1
+  let leftSaves = 0
+  let rightSaves = 0
+
+  // ---- body pose ----
+  // Doc tuning: minCutoff 1.2 Hz, beta 0.12. Poses here are in metres, where a 5 m/s lunge would raise the
+  // cutoff by only 0.6 Hz (~130 ms lag). Treat beta as per cm/s (x100) so fast reaches pass with little lag.
+  const BETA_PER_M = 0.12 * 100
+  const filters = {
+    left: new OneEuroVec3(1.2, BETA_PER_M),
+    right: new OneEuroVec3(1.2, BETA_PER_M),
+    torsoTop: new OneEuroVec3(1.2, BETA_PER_M),
+    torsoBottom: new OneEuroVec3(1.2, BETA_PER_M),
+  }
+  const bodyPose = makePose()
+  const bodyPrev = makePose()
+  let hasBodyPose = false
+  let bodyT = -1 // ms (BodyFrame.t) of the last filtered sample
+  let bodyTracked = false
+  let untrackedSinceClock = 0
+  const bodyVel = makeVel()
+
+  // ---- pointer ----
+  let pointerActive = false
+  const pointerCur = makePose()
+  const pointerLast = makePose() // at the previous update
+  let pointerHasLast = false
+  const pointerVel = makeVel()
+
+  // ---- collision interpolation (active pose at the end of the previous update) ----
+  const prevLeft = v3()
+  const prevRight = v3()
+  let prevValid = false
+  const c0 = v3()
+  const c1 = v3()
+  const tmp = v3()
+  const centreAt = v3()
+
+  // ---- ball ----
+  const ball: BallState = { p: v3(), v: v3(), omega: v3() }
+  const ballPrev = v3()
+  let ballVisible = false
+  let ballLaunched = false
+  let resolved = false
+  let resolvedOutcome: 'save' | 'goal' | null = null
+  let flightS = 0
+  let launchSpeed = 0
+  let launchSpin = 0
+  let physAcc = 0
+
+  // ---- per-kick metrics ----
+  let reactionMs: number | null = null
+  let peakMs = 0 // m/s
+  let lastGloveSpeed = 0 // m/s, max of both gloves, current
+
+  // ---- telemetry clocks ----
+  let tickAcc = 0
+  let flushAcc = 0
+
+  function activePose(): KeeperPose | null {
+    if (pointerActive) return pointerCur
+    if (!hasBodyPose) return null
+    if (!bodyTracked && clock - untrackedSinceClock > UNTRACKED_GRACE_MS) return null
+    return bodyPose
+  }
+  function activeVel(): PartVel {
+    return pointerActive ? pointerVel : bodyVel
+  }
+  function source(): 'mouse' | 'pose' {
+    return pointerActive ? 'mouse' : 'pose'
+  }
+
+  function sceneStriker(): StrikerPhase {
+    return stage === 'result' ? 'recover' : stage
+  }
+
+  function stageDuration(s: Stage): number {
+    switch (s) {
+      case 'idle':
+        return IDLE_MS
+      case 'runup':
+        return RUNUP_MS
+      case 'telegraph':
+        return TELEGRAPH_MS
+      case 'kick':
+        return KICK_MS
+      case 'recover':
+        return RECOVER_MS
+      case 'result':
+        return RESULT_MS
+    }
+  }
+
+  function restBall(): void {
+    set3(ball.p, 0, BALL_RADIUS, PENALTY_Z)
+    set3(ball.v, 0, 0, 0)
+    set3(ball.omega, 0, 0, 0)
+  }
+
+  function beginKick(n: number): void {
+    kick = n
+    stage = 'idle'
+    stageMs = 0
+    plan = planKick(
+      n,
+      rng,
+      results.map((r) => r.zone),
+    )
+    telegraphStart = -1
+    ballLaunched = false
+    resolved = false
+    resolvedOutcome = null
+    flightS = 0
+    launchSpeed = 0
+    launchSpin = 0
+    physAcc = 0
+    reactionMs = null
+    peakMs = 0
+    restBall()
+    ballVisible = true
+    scene?.highlightZone(null, 'info')
+  }
+
+  function launch(): void {
+    if (!plan) return
+    restBall()
+    const v = solveLaunch(ball.p, plan.target, plan.flightTime, plan.omega)
+    cp(ball.v, v)
+    cp(ball.omega, plan.omega)
+    launchSpeed = len(ball.v)
+    launchSpin = len(ball.omega)
+    ballLaunched = true
+    flightS = 0
+    physAcc = 0
+  }
+
+  function symmetry(): number | null {
+    const mx = Math.max(leftSaves, rightSaves)
+    if (mx === 0) return null
+    return Math.min(leftSaves, rightSaves) / mx
+  }
+
+  function resolveKick(
+    outcome: 'save' | 'goal',
+    part: KeeperPart | null,
+    accuracy: number,
+    punch: boolean,
+    offTarget: boolean,
+  ): void {
+    if (!plan) return
+    resolved = true
+    resolvedOutcome = outcome
+    if (part === 'left') leftSaves++
+    else if (part === 'right') rightSaves++
+    const result: KickResult = {
+      kick,
+      outcome,
+      zone: plan.zone,
+      part,
+      reactionMs,
+      peakVelocity: peakMs / swMetres,
+      accuracy: clamp(accuracy, 0, 100),
+      punch,
+      ballSpeed: launchSpeed,
+    }
+    results.push(result)
+    stage = 'result'
+    stageMs = 0
+    for (const cb of kickCbs) cb(result)
+    telemetry.emit({
+      event_type: outcome === 'save' ? 'SAVE' : 'GOAL',
+      peak_velocity: result.peakVelocity,
+      reaction_ms: reactionMs,
+      accuracy_score: result.accuracy,
+      symmetry_ratio: symmetry(),
+      metrics: {
+        kick,
+        zone: plan.zone,
+        row: Math.floor(plan.zone / 3),
+        col: plan.zone % 3,
+        part,
+        punch,
+        ballSpeed: round3(launchSpeed),
+        spin: round3(launchSpin),
+        flightTime: round3(plan.flightTime),
+        offTarget,
+        source: source(),
+      },
+    })
+  }
+
+  function endShootout(): void {
+    phase = 'ended'
+    ballVisible = false
+    stage = 'idle'
+    stageMs = 0
+    plan = null
+    let saves = 0
+    let goals = 0
+    let reactSum = 0
+    let reactN = 0
+    let best = 0
+    let score = 0
+    for (const r of results) {
+      if (r.reactionMs !== null) {
+        reactSum += r.reactionMs
+        reactN++
+      }
+      if (r.peakVelocity > best) best = r.peakVelocity
+      if (r.outcome === 'save') {
+        saves++
+        score += 1000
+        if (r.reactionMs !== null && r.reactionMs < 450) score += 250
+        if (r.punch) score += 150
+        score += r.accuracy / 2
+      } else {
+        goals++
+      }
+    }
+    const summary: ShootoutResult = {
+      kicks: results.slice(),
+      saves,
+      goals,
+      avgReactionMs: reactN > 0 ? reactSum / reactN : null,
+      bestPeakVelocity: best,
+      score: Math.round(score),
+    }
+    telemetry.flush()
+    flushAcc = 0
+    for (const cb of endCbs) cb(summary)
+  }
+
+  // ---- collision ----
+
+  function testCollisions(pose: KeeperPose, f0: number, f1: number): void {
+    if (!plan) return
+    const curZ = ball.p.z
+    if (Math.max(ballPrev.z, curZ) < COLLIDE_Z_MIN || Math.min(ballPrev.z, curZ) > COLLIDE_Z_MAX) return
+
+    let bestHit: SweptHit | null = null
+    let bestPart: KeeperPart | null = null
+    let bestRadius = 0
+
+
+    // Gloves: centre interpolated from the previous update's pose to the current one across substeps.
+    for (const part of ['left', 'right'] as const) {
+      const cur = pose[part]
+      const prev = prevValid ? (part === 'left' ? prevLeft : prevRight) : cur
+      lerpInto(c0, prev, cur, f0)
+      lerpInto(c1, prev, cur, f1)
+      const hit = sweptSphereHit(ballPrev, ball.p, BALL_RADIUS, c0, c1, GLOVE_RADIUS)
+      if (hit && (!bestHit || hit.t < bestHit.t)) {
+        bestHit = hit
+        bestPart = part
+        bestRadius = GLOVE_RADIUS
+        lerpInto(centreAt, c0, c1, hit.t)
+      }
+    }
+    const torsoHit = sweptCapsuleHit(ballPrev, ball.p, BALL_RADIUS, pose.torsoTop, pose.torsoBottom, TORSO_RADIUS)
+    if (torsoHit && (!bestHit || torsoHit.t < bestHit.t)) {
+      bestHit = torsoHit
+      bestPart = 'torso'
+      bestRadius = TORSO_RADIUS
+      closestOnSegmentInto(centreAt, torsoHit.point, pose.torsoTop, pose.torsoBottom)
+    }
+    if (!bestHit || !bestPart) return
+
+    const vels = activeVel()
+    const colliderVel = bestPart === 'torso' ? vels.torso : vels[bestPart]
+    // Ball direction before the save, for the punch test.
+    const bs = len(ball.v)
+    let punch = false
+    if (bestPart !== 'torso') {
+      const towardBall = bs > 1e-6 ? -(colliderVel.x * ball.v.x + colliderVel.y * ball.v.y + colliderVel.z * ball.v.z) / bs : 0
+      punch = -colliderVel.z >= PUNCH_SPEED || towardBall >= PUNCH_SPEED
+    }
+    // Centredness: at first contact the centre distance is always ~R, so measure the perpendicular
+    // offset of the collider centre from the ball's line of travel (relative to the collider).
+    set3(tmp, ball.v.x - colliderVel.x, ball.v.y - colliderVel.y, ball.v.z - colliderVel.z)
+    const rl = len(tmp)
+    let offset = dist(bestHit.point, centreAt)
+    if (rl > 1e-6) {
+      const dx = centreAt.x - bestHit.point.x
+      const dy = centreAt.y - bestHit.point.y
+      const dz = centreAt.z - bestHit.point.z
+      const ux = tmp.x / rl
+      const uy = tmp.y / rl
+      const uz = tmp.z / rl
+      const cx = dy * uz - dz * uy
+      const cy = dz * ux - dx * uz
+      const cz = dx * uy - dy * ux
+      offset = Math.sqrt(cx * cx + cy * cy + cz * cz)
+    }
+    const accuracy = 100 * (1 - offset / (BALL_RADIUS + bestRadius))
+    resolveSave(ball, bestHit, colliderVel)
+    const strength = clamp(launchSpeed / 30 + (punch ? 0.35 : 0), 0.3, 1)
+    scene?.flashSave(bestHit.point, bestPart, strength)
+    scene?.shake(punch ? 0.45 : 0.25)
+    scene?.highlightZone(plan.zone, 'save')
+    resolveKick('save', bestPart, accuracy, punch, false)
+  }
+
+  function checkGoalLine(pose: KeeperPose | null): void {
+    if (!plan) return
+    if (!(ballPrev.z < GOAL_Z && ball.p.z >= GOAL_Z)) return
+    const f = (GOAL_Z - ballPrev.z) / (ball.p.z - ballPrev.z)
+    lerpInto(tmp, ballPrev, ball.p, f)
+    if (inGoalMouth(tmp.x, tmp.y)) {
+      let nearest = Infinity
+      if (pose) nearest = Math.min(dist(tmp, pose.left), dist(tmp, pose.right))
+      const accuracy = Number.isFinite(nearest) ? 100 * Math.max(0, 1 - nearest / 2.0) : 0
+      const point = { x: tmp.x, y: tmp.y, z: tmp.z }
+      scene?.flashGoal(point)
+      scene?.shake(0.5)
+      scene?.highlightZone(plan.zone, 'goal')
+      resolveKick('goal', null, accuracy, false, false)
+    } else {
+      // Wide or over: the keeper keeps a clean sheet but it is flagged off target.
+      scene?.highlightZone(plan.zone, 'info')
+      resolveKick('save', null, 0, false, true)
+    }
+  }
+
+  function substep(f0: number, f1: number): void {
+    cp(ballPrev, ball.p)
+    stepBall(ball, PHYS_DT)
+    flightS += PHYS_DT
+    // Ground bounce.
+    if (ball.p.y < BALL_RADIUS) {
+      ball.p.y = BALL_RADIUS
+      if (ball.v.y < 0) ball.v.y = -0.5 * ball.v.y
+      ball.v.x *= 0.9
+      ball.v.z *= 0.9
+    }
+    if (!resolved) {
+      const pose = activePose()
+      if (pose) testCollisions(pose, f0, f1)
+      if (!resolved) checkGoalLine(pose)
+      if (!resolved && flightS > (plan?.flightTime ?? 1) + FLIGHT_TIMEOUT_S) {
+        resolveKick('save', null, 0, false, true)
+      }
+    } else if (resolvedOutcome === 'goal') {
+      // Settle into the net.
+      if (ball.p.z > NET_DEPTH_Z) {
+        ball.p.z = NET_DEPTH_Z
+        if (ball.v.z > 0) ball.v.z = -0.15 * ball.v.z
+      }
+      const damp = Math.pow(0.04, PHYS_DT) // strong drag in the net
+      ball.v.x *= damp
+      ball.v.z *= damp
+      ball.omega.x *= damp
+      ball.omega.y *= damp
+      ball.omega.z *= damp
+    }
+  }
+
+  function runPhysics(dtS: number): void {
+    if (!ballLaunched) return
+    physAcc += dtS
+    let n = Math.floor(physAcc / PHYS_DT)
+    if (n > MAX_SUBSTEPS) {
+      n = MAX_SUBSTEPS
+      physAcc = n * PHYS_DT
+    }
+    for (let i = 0; i < n; i++) {
+      substep(i / n, (i + 1) / n)
+      physAcc -= PHYS_DT
+    }
+  }
+
+  // ---- velocity / metrics ----
+
+  function updatePointerVel(dtS: number): void {
+    if (!pointerActive) return
+    if (pointerHasLast && dtS > 0) {
+      emaInto(pointerVel.left, pointerCur.left, pointerLast.left, dtS)
+      emaInto(pointerVel.right, pointerCur.right, pointerLast.right, dtS)
+      emaInto(pointerVel.torso, pointerCur.torsoTop, pointerLast.torsoTop, dtS)
+    }
+    copyPose(pointerLast, pointerCur)
+    pointerHasLast = true
+  }
+
+  function updateMetrics(): void {
+    const vels = activeVel()
+    const pose = activePose()
+    const ls = pose ? len(vels.left) : 0
+    const rs = pose ? len(vels.right) : 0
+    lastGloveSpeed = Math.max(ls, rs)
+    if (phase !== 'playing' || !plan || resolved || telegraphStart < 0) return
+    if (lastGloveSpeed > peakMs) peakMs = lastGloveSpeed
+    if (reactionMs === null && lastGloveSpeed > REACTION_SPEED) {
+      const tx = plan.target.x
+      const side = tx < -0.6 ? -1 : tx > 0.6 ? 1 : 0
+      const ok =
+        side === 0 ||
+        (ls > REACTION_SPEED && vels.left.x * side > 0) ||
+        (rs > REACTION_SPEED && vels.right.x * side > 0)
+      if (ok) reactionMs = Math.round(clock - telegraphStart)
+    }
+  }
+
+  // ---- striker state machine ----
+
+  function advanceStage(dtMs: number): void {
+    if (phase !== 'playing') return
+    stageMs += dtMs
+    // Loop so a long dt can pass short stages; recover only ends on resolution.
+    for (let guard = 0; guard < 8; guard++) {
+      if (stage === 'recover') {
+        // Ends when the kick resolves (resolveKick switches to 'result').
+        break
+      }
+      const d = stageDuration(stage)
+      if (stageMs < d) break
+      stageMs -= d
+      if (stage === 'idle') stage = 'runup'
+      else if (stage === 'runup') {
+        stage = 'telegraph'
+        telegraphStart = clock - stageMs
+      } else if (stage === 'telegraph') {
+        stage = 'kick'
+        launch()
+      } else if (stage === 'kick') {
+        stage = resolved ? 'result' : 'recover'
+      } else if (stage === 'result') {
+        ballVisible = false
+        if (kick + 1 >= KICKS_PER_SHOOTOUT) {
+          endShootout()
+          return
+        }
+        beginKick(kick + 1)
+        stageMs = 0
+      }
+    }
+  }
+
+  function strikerProgress(): number {
+    if (phase !== 'playing') return 0
+    if (stage === 'recover') return plan ? clamp(flightS / Math.max(plan.flightTime, 0.05), 0, 1) : 0
+    if (stage === 'result') return 1
+    return clamp(stageMs / stageDuration(stage), 0, 1)
+  }
+
+  function pushScene(): void {
+    if (!scene) return
+    const sp: StrikerPhase = phase === 'playing' ? sceneStriker() : 'idle'
+    const tell = plan && phase === 'playing' ? plan.tell : NEUTRAL_TELL
+    scene.setStriker(sp, strikerProgress(), tell)
+    if (sp !== lastSceneStriker) {
+      lastSceneStriker = sp
+      if (phase === 'playing') for (const cb of strikerCbs) cb(sp, kick)
+    }
+    scene.setKeeper(activePose())
+    scene.setBall(ball.p, ball.omega, ballVisible && phase === 'playing')
+  }
+
+  function queueTickIfDue(dtMs: number): void {
+    if (phase !== 'playing') return
+    tickAcc += dtMs
+    while (tickAcc >= TICK_MS) {
+      tickAcc -= TICK_MS
+      const pose = activePose()
+      telemetry.queueTick({
+        peak_velocity: lastGloveSpeed / swMetres,
+        metrics: {
+          kick,
+          phase: stage,
+          tracked: pointerActive ? false : bodyTracked,
+          leftX: pose ? round3(pose.left.x) : null,
+          leftY: pose ? round3(pose.left.y) : null,
+          rightX: pose ? round3(pose.right.x) : null,
+          rightY: pose ? round3(pose.right.y) : null,
+        },
+      })
+    }
+    flushAcc += dtMs
+    if (flushAcc >= AUTO_FLUSH_MS) {
+      flushAcc = 0
+      telemetry.flush()
+    }
+  }
+
+  return {
+    get phase() {
+      return phase
+    },
+    get kickIndex() {
+      return results.length
+    },
+    get results() {
+      return results
+    },
+
+    init(s: KeeperScene, calibration: Calibration | null) {
+      scene = s
+      const sw = calibration?.shoulderWidthWorld ?? 0.4
+      swMetres = sw > 0.05 ? sw : 0.4
+      phase = 'idle'
+      lastSceneStriker = null
+      ballVisible = false
+      restBall()
+      s.reset()
+    },
+
+    onPoseFrame(body: BodyFrame | null) {
+      if (disposed) return
+      const raw = body ? keeperPoseFromBody(body) : null
+      if (!body || !raw) {
+        if (bodyTracked) untrackedSinceClock = clock
+        bodyTracked = false
+        bodyPose.tracked = false
+        return
+      }
+      const tS = body.t / 1000
+      // After a long gap, restart the filters so they do not smear across the jump.
+      const gapMs = bodyT >= 0 ? body.t - bodyT : Infinity
+      if (!bodyTracked && gapMs > UNTRACKED_GRACE_MS) {
+        filters.left.reset()
+        filters.right.reset()
+        filters.torsoTop.reset()
+        filters.torsoBottom.reset()
+      }
+      copyPose(bodyPrev, bodyPose)
+      cp(bodyPose.left, filters.left.filter(raw.left, tS))
+      cp(bodyPose.right, filters.right.filter(raw.right, tS))
+      cp(bodyPose.torsoTop, filters.torsoTop.filter(raw.torsoTop, tS))
+      cp(bodyPose.torsoBottom, filters.torsoBottom.filter(raw.torsoBottom, tS))
+      bodyPose.tracked = raw.tracked
+      const dtS = gapMs / 1000
+      if (hasBodyPose && dtS > 0 && dtS < 0.25) {
+        emaInto(bodyVel.left, bodyPose.left, bodyPrev.left, dtS)
+        emaInto(bodyVel.right, bodyPose.right, bodyPrev.right, dtS)
+        emaInto(bodyVel.torso, bodyPose.torsoTop, bodyPrev.torsoTop, dtS)
+      } else {
+        zeroVel(bodyVel)
+      }
+      hasBodyPose = true
+      bodyTracked = true
+      bodyT = body.t
+    },
+
+    setPointer(target: { x: number; y: number } | null) {
+      if (disposed) return
+      if (!target) {
+        if (pointerActive) {
+          pointerActive = false
+          pointerHasLast = false
+          zeroVel(pointerVel)
+          prevValid = false
+        }
+        return
+      }
+      if (!pointerActive) {
+        pointerActive = true
+        pointerHasLast = false
+        zeroVel(pointerVel)
+        prevValid = false
+      }
+      copyPose(pointerCur, pointerPose(target))
+    },
+
+    startShootout() {
+      if (disposed) return
+      results = []
+      leftSaves = 0
+      rightSaves = 0
+      telemetry.startRound()
+      scene?.reset()
+      phase = 'playing'
+      lastSceneStriker = null
+      tickAcc = 0
+      flushAcc = 0
+      beginKick(0)
+    },
+
+    update(dtMs: number) {
+      if (disposed) return
+      const dt = clamp(Number.isFinite(dtMs) ? dtMs : 0, 0, MAX_DT_MS)
+      clock += dt
+      const dtS = dt / 1000
+
+      if (!pointerActive && !bodyTracked && dt > 0) {
+        const k = Math.exp(-dt / VEL_DECAY_MS)
+        for (const v of [bodyVel.left, bodyVel.right, bodyVel.torso]) {
+          v.x *= k
+          v.y *= k
+          v.z *= k
+        }
+      }
+      updatePointerVel(dtS)
+      updateMetrics()
+
+      if (phase === 'playing') {
+        advanceStage(dt)
+        // advanceStage may end the shootout; physics only while playing.
+        if (phase === 'playing') runPhysics(dtS)
+      }
+
+      // Remember the active glove positions for next update's swept interpolation.
+      const pose = activePose()
+      if (pose) {
+        cp(prevLeft, pose.left)
+        cp(prevRight, pose.right)
+        prevValid = true
+      } else {
+        prevValid = false
+      }
+
+      queueTickIfDue(dt)
+      pushScene()
+    },
+
+    flushTelemetry() {
+      telemetry.flush()
+    },
+
+    onKickResult(cb: (r: KickResult) => void) {
+      kickCbs.push(cb)
+    },
+    onStrikerPhase(cb: (phase: StrikerPhase, kick: number) => void) {
+      strikerCbs.push(cb)
+    },
+    onShootoutEnd(cb: (r: ShootoutResult) => void) {
+      endCbs.push(cb)
+    },
+
+    get debug(): Record<string, number | string> {
+      const vels = activeVel()
+      return {
+        phase,
+        striker: phase === 'playing' ? sceneStriker() : 'idle',
+        kick,
+        zone: plan ? (plan.zone as Zone) : -1,
+        targetX: plan ? round3(plan.target.x) : 0,
+        targetY: plan ? round3(plan.target.y) : 0,
+        ballSpeed: round3(len(ball.v)),
+        ballZ: round3(ball.p.z),
+        leftSpeed: round3(len(vels.left)),
+        rightSpeed: round3(len(vels.right)),
+        reactionMs: reactionMs === null ? '-' : Math.round(reactionMs),
+        peakSWps: round3(peakMs / swMetres),
+        tracked: pointerActive ? 'pointer' : bodyTracked ? 'yes' : 'no',
+        source: source(),
+        saves: results.filter((r) => r.outcome === 'save').length,
+      }
+    },
+
+    dispose() {
+      if (disposed) return
+      telemetry.flush()
+      disposed = true
+      kickCbs = []
+      strikerCbs = []
+      endCbs = []
+      phase = 'idle'
+      ballLaunched = false
+      ballVisible = false
+      scene = null
+    },
+  }
+}

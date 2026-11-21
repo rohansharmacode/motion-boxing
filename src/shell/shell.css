@@ -1,0 +1,613 @@
+/* Kinetic home dashboard. Original look: neon glass tiles on a dark arena. */
+
+.shell {
+  --shell-launch-ms: 900ms;
+  --shell-radius: 28px;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  padding: clamp(16px, 3vw, 40px) clamp(16px, 4vw, 56px);
+  gap: clamp(10px, 2vh, 22px);
+  font-family: var(--font-body, 'Outfit', system-ui, sans-serif);
+  color: var(--text, #f4f4f0);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* ---------- background ---------- */
+
+.shell-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #1a1530 0%, transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, #2a0f1f 0%, transparent 60%),
+    var(--bg, #0b0c0f);
+  transition: opacity 450ms ease;
+}
+
+.shell-orb {
+  position: absolute;
+  width: 46vmax;
+  height: 46vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  animation: shell-drift 18s ease-in-out infinite alternate;
+}
+.shell-orb--1 { background: #ff5a1f; top: -18vmax; left: -12vmax; }
+.shell-orb--2 { background: #38c8ff; bottom: -22vmax; right: -10vmax; animation-delay: -6s; }
+.shell-orb--3 { background: #a98bff; top: 30%; left: 45%; width: 26vmax; height: 26vmax; opacity: 0.18; animation-delay: -12s; }
+
+.shell-floor {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -10%;
+  height: 55%;
+  background-image:
+    linear-gradient(rgba(56, 200, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 200, 255, 0.22) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(500px) rotateX(62deg);
+  transform-origin: 50% 0;
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  animation: shell-floor 6s linear infinite;
+}
+
+@keyframes shell-drift {
+  to { transform: translate(8vmax, 6vmax) scale(1.1); }
+}
+@keyframes shell-floor {
+  to { background-position: 0 64px, 0 0; }
+}
+
+/* ---------- top bar ---------- */
+
+.shell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.shell-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.shell-logo {
+  align-self: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  background:
+    linear-gradient(var(--bg, #0b0c0f), var(--bg, #0b0c0f)) padding-box,
+    conic-gradient(#ff5a1f, #ff2d75, #a98bff, #38c8ff, #3cf2b0, #ff5a1f) border-box;
+  box-shadow: 0 0 18px rgba(255, 90, 31, 0.6);
+  animation: shell-spin 6s linear infinite;
+}
+
+@keyframes shell-spin {
+  to { transform: rotate(1turn); }
+}
+
+.shell-brand-name {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: clamp(30px, 4vw, 46px);
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.shell-brand-sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted, #a6aaa2);
+}
+
+.shell-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.shell-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.shell-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3cf2b0;
+  box-shadow: 0 0 10px #3cf2b0;
+}
+
+.shell-clock {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: clamp(26px, 3vw, 38px);
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.shell-greeting {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted, #a6aaa2);
+}
+
+/* ---------- tile grid ---------- */
+
+.shell-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(12px, 1.8vw, 24px);
+  min-height: 0;
+}
+
+.shell-tile--featured { grid-column: 1 / span 2; grid-row: 1 / span 2; }
+.shell-tile--leaderboard { grid-column: 3 / span 2; }
+
+.shell-tile {
+  --dwell: 0;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  align-items: start;
+  justify-items: start;
+  gap: 8px;
+  min-height: 0;
+  padding: clamp(16px, 2vw, 28px);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--shell-radius);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--a) 22%, transparent), transparent 55%),
+    rgba(18, 20, 28, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  outline: none;
+  transform: translateY(0) scale(1);
+  transition: transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1.3), border-color 200ms, box-shadow 260ms;
+  animation: shell-tile-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.shell-tile:nth-child(2) { animation-delay: 70ms; }
+.shell-tile:nth-child(3) { animation-delay: 140ms; }
+.shell-tile:nth-child(4) { animation-delay: 210ms; }
+
+@keyframes shell-tile-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+}
+
+.shell-tile:hover,
+.shell-tile:focus-visible,
+.shell-tile:focus {
+  transform: translateY(-6px) scale(1.025);
+  border-color: color-mix(in srgb, var(--a) 70%, white);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--a) 55%, transparent),
+    0 0 48px color-mix(in srgb, var(--a) 45%, transparent),
+    0 26px 60px rgba(0, 0, 0, 0.5);
+}
+
+.shell-tile--featured:hover,
+.shell-tile--featured:focus { transform: translateY(-4px) scale(1.008); }
+
+/* Featured tile: slow spinning ring, the "Kinetic Ring" motif. */
+.shell-tile--featured::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -12%;
+  width: 62%;
+  aspect-ratio: 1;
+  translate: 0 -55%;
+  border-radius: 50%;
+  border: 10px solid transparent;
+  background: conic-gradient(from 0deg, var(--a), transparent 30%, var(--b) 55%, transparent 80%, var(--a)) border-box;
+  mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  opacity: 0.45;
+  filter: drop-shadow(0 0 18px var(--a));
+  animation: shell-spin 14s linear infinite;
+  pointer-events: none;
+}
+
+.shell-tile-glow {
+  position: absolute;
+  inset: auto -20% -45% auto;
+  width: 80%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--b), transparent 65%);
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity 260ms;
+}
+
+.shell-tile:focus .shell-tile-glow,
+.shell-tile:hover .shell-tile-glow { opacity: 0.6; }
+
+.shell-tile-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.14) 50%, transparent 60%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.shell-tile:focus .shell-tile-shine { animation: shell-shine 900ms ease-out; }
+
+@keyframes shell-shine {
+  to { transform: translateX(120%); }
+}
+
+.shell-tile-badge {
+  position: absolute;
+  top: clamp(14px, 1.6vw, 22px);
+  right: clamp(14px, 1.6vw, 22px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0b0c0f;
+  background: linear-gradient(90deg, var(--a), var(--b));
+}
+
+.shell-tile[data-ready='false'] .shell-tile-badge {
+  color: var(--muted, #a6aaa2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.shell-tile-icon {
+  display: grid;
+  place-items: center;
+  width: clamp(56px, 6vw, 84px);
+  aspect-ratio: 1;
+  border-radius: 22px;
+  color: var(--a);
+  background: color-mix(in srgb, var(--a) 14%, rgba(0, 0, 0, 0.3));
+  border: 1px solid color-mix(in srgb, var(--a) 40%, transparent);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--a) 60%, transparent));
+}
+
+.shell-tile-icon svg { width: 66%; height: 66%; }
+
+.shell-tile--featured .shell-tile-icon {
+  width: clamp(96px, 12vw, 168px);
+  border-radius: 36px;
+}
+
+.shell-tile--featured .shell-tile-icon svg { animation: shell-bob 2.4s ease-in-out infinite; }
+
+@keyframes shell-bob {
+  50% { transform: translateY(-6%) rotate(-6deg); }
+}
+
+.shell-tile-body {
+  display: grid;
+  gap: 2px;
+  align-self: end;
+}
+
+.shell-tile-title {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: clamp(30px, 3.2vw, 48px);
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+}
+
+.shell-tile--featured .shell-tile-title { font-size: clamp(54px, 7vw, 104px); }
+
+.shell-tile-tag {
+  font-size: clamp(13px, 1.1vw, 16px);
+  color: var(--muted, #a6aaa2);
+}
+
+.shell-tile-how {
+  display: none;
+  max-width: 34ch;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.shell-tile--featured .shell-tile-how { display: block; }
+
+.shell-tile-best {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--a) 70%, white);
+}
+
+.shell-tile-best:empty { display: none; }
+
+.shell-tile[data-ready='false'] .shell-tile-icon,
+.shell-tile[data-ready='false'] .shell-tile-title { opacity: 0.6; }
+
+/* Dwell progress: a bar that fills along the bottom edge. */
+.shell-tile-dwell {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 6px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--a), var(--b));
+  transform-origin: left;
+  transform: scaleX(var(--dwell));
+  box-shadow: 0 0 16px var(--a);
+}
+
+.shell-tile--nope { animation: shell-nope 380ms ease; }
+
+@keyframes shell-nope {
+  20%, 60% { translate: -8px 0; }
+  40%, 80% { translate: 8px 0; }
+}
+
+/* ---------- footer ---------- */
+
+.shell-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  font-size: 13px;
+  color: var(--muted, #a6aaa2);
+}
+
+.shell-hints kbd {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 4px;
+  border-radius: 6px;
+  font: 600 12px var(--font-body, system-ui);
+  color: var(--text, #f4f4f0);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.shell-privacy { margin-left: auto; }
+
+/* ---------- launch card ---------- */
+
+.shell-launch {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.shell-launch-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 48px 64px;
+  border-radius: 40px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--a) 50%, transparent), transparent 70%),
+    rgba(14, 16, 22, 0.9);
+  border: 1px solid color-mix(in srgb, var(--a) 60%, transparent);
+  box-shadow: 0 0 80px color-mix(in srgb, var(--a) 50%, transparent);
+}
+
+.shell-launch-icon {
+  width: 120px;
+  color: var(--a);
+  filter: drop-shadow(0 0 18px var(--a));
+}
+
+.shell-launch-title {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-weight: 400;
+  font-size: clamp(64px, 10vw, 140px);
+  letter-spacing: 0.04em;
+  line-height: 0.9;
+}
+
+.shell-launch-sub {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted, #a6aaa2);
+}
+
+.shell-launch-bar {
+  width: 220px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.shell-launch-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--a), var(--b));
+  transform-origin: left;
+  transform: scaleX(0);
+}
+
+.shell[data-view='launching'] .shell-launch { visibility: visible; }
+
+.shell[data-view='launching'] .shell-launch-card {
+  animation: shell-launch var(--shell-launch-ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.shell[data-view='launching'] .shell-launch-bar span {
+  animation: shell-bar var(--shell-launch-ms) ease-in both;
+}
+
+@keyframes shell-launch {
+  from {
+    opacity: 0;
+    transform: translate(var(--from-x), var(--from-y)) scale(var(--from-s));
+  }
+  45% { opacity: 1; transform: none; }
+  to { transform: scale(1.04); }
+}
+
+@keyframes shell-bar {
+  to { transform: scaleX(1); }
+}
+
+/* Home content leaves while launching and stays away in game. */
+.shell-top,
+.shell-greeting,
+.shell-grid,
+.shell-hints {
+  transition: opacity 300ms ease, transform 300ms ease, visibility 0s;
+}
+
+.shell[data-view='launching'] :is(.shell-top, .shell-greeting, .shell-grid, .shell-hints) {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.shell[data-view='game'] {
+  pointer-events: none;
+}
+
+.shell[data-view='game'] :is(.shell-bg, .shell-top, .shell-greeting, .shell-grid, .shell-hints, .shell-launch) {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 450ms ease, visibility 0s 450ms;
+}
+
+/* ---------- game layer and home button ---------- */
+
+.shell-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.shell-host > * { pointer-events: auto; }
+
+.shell-home {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font: 600 14px var(--font-body, system-ui);
+  color: var(--text, #f4f4f0);
+  background: rgba(14, 16, 22, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.7;
+  transition: opacity 200ms, background 200ms;
+}
+
+.shell-home:hover,
+.shell-home:focus-visible { opacity: 1; background: rgba(30, 32, 40, 0.9); }
+
+.shell[data-view='game'] .shell-home { display: inline-flex; }
+
+/* ---------- toast ---------- */
+
+.shell-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 80px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  background: rgba(14, 16, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  opacity: 0;
+  translate: -50% 16px;
+  transition: opacity 220ms, translate 220ms;
+  pointer-events: none;
+}
+
+.shell-toast--on { opacity: 1; translate: -50% 0; }
+
+/* ---------- hand cursor ---------- */
+
+.shell-cursor {
+  --dwell: 0;
+  position: absolute;
+  top: -28px;
+  left: -28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms;
+  background: conic-gradient(#fff calc(var(--dwell) * 1turn), rgba(255, 255, 255, 0.18) 0);
+  mask: radial-gradient(circle, transparent 20px, #000 21px);
+  -webkit-mask: radial-gradient(circle, transparent 20px, #000 21px);
+  filter: drop-shadow(0 0 10px rgba(56, 200, 255, 0.9));
+  will-change: transform;
+}
+
+.shell-cursor span {
+  position: absolute;
+  inset: 20px;
+  border-radius: 50%;
+  background: #38c8ff;
+}
+
+.shell-cursor--on { opacity: 1; }
+
+/* ---------- small screens and motion ---------- */
+
+@media (max-width: 760px), (max-height: 520px) {
+  .shell { overflow-y: auto; grid-template-rows: auto auto auto auto; }
+  .shell-grid { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+  .shell-tile--featured { grid-column: 1 / span 2; grid-row: auto; min-height: 240px; }
+  .shell-tile--leaderboard { grid-column: 1 / span 2; }
+  .shell-tile { min-height: 160px; }
+  .shell-privacy { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell *,
+  .shell *::before,
+  .shell *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

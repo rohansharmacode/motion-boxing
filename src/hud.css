@@ -1,0 +1,622 @@
+/* HUD for motion-boxing. Everything renders inside #ui. */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  font-family: var(--font-body);
+  color: var(--text);
+}
+
+/* ---------- shared pieces ---------- */
+
+.hud-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 12, 15, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: opacity 300ms ease, visibility 0s;
+}
+
+.hud-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  padding: clamp(20px, 4vw, 40px);
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  animation: hud-panel-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.hud-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-kicker--danger {
+  color: var(--danger);
+}
+
+.hud-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: hud-blink 1.2s ease-in-out infinite;
+}
+
+.hud-btn {
+  display: block;
+  width: 100%;
+  margin-top: 28px;
+  padding: 14px 24px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.hud-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.hud-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.hud-btn:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 3px;
+}
+
+.hud-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- views ---------- */
+
+.hud-start,
+.hud-loading,
+.hud-error,
+.hud-play {
+  display: none;
+}
+
+.hud[data-view='start'] .hud-start,
+.hud[data-view='loading'] .hud-loading,
+.hud[data-view='error'] .hud-error,
+.hud[data-view='playing'] .hud-play {
+  display: block;
+}
+
+.hud[data-view='playing'] .hud-backdrop {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 300ms ease, visibility 0s 300ms;
+}
+
+/* ---------- start ---------- */
+
+.hud-wordmark {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(56px, 10vw, 104px);
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.hud-wordmark::after {
+  content: '';
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin-top: 12px;
+  background: var(--accent);
+}
+
+.hud-headline {
+  margin-top: 16px;
+  font-size: clamp(17px, 2vw, 20px);
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.hud-steps {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.hud-steps li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.hud-step-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--surface-border);
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.hud-privacy {
+  margin-top: 14px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---------- loading ---------- */
+
+.hud-loading {
+  width: auto;
+  min-width: 240px;
+  text-align: center;
+}
+
+.hud-spinner {
+  display: block;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 16px;
+  border: 3px solid var(--surface-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: hud-spin 800ms linear infinite;
+}
+
+.hud-loading-text {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------- error ---------- */
+
+.hud-error {
+  border-top: 3px solid var(--danger);
+}
+
+.hud-error-title {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 6vw, 56px);
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.hud-error-help {
+  margin-top: 14px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---------- playing: scoreboard ---------- */
+
+.hud-score {
+  position: absolute;
+  top: clamp(12px, 3vw, 24px);
+  left: clamp(12px, 3vw, 24px);
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  padding: 12px 20px 12px 18px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: hud-slide-left 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Accent glow layer, faded in on each punch. */
+.hud-score::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: rgba(255, 90, 31, 0.16);
+  box-shadow: 0 0 28px rgba(255, 90, 31, 0.55);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud-score-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.hud-total {
+  display: block;
+  min-width: 2ch;
+  font-family: var(--font-display);
+  font-size: clamp(56px, 8vw, 92px);
+  line-height: 0.85;
+  font-variant-numeric: tabular-nums;
+  transform-origin: left bottom;
+}
+
+.hud-label,
+.hud-sub-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-label {
+  margin-top: 6px;
+}
+
+.hud-subs {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding-left: 20px;
+  border-left: 1px solid var(--surface-border);
+}
+
+.hud-sub {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hud-sub-n {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-score--pop::before {
+  animation: hud-glow 450ms ease-out;
+}
+
+.hud-score--pop .hud-total {
+  animation: hud-pop 300ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+/* ---------- playing: block badge ---------- */
+
+.hud-block {
+  position: absolute;
+  top: clamp(12px, 3vw, 24px);
+  right: clamp(12px, 3vw, 24px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 8px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.6;
+  transition: opacity 150ms ease, transform 150ms ease;
+  animation: hud-slide-right 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.hud-block-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.hud-block--on {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 24px rgba(56, 200, 255, 0.45);
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+/* ---------- playing: punch flash ---------- */
+
+.hud-flash {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  text-align: center;
+}
+
+.hud-flash-type {
+  font-family: var(--font-display);
+  font-size: clamp(96px, 18vw, 200px);
+  line-height: 0.85;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 6px 32px rgba(0, 0, 0, 0.6);
+}
+
+.hud-flash-meta {
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: var(--surface);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.hud-flash--go {
+  animation: hud-flash 600ms ease-out forwards;
+}
+
+/* ---------- playing: coach pill ---------- */
+
+.hud-coach {
+  position: absolute;
+  bottom: clamp(16px, 4vw, 36px);
+  left: 50%;
+  max-width: calc(100% - 32px);
+  padding: 12px 24px 10px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.6vw, 28px);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translate(-50%, 12px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.hud-coach--on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- debug ---------- */
+
+.hud-debug {
+  position: absolute;
+  left: clamp(12px, 3vw, 24px);
+  bottom: clamp(12px, 3vw, 24px);
+  min-width: 220px;
+  max-height: 50%;
+  overflow: auto;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.hud-debug[hidden] {
+  display: none;
+}
+
+.hud-debug-title {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-debug-body {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre;
+}
+
+/* ---------- small windows ---------- */
+
+@media (max-width: 640px), (max-height: 520px) {
+  .hud-score {
+    gap: 14px;
+    padding: 8px 14px 8px 12px;
+  }
+
+  .hud-subs {
+    padding-left: 14px;
+  }
+
+  .hud-sub-n {
+    font-size: 22px;
+  }
+
+  .hud-block {
+    font-size: 20px;
+    padding: 8px 14px 6px;
+  }
+
+  .hud-steps li {
+    font-size: 14px;
+  }
+
+  .hud-btn {
+    margin-top: 20px;
+  }
+}
+
+/* ---------- keyframes ---------- */
+
+@keyframes hud-panel-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 16px));
+  }
+}
+
+@keyframes hud-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes hud-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes hud-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hud-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes hud-pop {
+  40% {
+    transform: scale(1.22);
+  }
+}
+
+@keyframes hud-glow {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hud-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 24px)) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(-50%, calc(-50% - 8px)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 32px)) scale(1);
+  }
+}
+
+@keyframes hud-fade {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- reduced motion: no movement, keep fades that carry information ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-panel,
+  .hud-score,
+  .hud-block,
+  .hud-score--pop .hud-total,
+  .hud-live-dot {
+    animation: none;
+  }
+
+  .hud-spinner {
+    animation-duration: 2.4s;
+  }
+
+  .hud-btn,
+  .hud-coach,
+  .hud-block {
+    transition: opacity 150ms ease;
+  }
+
+  .hud-btn:hover:not(:disabled),
+  .hud-btn:active:not(:disabled),
+  .hud-block--on {
+    transform: none;
+  }
+
+  .hud-coach,
+  .hud-coach--on {
+    transform: translate(-50%, 0);
+  }
+
+  .hud-flash--go {
+    animation: hud-fade 600ms ease-out forwards;
+  }
+}

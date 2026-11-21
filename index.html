@@ -4,10 +4,21 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>motion-boxing</title>
+    <meta name="theme-color" content="#0b0c0f" />
+    <meta name="color-scheme" content="dark" />
+    <title>Motion Boxing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;800&display=swap" />
   </head>
   <body>
-    <div id="app"></div>
+    <main id="app">
+      <section id="stage">
+        <video id="webcam" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+      </section>
+      <div id="ui"></div>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
