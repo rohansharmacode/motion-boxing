@@ -425,6 +425,14 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   rig.position.set(0, EYE_Y, 0)
   stage.add(rig)
   const camera = new PerspectiveCamera(50, 1, 0.03, 60)
+  // Camera view: third person (default) or first person (?view=fp, or press V to toggle).
+  let firstPerson = new URLSearchParams(window.location.search).get('view') === 'fp'
+  const onViewKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'v' && e.key !== 'V') return
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+    firstPerson = !firstPerson
+  }
+  window.addEventListener('keydown', onViewKey)
   camera.rotation.order = 'YXZ'
   camera.position.set(VIEW.x, EYE_Y + VIEW.y, VIEW.z)
   camera.rotation.set(VIEW.pitch, VIEW.yaw, 0)
@@ -1143,10 +1151,20 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     shotLook.lerp(tmpB, 1 - Math.exp(-real * 5))
     // Smooth follow: part of the lean, on a spring, no roll. Kicks ride on top and settle in ~150 ms.
     const follow = shot === 'fight' ? 1 : 0
-    camTarget.set(shotPos.x + lean.x * CAM_FOLLOW.x * follow, shotPos.y + lean.y * CAM_FOLLOW.y * follow, shotPos.z)
-    springStep(camPos, camVel, camTarget, CAM_OMEGA, real)
+    const fp = firstPerson && shot === 'fight'
+    playerModel.visible = !fp
+    if (fp) {
+      // First person: the camera is the player's eyes (the rig), looking at the opponent's head.
+      camTarget.set(rig.position.x, rig.position.y, rig.position.z)
+      camPos.copy(camTarget)
+      camVel.set(0, 0, 0)
+      shotLook.set(drone.root.position.x * 0.6 + rig.position.x * 0.4, rig.position.y - 0.15, drone.root.position.z)
+    } else {
+      camTarget.set(shotPos.x + lean.x * CAM_FOLLOW.x * follow, shotPos.y + lean.y * CAM_FOLLOW.y * follow, shotPos.z)
+      springStep(camPos, camVel, camTarget, CAM_OMEGA, real)
+    }
     for (const w of [kick.x, kick.y, kick.z, kick.pitch, kick.roll]) wobble(w, KICK_OMEGA, KICK_ZETA, real)
-    const s = SHAKE / 0.45 // kick size follows the calm-fight SHAKE setting
+    const s = (SHAKE / 0.45) * (fp ? 0.35 : 1) // kick size follows SHAKE; much calmer in first person
     stage.updateMatrixWorld()
     camera.position.copy(
       stage.localToWorld(
@@ -1443,6 +1461,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
     dispose() {
       disposed = true
+      window.removeEventListener('keydown', onViewKey)
       const geometries = new Set<BufferGeometry>()
       const materials = new Set<Material>()
       scene.traverse((obj) => {
