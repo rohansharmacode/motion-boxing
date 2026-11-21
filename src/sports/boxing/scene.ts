@@ -21,7 +21,7 @@ import {
 import type { BufferGeometry, Material, Object3D, Quaternion } from 'three'
 import { LM } from '../../pose/types.ts'
 import type { BodyFrame, Hand, Joint } from '../../pose/types.ts'
-import type { AttackPattern, BoxingScene, BotStance, GuardMeterView, HitResult, HitTarget, PunchKind, QualityLevel, SlipKind } from './types.ts'
+import type { AttackPattern, BoxingScene, BotStance, GuardMeterView, HitResult, HitTarget, OpponentPuppet, PunchKind, QualityLevel, SlipKind } from './types.ts'
 import { createGuardRing } from './guardRings.ts'
 import {
   COLORS,
@@ -122,6 +122,9 @@ const SLIP_LEAN_M = 0.12
 const DUCK_DROP_M = 0.15
 /** Untracked glove poses in rig metres (x is mirrored per side). These drive aiming, so hit rates stay put. */
 const GUARD_REST = { x: 0.2, y: -0.2, z: -0.6 }
+/** Online 1v1: the friend's glove movement is scaled by this onto the opponent robot (its arms are shorter). */
+const PUPPET_REACH = 0.9
+const round3 = (v: number): number => Math.round(v * 1000) / 1000
 const GUARD_HELD = { x: 0.15, y: -0.14, z: -0.55 }
 /** Display-only glove offset (outward, down) so the gloves frame the drone. Halved while guarding. */
 const VIEW_OFFSET = { x: 0.05, y: -0.07 }
@@ -598,6 +601,9 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   let playerMeter: GuardMeterView = { fraction: 1, broken: false }
   let botMeter: GuardMeterView = { fraction: 1, broken: false }
   let botStance: BotStance = { guard: 'down', dodge: null, dodgePhase: null, broken: false }
+  /** Online 1v1: the friend's relayed gloves and lean (target) and the smoothed pose we draw. */
+  let puppet: OpponentPuppet | null = null
+  const puppetShown = { l: new Vector3(), r: new Vector3(), x: 0, y: 0, roll: 0, fresh: true }
   /** Smoothed bot defence pose: offset, roll, guard 0 to 1, stun 0 to 1. */
   const def = { x: 0, y: 0, roll: 0, guard: 0, stun: 0 }
   const tmpA = new Vector3()
@@ -1022,6 +1028,30 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     return ring.progress * ring.level
   }
 
+  /**
+   * Online 1v1: place the robot's gloves where the friend's gloves are, mirrored (we face each other),
+   * and lean it the way they lean. A telegraphed attack still plays on top so incoming punches read.
+   */
+  function applyPuppet(dt: number): void {
+    const p = puppet
+    if (!p) return
+    const k = puppetShown.fresh ? 1 : 1 - Math.exp(-dt * 22)
+    puppetShown.fresh = false
+    // Their right glove is on our left: pod 0 (screen left) is their right hand, pod 1 their left.
+    const target = (g: [number, number, number], out: Vector3): Vector3 =>
+      out.set(-g[0] * PUPPET_REACH, DRONE.podY + (g[1] - GUARD_REST.y) * PUPPET_REACH, DRONE.podZ + (-g[2] + GUARD_REST.z) * PUPPET_REACH)
+    puppetShown.r.lerp(target(p.right, tmpA), k)
+    puppetShown.l.lerp(target(p.left, tmpB), k)
+    puppetShown.x += (-p.lean[0] - puppetShown.x) * k
+    puppetShown.y += (p.lean[1] - puppetShown.y) * k
+    puppetShown.roll += (-p.lean[2] - puppetShown.roll) * k
+    const w = attack ? 0.35 : 1 // let the attack wind-up and lunge show through
+    drone.pods.forEach((pod, i) => pod.position.lerp(i === 0 ? puppetShown.r : puppetShown.l, w))
+    drone.root.position.x += puppetShown.x
+    drone.root.position.y += puppetShown.y
+    drone.body.rotation.z += puppetShown.roll * 0.5
+  }
+
   /** Ease the bot toward its guard, dodge (with tell) or stunned pose. */
   function updateBotDefence(dt: number): void {
     const s = botStance
@@ -1057,7 +1087,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       life = updateKO(ko, dt)
     } else {
       charge = updateAttack(ms, dt)
-      const calm = 1 - Math.min(1, Math.abs(pose.yaw) + Math.abs(pose.z)) // idle sway fades during attacks
+      // Online 1v1: no idle footwork, the friend's own lean moves the robot instead.
+      const calm = puppet ? 0 : 1 - Math.min(1, Math.abs(pose.yaw) + Math.abs(pose.z)) // idle sway fades during attacks
       root.position.set(
         // Footwork: side steps and a bob-and-weave, quieter while it attacks.
         (Math.sin(time * 1.1) * 0.14 + Math.sin(time * 2.9) * 0.05) * calm + pose.x,
@@ -1087,6 +1118,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
         )
       })
       drone.orb.position.z = DRONE.orbZ + pose.core
+      if (puppet) applyPuppet(dt)
 
       // Bot defence on top of the attack pose: sway or duck, gloves up in front of the head, stun wobble.
       updateBotDefence(dt)
@@ -1402,6 +1434,16 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
     setBotStance(stance) {
       botStance = stance
+    },
+
+    getPuppet() {
+      const v = (g: Vector3): [number, number, number] => [round3(g.x), round3(g.y), round3(g.z)]
+      return { left: v(leftGlove.shown), right: v(rightGlove.shown), lean: [round3(bodyLean.x), round3(bodyLean.y), round3(bodyLean.roll)] }
+    },
+
+    setOpponentPuppet(p) {
+      if (p && !puppet) puppetShown.fresh = true
+      puppet = p
     },
 
     droneKO() {

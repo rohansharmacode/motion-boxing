@@ -152,6 +152,10 @@ export interface BoxingScene {
   setBotStance?(stance: BotStance): void
   /** Online 1v1: dress the opponent in the friend's customised robot look (null = the drone's own). */
   setOpponentLook?(look: RobotLook | null): void
+  /** Online 1v1: this player's gloves and lean, to send to the other laptop. */
+  getPuppet?(): OpponentPuppet
+  /** Online 1v1: drive the opponent robot from the friend's relayed gloves and lean (null = bot animation). */
+  setOpponentPuppet?(p: OpponentPuppet | null): void
   /** Reset the drone and effects for a new round. */
   resetRound(): void
   /** Camera shot: wide for the countdown, fight otherwise (the scene picks tight and KO shots itself). */
@@ -265,6 +269,14 @@ export interface SportEngine<TScene> {
   update(dtMs: number): void
   flushTelemetry(): void
   dispose(): void
+}
+
+/** Online 1v1: a fighter's gloves (rig metres from the eyes, x right, y up, z forward negative) and body lean. */
+export interface OpponentPuppet {
+  left: [number, number, number]
+  right: [number, number, number]
+  /** Lean right/up in metres and roll in radians, from the fighter's own view. */
+  lean: [number, number, number]
 }
 
 export type BoxingPhase = 'idle' | 'fighting' | 'ended'

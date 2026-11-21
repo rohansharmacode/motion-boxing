@@ -10,6 +10,8 @@ export type GameMsg =
   | { k: 'start' }
   | { k: 'punch'; id: number; kind: 'jab' | 'cross' | 'hook' | 'uppercut'; hand: 'left' | 'right'; damage: number; counter: boolean }
   | { k: 'defence'; id: number; outcome: 'blocked' | 'dodged' | 'hit'; damage: number; hp: number }
+  /** About 15 times a second: the sender's gloves and lean, so the opponent robot moves like them. */
+  | { k: 'pose'; l: [number, number, number]; r: [number, number, number]; lean: [number, number, number] }
 
 export type RelayError = 'not-found' | 'full' | 'busy' | 'unreachable' | 'closed'
 
