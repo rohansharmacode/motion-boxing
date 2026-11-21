@@ -32,6 +32,12 @@ const TARGET = svg(`
   <circle cx="28" cy="36" r="4"/>
   <path d="M28 36L54 10M47 10h7v7M54 10l-4 1" />`)
 
+const PIN = svg(`
+  <path d="M40 6c-4 0-5 5-4 9 1 4-6 8-6 18 0 9 4 15 10 15s10-6 10-15c0-10-7-14-6-18 1-4 0-9-4-9z"/>
+  <path d="M35.5 15h9" stroke-width="2.6"/>
+  <circle cx="20" cy="46" r="12"/>
+  <path d="M16 42h.01M22 41h.01M19 47h.01" stroke-width="4"/>`)
+
 const VERSUS = svg(`
   <circle cx="18" cy="26" r="10"/>
   <circle cx="46" cy="26" r="10"/>
@@ -80,6 +86,16 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#ff8a1f', '#ff9a3c'),
     icon: TARGET,
     art: artUrl('tile-archery'),
+  },
+  {
+    id: 'bowling',
+    title: 'Bowling',
+    tagline: 'Swing, roll, strike',
+    howTo: 'Swing your arm forward like an underarm bowl. Faster swing, faster ball. 3 frames.',
+    accent: pick('#ff2e88', '#ff6b6b'),
+    accent2: pick('#22e5ff', '#2f9bff'),
+    icon: PIN,
+    art: `${import.meta.env.BASE_URL}art/tile-bowling.svg`,
   },
   {
     id: 'customise',
