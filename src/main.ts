@@ -512,6 +512,9 @@ const archery = (ctx: GameContext): Promise<GameSession> =>
 const bowling = (ctx: GameContext): Promise<GameSession> =>
   import('./sports/bowling/index.ts').then((m) => m.startBowling(ctx))
 
+const tabletennis = (ctx: GameContext): Promise<GameSession> =>
+  import('./sports/tabletennis/index.ts').then((m) => m.startTableTennis(ctx))
+
 /** 1v1 tile: start boxing, then open the online lobby from its start screen. */
 async function startVersus(ctx: GameContext): Promise<GameSession> {
   const session = await startBoxing(ctx)
@@ -525,7 +528,7 @@ async function startVersus(ctx: GameContext): Promise<GameSession> {
   return session
 }
 
-mountShell({ launchers: { boxing: startBoxing, goalkeeper, archery, bowling, leaderboard, customise, versus: startVersus } })
+mountShell({ launchers: { boxing: startBoxing, goalkeeper, archery, bowling, tabletennis, leaderboard, customise, versus: startVersus } })
 // Every menu works hands-only: point with a raised hand, hold on a button until the ring fills.
 mountHandNav({ video: el('#webcam', HTMLVideoElement) })
 

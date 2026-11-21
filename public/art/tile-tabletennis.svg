@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Table tennis dashboard tile artwork">
+  <defs>
+    <linearGradient id="tt-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070A17" />
+      <stop offset="65%" stop-color="#0C1228" />
+      <stop offset="100%" stop-color="#1A0C2A" />
+    </linearGradient>
+    <radialGradient id="tt-aura" cx="62%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#22E5FF" stop-opacity="0.28" />
+      <stop offset="100%" stop-color="#070A17" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <style>
+    .ball { animation: tt-ball 1.6s ease-in-out infinite alternate; }
+    @keyframes tt-ball { 0% { transform: translate(0, 0); } 50% { transform: translate(-60px, -70px); } 100% { transform: translate(-130px, 20px); } }
+  </style>
+  <rect width="640" height="400" fill="url(#tt-bg)" />
+  <rect width="640" height="400" fill="url(#tt-aura)" />
+  <!-- table -->
+  <polygon points="200,330 600,330 530,170 300,170" fill="#10235E" stroke="#22E5FF" stroke-width="4" />
+  <line x1="400" y1="330" x2="415" y2="170" stroke="#22E5FF" stroke-width="2" opacity="0.7" />
+  <rect x="232" y="236" width="340" height="22" fill="#FF2E88" opacity="0.35" />
+  <line x1="232" y1="236" x2="572" y2="236" stroke="#FF2E88" stroke-width="4" />
+  <line x1="230" y1="330" x2="230" y2="390" stroke="#2E3E6E" stroke-width="8" />
+  <line x1="570" y1="330" x2="570" y2="390" stroke="#2E3E6E" stroke-width="8" />
+  <!-- paddles -->
+  <g transform="translate(560 120) rotate(30)">
+    <circle r="40" fill="#FF2E88" opacity="0.25" stroke="#FF2E88" stroke-width="5" />
+    <rect x="-7" y="38" width="14" height="40" rx="5" fill="#FF2E88" />
+  </g>
+  <g transform="translate(150 300) rotate(-25)">
+    <circle r="52" fill="#22E5FF" opacity="0.25" stroke="#22E5FF" stroke-width="6" />
+    <rect x="-9" y="50" width="18" height="50" rx="6" fill="#22E5FF" />
+  </g>
+  <!-- ball -->
+  <g class="ball"><circle cx="460" cy="190" r="10" fill="#F2F7FF" /><path d="M470 190 h40" stroke="#22E5FF" stroke-width="3" stroke-linecap="round" opacity="0.6" /></g>
+</svg>

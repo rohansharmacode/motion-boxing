@@ -1,0 +1,184 @@
+/* Racket sports HUD (table tennis, tennis). Every class is prefixed rk- so nothing collides with the other sports. */
+.rk-root {
+  --rk-cyan: #22e5ff;
+  --rk-pink: #ff2e88;
+  --rk-dark: #070a17;
+  --rk-text: #f2f5ff;
+  --rk-muted: #b6c2e2;
+  --rk-display: var(--font-display, 'Bebas Neue', 'Impact', sans-serif);
+  --rk-body: var(--font-body, 'Outfit', system-ui, sans-serif);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--rk-dark);
+  color: var(--rk-text);
+  font-family: var(--rk-body);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+.rk-stage,
+.rk-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.rk-cam {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 150px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  transform: scaleX(-1);
+  border: 2px solid var(--rk-cyan);
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(34, 229, 255, 0.45);
+  display: none;
+}
+.rk-cam.rk-live { display: block; }
+
+/* ---------- scoreboard ---------- */
+.rk-top {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+.rk-title {
+  font-family: var(--rk-display);
+  font-size: 30px;
+  letter-spacing: 0.08em;
+  color: var(--rk-pink);
+  text-shadow: 0 0 8px rgba(255, 46, 136, 0.8), 2px 2px 0 #3a0a24;
+}
+.rk-board { display: flex; align-items: stretch; gap: 6px; font-family: var(--rk-display); }
+.rk-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px;
+  background: rgba(7, 10, 23, 0.82);
+  border: 2px solid var(--rk-cyan);
+  border-radius: 8px;
+}
+.rk-side span { font-size: 16px; letter-spacing: 0.12em; color: var(--rk-muted); }
+.rk-side b { font-weight: 400; font-size: 36px; line-height: 1; min-width: 1.2em; text-align: center; color: var(--rk-cyan); }
+.rk-side i { font-style: normal; font-size: 18px; color: var(--rk-text); border-left: 1px solid rgba(34, 229, 255, 0.3); padding-left: 8px; }
+.rk-cpu { border-color: var(--rk-pink); }
+.rk-cpu b { color: var(--rk-pink); }
+.rk-sep { align-self: center; font-size: 14px; letter-spacing: 0.14em; color: var(--rk-muted); }
+
+/* ---------- power meter ---------- */
+.rk-power {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 18px;
+  height: 160px;
+  border: 2px solid var(--rk-cyan);
+  border-radius: 9px;
+  background: rgba(7, 10, 23, 0.7);
+  overflow: hidden;
+}
+.rk-power-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  transform: scaleY(0);
+  background: linear-gradient(to top, var(--rk-cyan), var(--rk-pink));
+}
+.rk-power.rk-hot { box-shadow: 0 0 12px rgba(255, 46, 136, 0.8); border-color: var(--rk-pink); }
+
+.rk-hint {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(640px, 70vw);
+  text-align: center;
+  font-size: 15px;
+  color: var(--rk-muted);
+  background: rgba(7, 10, 23, 0.7);
+  border-radius: 999px;
+  padding: 6px 16px;
+  pointer-events: none;
+}
+.rk-hint:empty { display: none; }
+
+/* ---------- callout ---------- */
+.rk-callout {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.6);
+  font-family: var(--rk-display);
+  font-size: clamp(56px, 12vw, 140px);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.25s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.rk-callout.rk-show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.rk-callout.rk-big {
+  color: #fff;
+  -webkit-text-stroke: 2px var(--rk-pink);
+  text-shadow: 0 0 18px var(--rk-pink), 4px 4px 0 var(--rk-cyan);
+}
+.rk-callout.rk-info { font-size: clamp(36px, 6vw, 64px); color: var(--rk-cyan); text-shadow: 0 0 10px rgba(34, 229, 255, 0.7); }
+.rk-callout.rk-bad { font-size: clamp(40px, 7vw, 80px); color: var(--rk-pink); text-shadow: 0 0 10px rgba(255, 46, 136, 0.7); }
+
+/* ---------- cards ---------- */
+.rk-card {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 10, 23, 0.55);
+}
+.rk-card.rk-open { display: flex; }
+.rk-card-in {
+  min-width: min(440px, 86vw);
+  max-width: 560px;
+  padding: 28px 32px;
+  text-align: center;
+  background: rgba(7, 10, 23, 0.92);
+  border: 2px solid var(--rk-cyan);
+  border-radius: 14px;
+  box-shadow: 0 0 22px rgba(34, 229, 255, 0.35), inset 0 0 0 1px rgba(255, 46, 136, 0.35);
+}
+.rk-kicker { font-family: var(--rk-display); font-size: 20px; letter-spacing: 0.16em; color: var(--rk-cyan); }
+.rk-big { font-family: var(--rk-display); font-size: 88px; line-height: 1; color: #fff; text-shadow: 0 0 14px var(--rk-pink), 3px 3px 0 var(--rk-pink); }
+.rk-logo { font-size: 72px; margin: 6px 0; }
+.rk-sub { font-size: 17px; color: var(--rk-muted); margin: 8px 0 4px; }
+.rk-meter { height: 10px; margin: 14px auto 0; width: 80%; border: 1px solid var(--rk-cyan); border-radius: 5px; overflow: hidden; }
+.rk-meter i { display: block; height: 100%; width: 0; background: var(--rk-cyan); transition: width 0.1s; }
+.rk-btns { display: flex; gap: 12px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+.rk-btn {
+  font-family: var(--rk-display);
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: 2px solid var(--rk-cyan);
+  background: transparent;
+  color: var(--rk-cyan);
+  cursor: pointer;
+}
+.rk-btn:hover,
+.rk-btn:focus-visible { background: rgba(34, 229, 255, 0.12); outline: none; }
+.rk-btn.rk-primary { background: var(--rk-pink); border-color: var(--rk-pink); color: #fff; box-shadow: 0 0 14px rgba(255, 46, 136, 0.6); }
+
+@media (max-width: 720px) {
+  .rk-title { display: none; }
+  .rk-side { padding: 4px 8px; }
+}
