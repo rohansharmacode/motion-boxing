@@ -54,9 +54,9 @@ const BOT_DUCK_M = 0.4
 const BOT_SWAY_ROLL = 0.35
 /** Tell: a small wind-up the other way before the bot commits. */
 const BOT_TELL_SHARE = 0.22
-/** Guard ring next to the bot head (drone root space) and the player's (camera space, top left of the view). */
+/** Guard rings next to the bot head (drone root space) and the player's head (rig space, rig origin = eyes). */
 const BOT_RING = { x: 0.44, y: DRONE.headY + 0.1, z: 0.12, radius: 0.1 }
-const PLAYER_RING = { x: -0.34, y: 0.16, z: -0.7, radius: 0.045 }
+const PLAYER_RING = { x: -0.36, y: 0.14, z: 0.05, radius: 0.06 }
 
 const EYE_Y = 1.6
 /**
@@ -332,7 +332,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   drone.root.add(botRing.group)
   const playerRing = createGuardRing(PLAYER_RING.radius)
   playerRing.group.position.set(PLAYER_RING.x, PLAYER_RING.y, PLAYER_RING.z)
-  camera.add(playerRing.group)
+  rig.add(playerRing.group)
 
   const leftGlove = makeGlove('left')
   const rightGlove = makeGlove('right')
@@ -819,8 +819,6 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       camera.updateProjectionMatrix()
       const halfH = Math.tan((camera.fov * Math.PI) / 360) * -vignette.position.z * 1.08
       vignette.scale.set(halfH * camera.aspect, halfH, 1)
-      const halfW = Math.tan((camera.fov * Math.PI) / 360) * -PLAYER_RING.z * camera.aspect
-      playerRing.group.position.x = -Math.min(-PLAYER_RING.x, halfW * 0.62)
     },
 
     setBody(body) {
