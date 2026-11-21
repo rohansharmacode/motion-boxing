@@ -81,9 +81,12 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
   let busy = false
   let bannerTimer = 0
   let disposed = false
+  /** A friend who dropped mid-match gets this long to come back. */
+  let peerGrace = 0
+  const PEER_GRACE_MS = 30_000
   /** Pose relay to the friend, about 15 times a second while connected. */
   let poseTimer = 0
-  const POSE_MS = 66
+  const POSE_MS = 33
   const num3 = (v: unknown): [number, number, number] | null =>
     Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 5)
       ? [v[0], v[1], v[2]]
@@ -239,6 +242,8 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
     localReady = false
     peerReady = false
     engine.setVersus(null)
+    window.clearTimeout(peerGrace)
+    peerGrace = 0
     window.clearInterval(poseTimer)
     poseTimer = 0
     deps.setOpponentPuppet?.(null)
@@ -265,13 +270,27 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
     try {
       const c = await connectVersus(address, room, deps.playerName() || 'Player', {
         onPeerJoined(name) {
+          const wasAway = peerGrace !== 0
+          window.clearTimeout(peerGrace)
+          peerGrace = 0
           setPeer(name)
           c.send(hello())
           if (!inMatch) paired()
+          else {
+            // The friend dropped and came back mid-match: pick up where we were.
+            if (localReady) c.send({ k: 'ready' })
+            if (wasAway) matchBanner()
+          }
         },
         onPeerLeft() {
           if (inMatch) {
-            opponentGone(`${peerName ?? 'Your friend'} left`, 'The match is over. You can start a new room any time.')
+            // Give a dropped friend time to reconnect before calling the match off.
+            window.clearTimeout(peerGrace)
+            renderBanner(`${esc(peerName ?? 'Your friend')} is reconnecting`)
+            peerGrace = window.setTimeout(() => {
+              peerGrace = 0
+              opponentGone(`${peerName ?? 'Your friend'} left`, 'The match is over. You can start a new room any time.')
+            }, PEER_GRACE_MS)
           } else if (client) {
             setPeer(null)
             peerReady = false
@@ -279,6 +298,24 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
           }
         },
         onMessage,
+        onReconnecting() {
+          if (inMatch) renderBanner('Reconnecting')
+        },
+        onReconnected(peer) {
+          if (peer) {
+            setPeer(peer)
+            c.send(hello())
+            if (inMatch && localReady) c.send({ k: 'ready' })
+          }
+          if (inMatch) {
+            if (peer) matchBanner()
+            else renderBanner(`Waiting for ${esc(peerName ?? 'your friend')} to reconnect`)
+          } else if (peer) paired()
+          else {
+            setPeer(null)
+            waiting()
+          }
+        },
         onClosed() {
           opponentGone('Connection lost', 'The game server stopped answering.')
         },
@@ -293,7 +330,7 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
         sendPunch: (p) => c.send({ k: 'punch', ...p }),
         sendDefence: (d) => c.send({ k: 'defence', ...d }),
       })
-      // Our gloves and lean go to the friend so their opponent robot is us, not an animated bot.
+      // Our gloves and lean go to the friend (30 Hz) so their opponent robot is us, not an animated bot.
       window.clearInterval(poseTimer)
       poseTimer = window.setInterval(() => {
         const p = inMatch && peerName ? deps.getPuppet?.() : undefined

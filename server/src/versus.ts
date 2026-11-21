@@ -88,7 +88,7 @@ export function attachVersusRelay(server: Server, log: Logger): VersusRelay {
     });
 
     ws.on('message', (raw: RawData) => {
-      let msg: { t?: unknown; room?: unknown; name?: unknown; d?: unknown; at?: unknown };
+      let msg: { t?: unknown; room?: unknown; name?: unknown; d?: unknown; at?: unknown; seat?: unknown; orCreate?: unknown };
       try {
         msg = JSON.parse(raw.toString());
       } catch {
@@ -119,9 +119,22 @@ export function attachVersusRelay(server: Server, log: Logger): VersusRelay {
           return;
         }
         const code = typeof msg.room === 'string' ? msg.room.trim().toUpperCase() : '';
-        const target = rooms.get(code);
+        let target = rooms.get(code);
+        // Reconnect after a drop or a server restart: the client asks for its room (and seat) back.
+        if (!target && msg.orCreate === true && /^[A-Z2-9]{4}$/.test(code) && rooms.size < MAX_ROOMS) {
+          target = { code, seats: [null, null] };
+          rooms.set(code, target);
+        }
         if (!target) return send(ws, { t: 'error', reason: 'not-found' });
-        const free = target.seats[0] === null ? 0 : target.seats[1] === null ? 1 : null;
+        const want = msg.seat === 0 || msg.seat === 1 ? msg.seat : null;
+        const free =
+          want !== null && target.seats[want] === null
+            ? want
+            : target.seats[0] === null
+              ? 0
+              : target.seats[1] === null
+                ? 1
+                : null;
         if (free === null) return send(ws, { t: 'error', reason: 'full' });
         room = target;
         seatIndex = free;

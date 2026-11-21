@@ -546,8 +546,8 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const head = new Group()
   head.position.y = DRONE.headY
   const headModel = new Group()
-  headModel.position.y = 0.04 // hovers with a visible gap above the torso
-  headModel.scale.setScalar(0.9)
+  headModel.position.y = 0.09 // hovers with a visible gap above the torso (bigger head sits higher)
+  headModel.scale.setScalar(1.25) // big head reads from across the ring
   head.add(headModel)
   const helmet = new Mesh(new SphereGeometry(0.125, 48, 32), headShell)
   helmet.scale.set(0.92, 1.08, 1)
@@ -580,6 +580,10 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const cuffGeo = new CylinderGeometry(0.07, 0.075, 0.06, 32)
   cuffGeo.rotateX(Math.PI / 2)
   const cuffMat = new MeshStandardMaterial({ color: 0xeeeef0, roughness: 0.6 })
+  const thumbGeo = new SphereGeometry(0.068, 24, 16)
+  const knuckleGeo = new SphereGeometry(0.11, 24, 16)
+  const bandGeo = new TorusGeometry(0.074, 0.012, 10, 40)
+  const bandMat = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, emissive: 0x333333 })
   const pods = [-1, 1].map((side) => {
     const pod = new Group()
     pod.position.set(side * DRONE.podX, DRONE.podY, DRONE.podZ)
@@ -588,7 +592,16 @@ export function buildDrone(glowMap: Texture): DroneParts {
     fist.position.z = 0.04
     const cuff = new Mesh(cuffGeo, cuffMat)
     cuff.position.z = -0.09
-    pod.add(fist, cuff)
+    // A real boxing glove: thumb along the inside, a padded knuckle roll and a laced cuff band.
+    const thumb = new Mesh(thumbGeo, fistShell)
+    thumb.position.set(-side * 0.135, 0.036, 0.06)
+    thumb.scale.set(0.9, 1, 1.5)
+    const knuckles = new Mesh(knuckleGeo, fistShell)
+    knuckles.position.set(0, 0.05, 0.13)
+    knuckles.scale.set(1.25, 0.55, 0.7)
+    const band = new Mesh(bandGeo, bandMat)
+    band.position.z = -0.06
+    pod.add(fist, thumb, knuckles, cuff, band)
     body.add(pod)
     return pod
   })
