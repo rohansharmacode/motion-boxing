@@ -676,12 +676,12 @@ def crowd_coach(backend: Backend) -> Dict[str, str]:
     except Exception as exc:  # noqa: BLE001
         if _is_control_flow(exc):
             raise
-    sql = ("SELECT SNOWFLAKE.CORTEX.COMPLETE({}, ? || LISTAGG(summary, ' | ')) AS answer FROM ({}) "
+    sql = ("SELECT AI_COMPLETE({}, ? || LISTAGG(summary, ' | ')) AS answer FROM ({}) "
            "HAVING COUNT(summary) > 0"
            .format(P.sql_string_literal(P.CROWD_MODEL), sub))
     answer = scalar(run_uncached(sql, (P.CROWD_INSTRUCTION + "\n\nSummaries: ",)))
     return {"answer": L.parse_cortex_answer(answer) or "No coach summaries in SESSIONS yet.",
-            "source": "SNOWFLAKE.CORTEX.COMPLETE ({}) fallback".format(P.CROWD_MODEL)}
+            "source": "AI_COMPLETE ({}) fallback".format(P.CROWD_MODEL)}
 
 
 def render_crowd(backend: Backend) -> None:

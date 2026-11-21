@@ -671,7 +671,7 @@ def build_coach_prompt(
     percentiles: Optional[Mapping[str, Optional[float]]] = None,
     max_chars: int = MAX_PROMPT_CHARS,
 ) -> str:
-    """Prompt for SNOWFLAKE.CORTEX.COMPLETE. Always passed as a bind parameter.
+    """Prompt for AI_COMPLETE. Always passed as a bind parameter.
 
     The (sanitised, capped) question is fenced and labelled as untrusted text.
     The player's stats go in a compact JSON block; recent sessions are dropped

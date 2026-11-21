@@ -262,7 +262,7 @@ export async function generateCoachCard(deps: CoachDeps, agg: SessionAggregate, 
         return { card: fallbackCard(agg.stats), fallback: true, reason: 'invalid_json', meta: meta(false) };
       } catch (err) {
         if (!(err instanceof StructuredUnsupportedError)) throw err;
-        log.warn('AI_COMPLETE structured output unavailable; using SNOWFLAKE.CORTEX.COMPLETE from now on', { error: errorMessage(err) });
+        log.warn('AI_COMPLETE structured output unavailable; using prompt-only AI_COMPLETE from now on', { error: errorMessage(err) });
       }
     }
     const ms = remaining();

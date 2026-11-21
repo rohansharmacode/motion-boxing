@@ -13,7 +13,7 @@ grounded in a drill library through Cortex Search. Vectors find your "style twin
 Streamlit in Snowflake app let you ask questions about your stats in plain English.
 The data never leaves Snowflake, and an idle game uses almost no compute: tasks skip and the warehouse auto-suspends.
 
-This is designed for a real Snowflake account and tested in mock mode. It has not yet been run against a live account.
+Running live on a real Snowflake account (2026-11-21): every setup, verify and deploy step passes, and a played round lands in `MOTION_EVENTS` / `SESSIONS` with a real Cortex coach card (`fallback:false`). Screenshots: `docs/snowflake-screens/`.
 
 | Snowflake feature | What it does in our game | Where to see it |
 |---|---|---|
@@ -91,6 +91,8 @@ curl -s "localhost:3001/api/drills/search?q=guard"  # source:"cortex_search"
 
 ### If something fails
 
+- **"SNOWFLAKE.CORTEX.COMPLETE is not available on this account".** New accounts block the legacy `SNOWFLAKE.CORTEX.*` functions. The server, Streamlit app and scripts now call `AI_COMPLETE` instead, so pull the latest `main`.
+
 - **Cortex model not available in this region.** As ACCOUNTADMIN:
   `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';` then re-run `npm run sql:plus`.
   Test a model first with `cd scripts && npm run cortex:latency -- llama3.3-70b`. The default is `mistral-large3` (`mistral-large2` became legacy on 2026-08-12 and errors on new accounts). To switch, set `CORTEX_MODEL` in `server/.env` and replace `mistral-large3` in `sql/cortex.sql` (the scouting task).
@@ -132,9 +134,16 @@ curl -s "localhost:3001/api/drills/search?q=guard"  # source:"cortex_search"
 
 ## What is honest
 
-- Not yet run on a live Snowflake account. All tests so far are in mock mode.
+- Run live once on a trial account (2026-11-21). The demo round was played in keyboard mode, so its punch speeds are low; webcam play gives real speeds.
 - `PRO_BENCHMARKS` are hand-picked numbers we seeded ourselves. They are not from a published dataset.
 - The pro vector and "pro similarity" are built from those same hand-picked numbers.
 - The 32 drills in `COACH_DRILLS` are our own text, not from a coaching body.
 - No Snowflake Marketplace dataset is integrated.
 - The anti-cheat flag is a fixed threshold (punch speed over 20 m/s), not a trained model.
+
+## Live account notes (2026-11-21)
+
+- Account `QMQLCIV-ZY96645`, service user `MOTION_APP_USER` (key-pair auth, `TYPE = SERVICE`, so no MFA prompt). The private key is `server/rsa_key.p8` on Sankar's laptop and is git-ignored. Ask Sankar for `server/.env` if you need to run against live; never commit it.
+- The user holds `ACCOUNTADMIN` (for setup), `MOTION_APP_ROLE` (default, used by the server) and `MOTION_READONLY_ROLE` (for `/api/ask`).
+- Streamlit: https://app.snowflake.com/qmqlciv/zy96645/#/streamlit-apps/MOTION_DB.PUBLIC.MOTION_DASHBOARD
+- Front end: `VITE_API_URL=http://localhost:3001` in the root `.env`.

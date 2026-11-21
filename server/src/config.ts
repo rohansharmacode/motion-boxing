@@ -49,7 +49,7 @@ export interface AppConfig {
   keepWarmMs: number;
   /** Fire one tiny Cortex COMPLETE at startup so the first real card is not a cold start. */
   cortexWarmup: boolean;
-  /** Coach card via AI_COMPLETE structured output (falls back to CORTEX.COMPLETE if unsupported). */
+  /** Coach card via AI_COMPLETE structured output (falls back to prompt-only AI_COMPLETE if unsupported). */
   cortexStructured: boolean;
   /** Ground the coach drill on COACH_DRILL_SEARCH (Cortex Search) results. */
   coachGrounding: boolean;

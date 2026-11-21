@@ -1,4 +1,4 @@
-// Times SNOWFLAKE.CORTEX.COMPLETE with a coach-sized prompt (cold, then warm).
+// Times AI_COMPLETE with a coach-sized prompt (cold, then warm).
 // Usage: npx tsx src/cortex-latency.ts [model] [runs]
 import { connect, loadServerEnv } from './sf';
 
@@ -11,7 +11,7 @@ const conn = await connect();
 try {
   for (let i = 0; i < runs; i++) {
     const t = Date.now();
-    const rows = await conn.exec('SELECT SNOWFLAKE.CORTEX.COMPLETE(?, ?) AS R', [model, prompt]);
+    const rows = await conn.exec('SELECT AI_COMPLETE(?, ?) AS R', [model, prompt]);
     const ms = Date.now() - t;
     console.log(`${i === 0 ? 'cold' : 'warm'} run ${i + 1}: ${ms} ms ${ms < 5000 ? 'OK (<5s)' : 'SLOW (>=5s)'}  ${String(rows[0]?.R ?? '').slice(0, 80)}…`);
   }
