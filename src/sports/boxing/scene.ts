@@ -12,6 +12,7 @@ import {
   MeshBasicMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  SphereGeometry,
   Points,
   Scene,
   Vector3,
@@ -30,7 +31,6 @@ import {
   buildArena,
   buildDrone,
   buildGlove,
-  buildPlayerBody,
   createGlowTexture,
   createSparks,
   createVignetteTexture,
@@ -84,11 +84,14 @@ const VIEW = { x: 0.1, y: 0.85, z: 1.5, pitch: -0.34, yaw: 0.025 } as const
  * of a slip or duck, and never rolls with the body, so the view stays steady while the player's robot leans.
  */
 const CAM_OMEGA = 9
-type ShotName = 'fight' | 'tight' | 'wide' | 'ko'
+/** Player robot in rig space: a little left of centre so the camera sits over its right shoulder. */
+const PLAYER_TWIN = { x: -0.24, z: 0.25 } as const
+/** Shoulder widths to metres for the mirrored body lean, and its limits. */
+const BODY_LEAN_M = 0.4
+type ShotName = 'fight' | 'wide' | 'ko'
 /** Camera shots in stage space (rig origin at eye height): camera position and look-at point, metres. */
 const SHOTS: Record<ShotName, { pos: [number, number, number]; look: [number, number, number] }> = {
-  fight: { pos: [0.1, 1.6 + 0.85, 1.5], look: [-0.02, 1.15, -2.1] },
-  tight: { pos: [0.16, 1.6 + 0.62, 1.08], look: [-0.02, 1.3, -2.1] },
+  fight: { pos: [0.45, 1.6 + 0.9, 2.75], look: [-0.08, 1.15, -2.1] },
   wide: { pos: [-1.2, 1.6 + 1.4, 2.9], look: [0, 1.0, -1.2] },
   ko: { pos: [1.8, 1.0, -0.6], look: [0, 0.6, -2.4] },
 }
@@ -171,7 +174,6 @@ const KO = {
 } as const
 
 const WHITE = new Color(0xffffff)
-const RED = new Color(COLORS.telegraph)
 const GOLD = new Color(COLORS.counter)
 const ACCENT = new Color(COLORS.drone)
 /** Drone trim and cores tint toward this while an attack charges. */
@@ -359,6 +361,15 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   const droneFist = drone.fistShell ? { color: drone.fistShell.color.clone(), emissive: drone.fistShell.emissive.clone() } : null
   /** A 1v1 friend's head style, replacing the drone helmet. */
   let opponentHead: Group | null = null
+  const podGlows = drone.pods.map((pod) => {
+    const m = new Mesh(
+      new SphereGeometry(0.13, 16, 10),
+      new MeshBasicMaterial({ color: COLORS.telegraph, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, fog: false }),
+    )
+    m.visible = false
+    pod.add(m)
+    return m
+  })
   /** Both fighters live on a stage that drifts and turns slowly, so the fight circles the ring. */
   const stage = new Group()
   scene.add(stage)
@@ -417,9 +428,24 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   const rightGlove = makeGlove('right', robot)
   const gloves = [leftGlove, rightGlove]
   for (const g of gloves) rig.add(g.parts.group)
-  const playerModel = look ? buildBrightPlayer() : buildPlayerBody([leftGlove.parts.group, rightGlove.parts.group], robot)
-  const playerBaseY = playerModel.position.y
+  // The player's robot is built exactly like the opponent (same proportions and size), seen from behind.
+  // Its own fists are hidden: the tracked gloves float in front, like the opponent's.
+  const twin = look ? null : buildDrone(glowMap)
+  const playerModel: Object3D = twin ? twin.root : buildBrightPlayer()
+  if (twin) {
+    for (const pod of twin.pods) pod.visible = false
+    twin.telegraph.visible = twin.telegraphGuide.visible = false
+    twin.telegraph.removeFromParent()
+    twin.telegraphGuide.removeFromParent()
+    const scheme = robot ? schemeOf(robot) : null
+    if (scheme) twin.armour?.forEach((m) => m.color.setHex(scheme.armour))
+    twin.root.rotation.y = Math.PI
+    twin.root.position.set(PLAYER_TWIN.x, DRONE.y - EYE_Y, PLAYER_TWIN.z)
+  }
+  const playerBase = playerModel.position.clone()
   rig.add(playerModel)
+  /** Continuous body lean from the camera (metres, radians), learned against a slow baseline. */
+  const bodyLean = { x: 0, y: 0, roll: 0, tx: 0, ty: 0, troll: 0, bx: NaN, by: NaN }
   const gloveOf = (hand: Hand): Glove => (hand === 'left' ? leftGlove : rightGlove)
   const trails = gloves.map((g) => {
     const t = createGloveTrail(GLOVE_COLOR[g.hand])
@@ -477,8 +503,6 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   } | null = null
   const eyeLocal = new Vector3()
   let shotRequest: 'wide' | 'fight' = 'fight'
-  /** Real time of the last landed or taken hit, for the tight exchange shot. */
-  let lastExchange = -10
   const shotPos = new Vector3(...SHOTS.fight.pos)
   const shotLook = new Vector3(...SHOTS.fight.look)
   const camQuat = camera.quaternion
@@ -667,7 +691,6 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     }
     impact.z += part.radius + 0.05
     look?.onDroneHit(counter)
-    lastExchange = realTime
     const color = counter ? GOLD : GLOVE_COLOR[hand]
     sparks.burst(impact, counter ? 70 : 30 + Math.round(damage * 2), color, counter ? 4.5 : 3.2, SPRAY_OUT, counter ? 0.6 : 0.45)
     sparks.burst(impact, 12, WHITE, 1.6, NO_BIAS, 0.18)
@@ -681,7 +704,6 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   }
 
   function applyPlayerHit(blocked: boolean): void {
-    lastExchange = realTime
     const rollSign = Math.random() < 0.5 ? -1 : 1
     if (!blocked) {
       redFlash = 1
@@ -938,7 +960,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       const calm = 1 - Math.min(1, Math.abs(pose.yaw) + Math.abs(pose.z)) // idle sway fades during attacks
       root.position.set(
         Math.sin(time * 0.6) * 0.08 * calm + pose.x,
-        DRONE.y + Math.sin(time * 1.7) * 0.05 + Math.abs(Math.sin(time * 3.3)) * 0.035 * calm + pose.y,
+        DRONE.y + Math.sin(time * 1.7) * 0.008 + pose.y,
         DRONE.z + pose.z + knockPush.x,
       )
       body.rotation.set(
@@ -949,6 +971,14 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       const lead = attack?.pattern === 'hook' ? (attack.side > 0 ? 1 : 0) : -1
       drone.pods.forEach((pod, i) => {
         const isLead = i === lead
+        // Small red glow on the glove that is about to strike (both for straights and slams).
+        const glow = podGlows[i]
+        if (glow) {
+          const on = lead === -1 || isLead ? charge : 0
+          glow.visible = on > 0.01
+          glow.material.opacity = on * (0.55 + 0.35 * (0.5 + 0.5 * Math.sin(ring.phase)))
+          glow.scale.setScalar(0.8 + 0.4 * on)
+        }
         pod.position.set(
           (i === 0 ? -1 : 1) * (DRONE.podX + (isLead ? pose.leadX : pose.rearX)),
           DRONE.podY + Math.sin(time * 2.2 + i * 1.7) * 0.025 + (isLead ? pose.leadY : pose.rearY),
@@ -980,7 +1010,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
     // Telegraph ring: grows into its guide ring and pulses faster as the strike nears.
     const pulse = 0.72 + 0.28 * Math.sin(ring.phase)
-    drone.telegraph.visible = drone.telegraphGuide.visible = ring.level > 0
+    // The big ring is retired: the attacking glove glows instead.
+    drone.telegraph.visible = drone.telegraphGuide.visible = false
     drone.telegraph.scale.setScalar((0.55 + 0.45 * ring.progress) * ring.size)
     drone.telegraphGuide.scale.setScalar(ring.size)
     drone.telegraph.material.opacity = (0.2 + 0.8 * ring.progress) * pulse * ring.level
@@ -988,13 +1019,13 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
     flash.head = Math.max(0, flash.head - dt / 0.14)
     flash.chest = Math.max(0, flash.chest - dt / 0.14)
-    applyPart(drone.head, flash.head, charge, life)
-    applyPart(drone.chest, flash.chest, charge, life)
+    applyPart(drone.head, flash.head, 0, life)
+    applyPart(drone.chest, flash.chest, 0, life)
     const trim = 0.2 + 0.8 * life
-    drone.accent.color.copy(droneAccent).lerp(RED_GLOW, charge).multiplyScalar(trim)
+    drone.accent.color.copy(droneAccent).multiplyScalar(trim)
     drone.accentSolid.color.copy(drone.accent.color)
     drone.floorGlow.position.set(root.position.x, 0.01, root.position.z)
-    drone.floorGlow.material.color.copy(droneGlow).lerp(RED, charge)
+    drone.floorGlow.material.color.copy(droneGlow)
     drone.floorGlow.material.opacity = 0.35 * life
   }
 
@@ -1009,16 +1040,30 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     const still = ko ? 0.3 : 1
     stage.rotation.y = Math.sin(realTime * 0.21) * 0.2 * still
     stage.position.set(Math.sin(realTime * 0.33) * 0.35 * still, 0, Math.sin(realTime * 0.27 + 1) * 0.18 * still)
-    playerModel.position.y = playerBaseY + Math.abs(Math.sin(realTime * 3.1)) * 0.025
+    // The player's robot mirrors the body: lean and duck 1:1, shoulder tilt as weight shift, a calm breathing bob.
+    const kb = 1 - Math.exp(-real * 16)
+    bodyLean.x += (bodyLean.tx - bodyLean.x) * kb
+    bodyLean.y += (bodyLean.ty - bodyLean.y) * kb
+    bodyLean.roll += (bodyLean.troll - bodyLean.roll) * kb
+    playerModel.position.set(
+      playerBase.x + bodyLean.x,
+      playerBase.y + bodyLean.y + Math.sin(realTime * 2.2) * 0.008,
+      playerBase.z,
+    )
+    if (twin) {
+      twin.body.rotation.set(-bodyLean.y * 0.6, 0, -bodyLean.roll * 0.8 - bodyLean.x * 0.5)
+      twin.headRoot.rotation.z = -bodyLean.roll * 0.3
+    } else playerModel.rotation.z = -bodyLean.roll * 0.5
     // Shot by situation: wide for the countdown, tighter in an exchange, a low side angle on the KO.
-    const shot: ShotName = ko ? 'ko' : shotRequest === 'wide' ? 'wide' : attack || realTime - lastExchange < 1.4 ? 'tight' : 'fight'
+    // One steady over-the-shoulder view while fighting; wide only for the countdown, side angle for the KO.
+    const shot: ShotName = ko ? 'ko' : shotRequest === 'wide' ? 'wide' : 'fight'
     const sp = SHOTS[shot]
     shotPos.lerp(tmpA.set(sp.pos[0], sp.pos[1], sp.pos[2]), 1 - Math.exp(-real * (shot === 'ko' ? 3 : 2)))
     if (shot === 'ko') tmpB.set(drone.root.position.x, Math.max(0.6, drone.root.position.y), drone.root.position.z)
     else tmpB.set(sp.look[0], sp.look[1], sp.look[2])
     shotLook.lerp(tmpB, 1 - Math.exp(-real * 2.5))
     // Smooth follow: part of the lean, on a spring, no roll. Kicks ride on top and settle in ~150 ms.
-    const follow = shot === 'fight' || shot === 'tight' ? 1 : 0
+    const follow = shot === 'fight' ? 1 : 0
     camTarget.set(shotPos.x + lean.x * CAM_FOLLOW.x * follow, shotPos.y + lean.y * CAM_FOLLOW.y * follow, shotPos.z)
     springStep(camPos, camVel, camTarget, CAM_OMEGA, real)
     for (const w of [kick.x, kick.y, kick.z, kick.pitch, kick.roll]) wobble(w, KICK_OMEGA, KICK_ZETA, real)
@@ -1074,6 +1119,25 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
     setBody(body) {
       for (const g of gloves) g.tracked = body !== null && trackGlove(g, body)
+      const ls = body?.body[LM.L_SHOULDER]
+      const rs = body?.body[LM.R_SHOULDER]
+      if (!body || !ls || !rs || ls.visibility < 0.5 || rs.visibility < 0.5) {
+        bodyLean.tx = bodyLean.ty = bodyLean.troll = 0
+        return
+      }
+      const scale = body.scale > 0.25 ? body.scale : 1
+      const cx = (ls.x + rs.x) / 2
+      const cy = (ls.y + rs.y) / 2
+      if (Number.isNaN(bodyLean.bx)) {
+        bodyLean.bx = cx
+        bodyLean.by = cy
+      }
+      // Slow baseline (a few seconds) so standing a bit off centre does not read as a lean.
+      bodyLean.bx += (cx - bodyLean.bx) * 0.004
+      bodyLean.by += (cy - bodyLean.by) * 0.004
+      bodyLean.tx = clamp(((cx - bodyLean.bx) / scale) * BODY_LEAN_M, -0.3, 0.3)
+      bodyLean.ty = clamp((-(cy - bodyLean.by) / scale) * BODY_LEAN_M, -0.3, 0.1)
+      bodyLean.troll = clamp(Math.atan2(rs.y - ls.y, rs.x - ls.x) * (rs.x < ls.x ? -1 : 1), -0.45, 0.45)
     },
 
     punch(hand, kind) {
