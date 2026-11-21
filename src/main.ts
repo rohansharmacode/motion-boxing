@@ -10,6 +10,16 @@ import type { PosePipeline } from './pose/pipeline.ts'
 import type { Calibration, PoseFrame, StartupErrorKind } from './pose/types.ts'
 import type { BoxingActions, RoundResult } from './sports/boxing/types.ts'
 
+// After a redeploy, a page loaded from the old build asks for chunks that no longer exist.
+// Reload once to pick up the new index.html instead of failing ("Boxing could not start").
+window.addEventListener('vite:preloadError', (e) => {
+  if (sessionStorage.getItem('kr.reloadedForChunks')) return
+  sessionStorage.setItem('kr.reloadedForChunks', '1')
+  e.preventDefault()
+  location.reload()
+})
+window.setTimeout(() => sessionStorage.removeItem('kr.reloadedForChunks'), 10_000)
+
 type BoxingState = 'start' | 'loading' | 'calibrating' | 'tutorial' | 'fighting' | 'ended' | 'error'
 
 /** Longest frame step fed to the game, ms (a hidden tab must not jump the round). */
