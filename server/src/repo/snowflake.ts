@@ -199,6 +199,48 @@ export const SQL = {
     ORDER BY rank LIMIT ${limit}`;
   },
 
+  /** Goalkeeper/archery leaderboard from V_LEADERBOARD_BY_SPORT (sql/multisport.sql). Bind: sport. */
+  sportLeaderboardFromView(limit: number): string {
+    return `
+    SELECT rank, player_id, name, score, best_score, max_speed, best_reaction_ms
+    FROM V_LEADERBOARD_BY_SPORT WHERE sport = ? ORDER BY rank LIMIT ${limit}`;
+  },
+
+  /** Same logic as V_LEADERBOARD_BY_SPORT for one sport, used if the view is missing. Bind: sport. */
+  sportLeaderboardInline(limit: number): string {
+    return `
+    WITH ev AS (
+      SELECT session_id, player_id, speed_mps, reaction_ms, COALESCE(points, 0) AS points
+      FROM MOTION_EVENTS
+      WHERE player_id IS NOT NULL AND LOWER(COALESCE(sport, 'boxing')) = ?
+    ),
+    s AS (SELECT player_id, session_id, SUM(points) AS score FROM ev GROUP BY player_id, session_id),
+    e AS (
+      SELECT player_id,
+             MAX(CASE WHEN speed_mps > 0 THEN speed_mps END) AS max_speed,
+             MIN(CASE WHEN reaction_ms > 0 THEN reaction_ms END) AS best_reaction_ms
+      FROM ev GROUP BY player_id
+    ),
+    p AS (
+      SELECT s.player_id, MAX(s.score) AS best_score, MAX(e.max_speed) AS max_speed,
+             MIN(e.best_reaction_ms) AS best_reaction_ms
+      FROM s JOIN e ON e.player_id = s.player_id GROUP BY s.player_id
+    )
+    SELECT ROW_NUMBER() OVER (ORDER BY p.best_score DESC NULLS LAST, p.max_speed DESC NULLS LAST,
+                              p.best_reaction_ms ASC NULLS LAST, p.player_id) AS rank,
+           p.player_id, COALESCE(n.name, 'Unknown') AS name, p.best_score AS score, p.best_score,
+           ROUND(p.max_speed, 2) AS max_speed, ROUND(p.best_reaction_ms, 1) AS best_reaction_ms
+    FROM p LEFT JOIN (SELECT player_id, MAX(name) AS name FROM PLAYERS GROUP BY player_id) n
+      ON n.player_id = p.player_id
+    ORDER BY rank LIMIT ${limit}`;
+  },
+
+  sessionEvents: `
+    SELECT event_id, session_id, player_id, sport, TO_VARCHAR(event_ts, ${TS}) AS event_ts, event_type, hand,
+           speed_mps, accuracy, reaction_ms, guard_up, points, payload
+    FROM MOTION_EVENTS WHERE session_id = ?
+    ORDER BY event_ts, event_id LIMIT 1000`,
+
   playerSessions(limit: number): string {
     return `
     SELECT session_id,
@@ -503,8 +545,9 @@ export class SnowflakeRepo implements Repo {
     return updated > 0;
   }
 
-  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
+  async leaderboard(limit: number, sport: string = 'boxing'): Promise<LeaderboardRow[]> {
     const n = safeLimit(limit, 10);
+    if (sport.toLowerCase() !== 'boxing') return this.sportLeaderboard(n, sport.toLowerCase());
     let rows: Row[];
     try {
       rows = (await this.db.query(SQL.leaderboardFromView(n))).rows;
@@ -520,6 +563,54 @@ export class SnowflakeRepo implements Repo {
       fastest_punch: num(r.fastest_punch),
       best_reaction_ms: num(r.best_reaction_ms),
     }));
+  }
+
+  private async sportLeaderboard(n: number, sport: string): Promise<LeaderboardRow[]> {
+    let rows: Row[];
+    try {
+      rows = (await this.db.query(SQL.sportLeaderboardFromView(n), [sport])).rows;
+    } catch (err) {
+      this.log.warn('V_LEADERBOARD_BY_SPORT query failed; using inline leaderboard', { sport, error: errorMessage(err) });
+      rows = (await this.db.query(SQL.sportLeaderboardInline(n), [sport])).rows;
+    }
+    return rows.map((r) => ({
+      rank: num(r.rank) ?? 0,
+      player_id: String(r.player_id),
+      name: String(r.name ?? 'Unknown'),
+      score: num(r.score ?? r.best_score),
+      fastest_punch: num(r.max_speed),
+      best_reaction_ms: num(r.best_reaction_ms),
+    }));
+  }
+
+  async sessionEvents(sessionId: string): Promise<MotionEvent[]> {
+    const { rows } = await this.db.query(SQL.sessionEvents, [sessionId]);
+    return rows.map((r) => {
+      let payload: unknown = r.payload ?? null;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          payload = null;
+        }
+      }
+      const hand = String(r.hand ?? '').toUpperCase();
+      return {
+        event_id: String(r.event_id ?? ''),
+        session_id: String(r.session_id ?? sessionId),
+        player_id: String(r.player_id ?? ''),
+        sport: String(r.sport ?? 'boxing'),
+        event_ts: String(r.event_ts ?? ''),
+        event_type: String(r.event_type ?? '').toLowerCase() as MotionEvent['event_type'],
+        hand: hand === 'L' || hand === 'R' ? hand : null,
+        speed_mps: num(r.speed_mps) ?? 0,
+        accuracy: num(r.accuracy),
+        reaction_ms: num(r.reaction_ms),
+        guard_up: typeof r.guard_up === 'boolean' ? r.guard_up : null,
+        points: num(r.points) ?? 0,
+        payload: payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null,
+      };
+    });
   }
 
   async playerSessions(playerId: string, limit: number): Promise<SessionSummary[]> {

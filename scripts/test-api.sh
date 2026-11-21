@@ -136,6 +136,37 @@ check "FE coach has grounding/structured/focus (or is warming up)" "$([ "$(jget 
 req GET "/api/player/$FE_PID/stats"
 check "FE player created with display_name" "$([ "$(jget "$BODY" 'd["player"]["name"]')" = "Smoke FE" ] && echo 1 || echo 0)"
 
+# --- Multi-sport (sql/PLUS_CONTRACT.md "Multi-sport"): goalkeeper SAVE/GOAL as the game sends them.
+echo "--- goalkeeper ---"
+GK_SID=$(python3 -c 'import uuid;print(uuid.uuid4())'); GK_PID=$(python3 -c 'import uuid;print(uuid.uuid4())')
+GK_EVENTS=$(python3 - "$GK_SID" "$GK_PID" "$NOW" <<'PY2'
+import json, sys, uuid, datetime as D
+sid, pid, now = sys.argv[1:4]
+t0 = D.datetime.strptime(now, "%Y-%m-%dT%H:%M:%S.000Z")
+ev = []
+for i, (kind, zone) in enumerate([("SAVE", 0), ("GOAL", 2), ("SAVE", 4)]):
+    ev.append({"event_id": str(uuid.uuid4()), "session_id": sid, "player_id": pid, "sport": "GOALKEEPER",
+               "event_ts": (t0 + D.timedelta(seconds=9 * i)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+               "round_ms": 9000 * i, "event_type": kind, "peak_velocity": 9.5, "reaction_ms": 320 + i,
+               "accuracy_score": 70, "symmetry_ratio": 0.5,
+               "metrics": {"kick": i, "zone": zone, "row": zone // 3, "col": zone % 3,
+                           "part": "left" if kind == "SAVE" else None, "punch": False, "source": "mouse"}})
+print(json.dumps({"events": ev}))
+PY2
+)
+req POST /api/events "$GK_EVENTS"
+check "GK POST /api/events SAVE/GOAL accepted=3" "$([ "$(jget "$BODY" 'd["accepted"]')" = "3" ] && echo 1 || echo 0)"
+req POST /api/session/end "{\"session_id\":\"$GK_SID\",\"player_id\":\"$GK_PID\",\"display_name\":\"Smoke Keeper\",\"sport\":\"GOALKEEPER\",\"started_at\":\"$NOW\",\"ended_at\":\"$NOW\",\"final_score\":2570,\"result\":\"WIN\",\"avg_inference_fps\":null,\"stats\":{}}"
+check "GK POST /api/session/end 200 + 3 tips" "$([ "$CODE" = "200" ] && [ "$(jget "$BODY" 'len(d["coach"]["tips"])')" = "3" ] && echo 1 || echo 0)"
+check "GK session score = 2 saves (2570)" "$([ "$(jget "$BODY" 'd["stats"]["score"]')" = "2570" ] && echo 1 || echo 0)"
+check "GK end leaderboard is the goalkeeper board" "$([ "$(jget "$BODY" '1 if d["leaderboard"] and all(r["sport"]=="GOALKEEPER" for r in d["leaderboard"]) else 0')" = "1" ] && echo 1 || echo 0)"
+req GET "/api/leaderboard?sport=goalkeeper"
+check "GET /api/leaderboard?sport=goalkeeper has the keeper" "$([ "$CODE" = "200" ] && [ "$(jget "$BODY" '1 if any(r["player_id"]=="'"$GK_PID"'" and r["sport"]=="GOALKEEPER" for r in d) else 0')" = "1" ] && echo 1 || echo 0)"
+req GET /api/leaderboard
+check "boxing leaderboard has no goalkeeper rows" "$([ "$(jget "$BODY" '1 if all(r["player_id"]!="'"$GK_PID"'" for r in d) else 0')" = "1" ] && echo 1 || echo 0)"
+req GET "/api/leaderboard?sport=tennis"
+check "leaderboard rejects unknown sport (400)" "$(code_is 400)"
+
 # --- Snowflake Plus (sql/PLUS_CONTRACT.md "New server endpoints"). In real mode a missing object
 # answers 200 with available:false, so data checks only apply when available is true.
 echo "--- snowflake plus ---"
