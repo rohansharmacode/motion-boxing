@@ -510,8 +510,8 @@
   --ch-ring: rgba(56, 200, 255, 0.28);
   --ch-blue: #38c8ff;
   --ch-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
-  --ch-display: 'Geist Sans', system-ui, sans-serif;
-  --ch-body: 'Geist Sans', system-ui, sans-serif;
+  --ch-display: 'Bebas Neue', 'Outfit', system-ui, sans-serif;
+  --ch-body: 'Outfit', system-ui, sans-serif;
   color-scheme: dark;
 }
 
@@ -651,4 +651,3 @@
 :root[data-theme='neon'] .shell--channels .ch-chip[aria-pressed='true'] { border-color: var(--ch-accent); color: var(--ch-accent); }
 
 :root[data-theme='neon'] .shell--channels .shell-toast { bottom: calc(var(--bar-h) + 12px); }
-
