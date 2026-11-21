@@ -30,7 +30,7 @@ const PART_LABEL: Record<KeeperPart, string> = { left: 'L glove', right: 'R glov
 const ROW_LABEL = ['Top', 'Mid', 'Low'] as const
 const COL_LABEL = ['left', 'centre', 'right'] as const
 
-const GRADE_WORD: Record<SaveGrade, string> = { perfect: 'PERFECT!', good: 'GOOD SAVE', fingertip: 'FINGERTIP!', miss: 'MISSED' }
+const GRADE_WORD: Record<SaveGrade, string> = { perfect: 'PERFECT SAVE!', good: 'SAVE!', fingertip: 'FINGERTIP SAVE!', miss: 'GOAL!' }
 
 const GRADE_LABEL: Record<SaveGrade, string> = { perfect: 'Perfect', good: 'Good', fingertip: 'Fingertip', miss: 'Miss' }
 const SHOT_LABEL: Record<ShotType, string> = { straight: 'Straight', curl: 'Curler', dip: 'Dipper', skimmer: 'Skimmer', topCorner: 'Top corner' }
@@ -541,8 +541,8 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       stats.replaceChildren(
         stat('Save %', `${pct}`, '%'),
         stat('Best combo', `x${result.bestCombo ?? 0}`),
-        stat('Avg reaction', fmtMs(result.avgReactionMs), result.avgReactionMs === null ? undefined : 'ms'),
-        stat('Best reaction', fmtMs(result.bestReactionMs ?? null), result.bestReactionMs == null ? undefined : 'ms'),
+        stat('Avg react', fmtMs(result.avgReactionMs), result.avgReactionMs === null ? undefined : 'ms'),
+        stat('Best react', fmtMs(result.bestReactionMs ?? null), result.bestReactionMs == null ? undefined : 'ms'),
         stat('Score', result.score.toLocaleString('en-US')),
       )
       const head = el('thead')
