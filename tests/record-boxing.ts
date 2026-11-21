@@ -53,6 +53,21 @@ function log(msg: string): void {
   logEl.prepend(line)
 }
 
+let frameCount = 0
+let lastError = ''
+
+/** Any exception is shown in the log once (per message) instead of failing silently every frame. */
+function onFrameSafe(frame: PoseFrame | null): void {
+  frameCount++
+  try {
+    onFrame(frame)
+  } catch (err) {
+    const msg = err instanceof Error ? `${err.message}\n${err.stack ?? ''}`.slice(0, 400) : String(err)
+    if (msg !== lastError) { lastError = msg; log(`ERROR: ${msg}`); console.error(err) }
+    status.textContent = `error at frame ${frameCount}, see Log`
+  }
+}
+
 function onFrame(frame: PoseFrame | null): void {
   if (frame) {
     if (lastT) fps = fps * 0.9 + (1000 / Math.max(1, frame.t - lastT)) * 0.1
@@ -62,13 +77,13 @@ function onFrame(frame: PoseFrame | null): void {
   if (!calibration) {
     const p = calibrator.push(frame, pipeline ? pipeline.videoWidth / pipeline.videoHeight : 4 / 3)
     status.textContent = `calibrating: ${p.status} ${(p.progress * 100).toFixed(0)}%`
-    live.textContent = `fps ${fps.toFixed(1)}   inference ${pipeline?.inferenceMs.toFixed(1) ?? '-'} ms   pose ${frame ? 'found' : 'NOT found'}\n\n${CAL_HINT[p.status] ?? ''}` +
+    live.textContent = `frame ${frameCount}   fps ${fps.toFixed(1)}   inference ${pipeline?.inferenceMs.toFixed(1) ?? '-'} ms   pose ${frame ? 'found' : 'NOT found'}\n\n${CAL_HINT[p.status] ?? ''}` +
       (frame ? `\n\nvisibility: shoulders L ${vis(frame, 11)} R ${vis(frame, 12)}   wrists L ${vis(frame, 15)} R ${vis(frame, 16)}  (need > 0.5 / > 0.4)` : '')
     if (p.status === 'done' && p.calibration) {
       calibration = p.calibration
       tracker = createBodyTracker(calibration, BOXING_FILTER)
       detector = createBoxingDetector(config)
-      status.textContent = `calibrated (${calibration.stance ?? 'orthodox'})`
+      status.textContent = `calibrated (${calibration.stance ?? 'orthodox'}): punch, guard, slip or duck and watch the Log`
       log('calibrated')
     }
     return
@@ -88,7 +103,7 @@ function onFrame(frame: PoseFrame | null): void {
   lastSlip = actions.slip
   const dbg = Object.entries(actions.debug).map(([k, v]) => `${k.padEnd(18)} ${Number.isFinite(v) ? v.toFixed(2) : v}`).join('\n')
   live.textContent =
-    `fps ${fps.toFixed(1)}   inference ${pipeline?.inferenceMs.toFixed(1) ?? '-'} ms   frame->detector ${lastLatency.toFixed(1)} ms\n` +
+    `frame ${frameCount}   fps ${fps.toFixed(1)}   inference ${pipeline?.inferenceMs.toFixed(1) ?? '-'} ms   frame->detector ${lastLatency.toFixed(1)} ms\n` +
     `guard ${actions.guard ? 'UP' : 'down'}   slip ${actions.slip ?? '-'}   ${trial ? `TRIAL: ${trial.intent}` : ''}${clip ? '   REC' : ''}\n\n${dbg}`
 }
 
@@ -144,7 +159,7 @@ $('start').onclick = async () => {
     pipeline = await startPosePipeline(video)
     calibrator = createCalibrator()
     calibration = null
-    pipeline.subscribe(onFrame)
+    pipeline.subscribe(onFrameSafe)
     status.textContent = 'calibrating: guard up, stand still'
   } catch (err) {
     status.textContent = `camera failed: ${String(err)}`
