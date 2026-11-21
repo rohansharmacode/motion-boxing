@@ -1,10 +1,10 @@
 // Pose tracking worker: runs MediaPipe PoseLandmarker off the main thread so rendering never waits on
 // inference. The main thread transfers one ImageBitmap per camera frame (zero copy) and gets packed
 // landmarks back as transferred Float32Arrays. Protocol types live in workerProtocol.ts.
-import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision'
+import { PoseLandmarker } from '@mediapipe/tasks-vision'
 import type { NormalizedLandmark, Landmark } from '@mediapipe/tasks-vision'
 import { LANDMARKS, STRIDE } from './workerProtocol.ts'
-import type { TrackerAttempt, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
+import type { TrackerAttempt, WasmFiles, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
 
 interface WorkerScope {
   postMessage(message: WorkerResponse, transfer?: Transferable[]): void
@@ -15,7 +15,7 @@ const scope = self as unknown as WorkerScope
 
 let landmarker: PoseLandmarker | null = null
 let current: TrackerAttempt | null = null
-let wasmBase = ''
+let wasm: WasmFiles | null = null
 let options: { detection: number; presence: number; tracking: number } = { detection: 0.5, presence: 0.4, tracking: 0.4 }
 let lastT = -Infinity
 
@@ -32,7 +32,8 @@ function isModuleWorker(): boolean {
 }
 
 async function create(attempt: TrackerAttempt): Promise<PoseLandmarker> {
-  const fileset = await FilesetResolver.forVisionTasks(wasmBase, isModuleWorker())
+  if (!wasm) throw new Error('No wasm files')
+  const fileset = isModuleWorker() ? wasm.module : wasm.classic
   return PoseLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: attempt.model, delegate: attempt.delegate },
     // GPU in a worker needs its own canvas; MediaPipe cannot reach the DOM from here.
@@ -110,7 +111,7 @@ async function frame(bitmap: ImageBitmap, t: number, captureT: number): Promise<
 scope.onmessage = (event) => {
   const msg = event.data
   if (msg.type === 'init') {
-    wasmBase = msg.wasmBase
+    wasm = msg.wasm
     options = msg.options
     void init(msg.attempts)
   } else if (msg.type === 'frame') {
