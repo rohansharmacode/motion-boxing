@@ -796,6 +796,9 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   arrowRoot.renderOrder = 2
   scene.add(arrowRoot)
   const ARROW_YAW = 0.42
+  // Reused by screenToGoal (called every frame in mouse mode).
+  const goalRay = new THREE.Vector3()
+  const goalOut = { x: 0, y: 0 }
   const ARROW_HIGH = 0xff3fd0
   const ARROW_LOW = 0x22e6ff
   let arrowColor = AMBER
@@ -1298,7 +1301,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
 
     screenToGoal(ndcX: number, ndcY: number): { x: number; y: number } {
       const origin = camera.position
-      const dir = new THREE.Vector3(clamp(ndcX, -1, 1), clamp(ndcY, -1, 1), 0.5).unproject(camera).sub(origin)
+      const dir = goalRay.set(clamp(ndcX, -1, 1), clamp(ndcY, -1, 1), 0.5).unproject(camera).sub(origin)
       let x = 0
       let y = 1.2
       if (Math.abs(dir.z) > 1e-6) {
@@ -1308,7 +1311,9 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
           y = origin.y + dir.y * t
         }
       }
-      return { x: clamp(x, -4.5, 4.5), y: clamp(y, 0, 3.2) }
+      goalOut.x = clamp(x, -4.5, 4.5)
+      goalOut.y = clamp(y, 0, 3.2)
+      return goalOut
     },
 
     reset(): void {

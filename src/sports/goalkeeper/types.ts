@@ -105,7 +105,7 @@ export interface KeeperScene {
   highlightZone(zone: Zone | null, tone: 'save' | 'goal' | 'info'): void
   /** Camera shake, 0..1. */
   shake(intensity: number): void
-  /** Mouse fallback: normalised device coords (-1..1, y up) to a point on the goal plane z = 0. */
+  /** Mouse fallback: normalised device coords (-1..1, y up) to a point on the goal plane z = 0. Returns a reused object: copy it. */
   screenToGoal(ndcX: number, ndcY: number): { x: number; y: number }
   /** Clear effects and reset the striker for a new shootout. */
   reset(): void

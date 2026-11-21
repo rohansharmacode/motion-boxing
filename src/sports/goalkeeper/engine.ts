@@ -8,7 +8,7 @@ import { gradeSave, kickPoints, nextCombo, resultGrade, scoreKicks } from './gra
 import type { ShotPlan } from './shots.ts'
 import type { Difficulty } from './difficulty.ts'
 import { OneEuroVec3 } from './filter.ts'
-import { keeperPoseFromBody, pointerPose } from './mapping.ts'
+import { keeperPoseFromBody, pointerPoseInto } from './mapping.ts'
 import {
   BALL_RADIUS,
   GLOVE_RADIUS,
@@ -120,6 +120,20 @@ function clamp(x: number, lo: number, hi: number): number {
 function round3(x: number): number {
   return Math.round(x * 1000) / 1000
 }
+const GLOVE_PARTS = ['left', 'right'] as const
+
+function scaleInto(v: Vec3, k: number): void {
+  v.x *= k
+  v.y *= k
+  v.z *= k
+}
+
+/** Clamp a velocity's length to max, in place. */
+function capSpeed(v: Vec3, max: number): void {
+  const l = len(v)
+  if (l > max) scaleInto(v, max / l)
+}
+
 function makePose(): KeeperPose {
   return { left: v3(), right: v3(), torsoTop: v3(), torsoBottom: v3(), tracked: false }
 }
@@ -504,7 +518,7 @@ export function createKeeperEngine(opts?: {
 
 
     // Gloves: centre interpolated from the previous update's pose to the current one across substeps.
-    for (const part of ['left', 'right'] as const) {
+    for (const part of GLOVE_PARTS) {
       const cur = pose[part]
       const prev = prevValid ? (part === 'left' ? prevLeft : prevRight) : cur
       lerpInto(c0, prev, cur, f0)
@@ -639,15 +653,9 @@ export function createKeeperEngine(opts?: {
       emaInto(pointerVel.torso, pointerCur.torsoTop, pointerLast.torsoTop, dtS)
       // A mouse can jump metres in one frame; cap at a fast human hand so mouse play can't post
       // impossible glove speeds (which also feed the dashboard's best speed).
-      for (const v of [pointerVel.left, pointerVel.right, pointerVel.torso]) {
-        const l = len(v)
-        if (l > MAX_POINTER_SPEED) {
-          const k = MAX_POINTER_SPEED / l
-          v.x *= k
-          v.y *= k
-          v.z *= k
-        }
-      }
+      capSpeed(pointerVel.left, MAX_POINTER_SPEED)
+      capSpeed(pointerVel.right, MAX_POINTER_SPEED)
+      capSpeed(pointerVel.torso, MAX_POINTER_SPEED)
     }
     copyPose(pointerLast, pointerCur)
     pointerHasLast = true
@@ -797,10 +805,10 @@ export function createKeeperEngine(opts?: {
         filters.torsoBottom.reset()
       }
       copyPose(bodyPrev, bodyPose)
-      cp(bodyPose.left, filters.left.filter(raw.left, tS))
-      cp(bodyPose.right, filters.right.filter(raw.right, tS))
-      cp(bodyPose.torsoTop, filters.torsoTop.filter(raw.torsoTop, tS))
-      cp(bodyPose.torsoBottom, filters.torsoBottom.filter(raw.torsoBottom, tS))
+      filters.left.filterInto(bodyPose.left, raw.left, tS)
+      filters.right.filterInto(bodyPose.right, raw.right, tS)
+      filters.torsoTop.filterInto(bodyPose.torsoTop, raw.torsoTop, tS)
+      filters.torsoBottom.filterInto(bodyPose.torsoBottom, raw.torsoBottom, tS)
       bodyPose.tracked = raw.tracked
       const dtS = gapMs / 1000
       if (hasBodyPose && dtS > 0 && dtS < 0.25) {
@@ -832,7 +840,7 @@ export function createKeeperEngine(opts?: {
         zeroVel(pointerVel)
         prevValid = false
       }
-      copyPose(pointerCur, pointerPose(target))
+      pointerPoseInto(pointerCur, target)
     },
 
     startShootout(opts?: { practice?: boolean }) {
@@ -863,11 +871,9 @@ export function createKeeperEngine(opts?: {
 
       if (!pointerActive && !bodyTracked && dt > 0) {
         const k = Math.exp(-dt / VEL_DECAY_MS)
-        for (const v of [bodyVel.left, bodyVel.right, bodyVel.torso]) {
-          v.x *= k
-          v.y *= k
-          v.z *= k
-        }
+        scaleInto(bodyVel.left, k)
+        scaleInto(bodyVel.right, k)
+        scaleInto(bodyVel.torso, k)
       }
       updatePointerVel(dtS)
       updateMetrics()
