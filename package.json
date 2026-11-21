@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "server": "(test -d server/node_modules || npm --prefix server ci --no-audit --no-fund) && npm --prefix server run dev",
-    "server:mock": "(test -d server/node_modules || npm --prefix server ci --no-audit --no-fund) && SNOWFLAKE_MOCK=1 npm --prefix server run dev",
+    "server": "node scripts/server.mjs",
+    "server:mock": "node scripts/server.mjs --mock",
     "test": "vitest run --config tests/vitest.config.ts",
     "test:e2e": "playwright test --config tests/playwright.config.ts"
   },
