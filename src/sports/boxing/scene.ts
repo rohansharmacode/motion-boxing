@@ -85,7 +85,7 @@ const VIEW = { x: 0.1, y: 0.85, z: 1.5, pitch: -0.34, yaw: 0.025 } as const
  * The camera is not parented to the rig: it follows the rig on a critically damped spring, takes only part
  * of a slip or duck, and never rolls with the body, so the view stays steady while the player's robot leans.
  */
-const CAM_OMEGA = 9
+const CAM_OMEGA = 15
 /** Player robot in rig space: a little left of centre so the camera sits over its right shoulder. */
 const PLAYER_TWIN = { x: -0.5, z: 0.35 } as const
 /** Shoulder widths to metres for the mirrored body lean, and its limits. */
@@ -102,7 +102,7 @@ const CAM_FOLLOW = { x: 0.45, y: 0.55 } as const
 const KICK_OMEGA = 30
 const KICK_ZETA = 0.55
 /** Peak impact-frame white flash per hit type (high quality halves it: the composer blends in linear light). */
-const IMPACT_FLASH = { hit: 0.12, counter: 0.22, block: 0.06, ko: 0.5 } as const
+const IMPACT_FLASH = { hit: 0.2, counter: 0.32, block: 0.1, ko: 0.5 } as const
 const IMPACT_FLASH_FADE_S = 0.09
 const MAX_DT_MS = 50
 /** Critically damped glove spring (rad/s). 60 settles in about 75 ms; untracked gloves ease slower. */
@@ -742,8 +742,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     const part = result.target === 'head' ? drone.head : drone.chest
     flash[result.target] = 1
     const strength = 0.5 + damage / 12
-    knockPitch.v -= (result.target === 'head' ? 8 : 4) * strength
-    knockPush.v -= 2.5 * strength
+    knockPitch.v -= (result.target === 'head' ? 12 : 6) * strength
+    knockPush.v -= 7 * strength // punches drive the target back
     // The glove's travel pushes the drone sideways: left hand moves +x, which rolls the top to +x.
     knockRoll.v += (hand === 'left' ? -1 : 1) * (kind === 'hook' ? 6 : 1.5) * strength
 
@@ -763,7 +763,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     flashImpact(counter ? IMPACT_FLASH.counter : IMPACT_FLASH.hit)
     // Camera kick toward the punch: a small dip forward, nudged the way the glove travelled.
     const dirX = hand === 'left' ? 1 : -1
-    kickCam(dirX * 0.25 * strength, -0.2 * strength, -0.9 * strength, -0.25 * strength, dirX * (kind === 'hook' ? 0.6 : 0.25) * strength)
+    kickCam(dirX * 0.4 * strength, -0.3 * strength, -1.4 * strength, -0.35 * strength, dirX * (kind === 'hook' ? 0.6 : 0.25) * strength)
   }
 
   function applyPlayerHit(blocked: boolean): void {
@@ -1032,14 +1032,15 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       charge = updateAttack(ms, dt)
       const calm = 1 - Math.min(1, Math.abs(pose.yaw) + Math.abs(pose.z)) // idle sway fades during attacks
       root.position.set(
-        Math.sin(time * 0.6) * 0.08 * calm + pose.x,
-        DRONE.y + Math.sin(time * 1.7) * 0.008 + pose.y,
+        // Footwork: side steps and a bob-and-weave, quieter while it attacks.
+        (Math.sin(time * 1.1) * 0.14 + Math.sin(time * 2.9) * 0.05) * calm + pose.x,
+        DRONE.y + Math.abs(Math.sin(time * 2.9)) * -0.03 * calm + pose.y,
         DRONE.z + pose.z + knockPush.x,
       )
       body.rotation.set(
         knockPitch.x + pose.pitch + Math.sin(time * 1.1) * 0.03,
-        Math.sin(time * 0.5) * 0.12 * calm + pose.yaw,
-        Math.sin(time * 0.9) * 0.06 + knockRoll.x + pose.roll,
+        Math.sin(time * 1.1 + 0.6) * 0.2 * calm + pose.yaw,
+        Math.sin(time * 2.9) * 0.08 * calm + knockRoll.x + pose.roll,
       )
       const lead = attack?.pattern === 'hook' ? (attack.side > 0 ? 1 : 0) : -1
       drone.pods.forEach((pod, i) => {
@@ -1111,8 +1112,13 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     rig.rotation.z = -lean.x * 0.4
     // Footwork: the stage circles slowly; the player's robot bounces on its toes.
     const still = ko ? 0.3 : 1
-    stage.rotation.y = Math.sin(realTime * 0.21) * 0.2 * still
-    stage.position.set(Math.sin(realTime * 0.33) * 0.35 * still, 0, Math.sin(realTime * 0.27 + 1) * 0.18 * still)
+    // TV-style: the pair circles and steps across the ring, so the broadcast angle keeps changing.
+    stage.rotation.y = (Math.sin(realTime * 0.37) * 0.32 + Math.sin(realTime * 0.91) * 0.06) * still
+    stage.position.set(
+      (Math.sin(realTime * 0.52) * 0.55 + Math.sin(realTime * 1.3) * 0.08) * still,
+      0,
+      (Math.sin(realTime * 0.43 + 1) * 0.28 + Math.sin(realTime * 1.7) * 0.05) * still,
+    )
     // The player's robot mirrors the body: lean and duck 1:1, shoulder tilt as weight shift, a calm breathing bob.
     const kb = 1 - Math.exp(-real * 16)
     bodyLean.x += (bodyLean.tx - bodyLean.x) * kb
@@ -1131,10 +1137,10 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     // One steady over-the-shoulder view while fighting; wide only for the countdown, side angle for the KO.
     const shot: ShotName = ko ? 'ko' : shotRequest === 'wide' ? 'wide' : 'fight'
     const sp = SHOTS[shot]
-    shotPos.lerp(tmpA.set(sp.pos[0], sp.pos[1], sp.pos[2]), 1 - Math.exp(-real * (shot === 'ko' ? 3 : 2)))
+    shotPos.lerp(tmpA.set(sp.pos[0], sp.pos[1], sp.pos[2]), 1 - Math.exp(-real * (shot === 'ko' ? 4 : 4.5)))
     if (shot === 'ko') tmpB.set(drone.root.position.x, Math.max(0.6, drone.root.position.y), drone.root.position.z)
     else tmpB.set(sp.look[0], sp.look[1], sp.look[2])
-    shotLook.lerp(tmpB, 1 - Math.exp(-real * 2.5))
+    shotLook.lerp(tmpB, 1 - Math.exp(-real * 5))
     // Smooth follow: part of the lean, on a spring, no roll. Kicks ride on top and settle in ~150 ms.
     const follow = shot === 'fight' ? 1 : 0
     camTarget.set(shotPos.x + lean.x * CAM_FOLLOW.x * follow, shotPos.y + lean.y * CAM_FOLLOW.y * follow, shotPos.z)
