@@ -7,6 +7,7 @@ import {
   Group,
   HemisphereLight,
   LineSegments,
+  AdditiveBlending,
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
@@ -16,7 +17,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three'
-import type { BufferGeometry, Material } from 'three'
+import type { BufferGeometry, Material, Object3D, Quaternion } from 'three'
 import { LM } from '../../pose/types.ts'
 import type { BodyFrame, Hand, Joint } from '../../pose/types.ts'
 import type { AttackPattern, BoxingScene, BotStance, GuardMeterView, HitResult, HitTarget, PunchKind, QualityLevel, SlipKind } from './types.ts'
@@ -39,6 +40,7 @@ import type { DroneHitPart, GloveParts } from './sceneParts.ts'
 import { STRIKE_TIMING, WIND_MS, blendAttackPose, createPose } from './sceneAttack.ts'
 import { createRenderPipeline } from './scenePost.ts'
 import { buildArenaDressing } from './arenaDressing.ts'
+import { createGloveTrail, createShockwaves } from './sceneFx.ts'
 import { brightBoxingLook } from '../../theme/bright/boxing.ts'
 import { buildHumanoid } from '../../theme/bright/avatar.ts'
 
@@ -74,6 +76,18 @@ function buildBrightPlayer(): Group {
 }
 
 const VIEW = { x: 0.1, y: 0.85, z: 1.5, pitch: -0.34, yaw: 0.025 } as const
+/**
+ * The camera is not parented to the rig: it follows the rig on a critically damped spring, takes only part
+ * of a slip or duck, and never rolls with the body, so the view stays steady while the player's robot leans.
+ */
+const CAM_OMEGA = 9
+const CAM_FOLLOW = { x: 0.45, y: 0.55 } as const
+/** Impact camera kick: damped springs (position metres, rotation radians), driven in real time. */
+const KICK_OMEGA = 30
+const KICK_ZETA = 0.55
+/** Peak impact-frame white flash per hit type (high quality halves it: the composer blends in linear light). */
+const IMPACT_FLASH = { hit: 0.12, counter: 0.22, block: 0.06, ko: 0.5 } as const
+const IMPACT_FLASH_FADE_S = 0.09
 const MAX_DT_MS = 50
 /** Critically damped glove spring (rad/s). 60 settles in about 75 ms; untracked gloves ease slower. */
 const TRACK_OMEGA = 60
@@ -112,7 +126,22 @@ const TELEGRAPH_GRACE_MS = 350
  * The composer blends in linear light, which reads about twice as strong as the plain sRGB render.
  */
 const HIT_VIGNETTE: Record<QualityLevel, number> = { high: 0.07, low: 0.18 }
-/** KO choreography, scene time. The first ~300 ms play in slow motion, so the key beats land there. */
+/** KO choreography, scene time, full speed (no slow motion): the head flies off, then the body goes down. */
+const HEAD_OFF = {
+  up: 3.6,
+  back: 2.3,
+  side: 1.3,
+  /** rad/s */
+  spinX: -11,
+  spinY: 5,
+  spinZ: 7,
+  /** Head centre height when it rests on the canvas. */
+  floorY: 0.27,
+  bounce: 0.42,
+  friction: 0.65,
+  /** Neck stump keeps spitting sparks this long. */
+  stumpMs: 1400,
+} as const
 const KO = {
   gravity: 9.8,
   launchUp: 2.1,
@@ -123,7 +152,7 @@ const KO = {
   roll: 2.2,
   /** Visor and core flicker out over this long; the head shorts out with a pop at popMs. */
   darkMs: 280,
-  popMs: 130,
+  popMs: 0,
   bounce: 0.32,
   trailMs: 45,
   emberMs: 420,
@@ -311,9 +340,9 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   scene.add(rig)
   const camera = new PerspectiveCamera(46, 1, 0.03, 60)
   camera.rotation.order = 'YXZ'
-  camera.position.set(VIEW.x, VIEW.y, VIEW.z)
+  camera.position.set(VIEW.x, EYE_Y + VIEW.y, VIEW.z)
   camera.rotation.set(VIEW.pitch, VIEW.yaw, 0)
-  rig.add(camera)
+  scene.add(camera)
   const vignetteMat = new MeshBasicMaterial({
     map: vignetteMap,
     color: COLORS.telegraph,
@@ -328,6 +357,21 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   vignette.renderOrder = 10
   vignette.visible = false
   camera.add(vignette)
+  // Impact frame: a brief white flash on contact, held while the hit-stop freezes the scene.
+  const impactMat = new MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    blending: AdditiveBlending,
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+  })
+  const impactPlane = new Mesh(new PlaneGeometry(2, 2), impactMat)
+  impactPlane.position.z = -0.05
+  impactPlane.renderOrder = 11
+  impactPlane.visible = false
+  camera.add(impactPlane)
 
   const botRing = createGuardRing(BOT_RING.radius)
   botRing.group.position.set(BOT_RING.x, BOT_RING.y, BOT_RING.z)
@@ -342,6 +386,14 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   for (const g of gloves) rig.add(g.parts.group)
   rig.add(look ? buildBrightPlayer() : buildPlayerBody([leftGlove.parts.group, rightGlove.parts.group]))
   const gloveOf = (hand: Hand): Glove => (hand === 'left' ? leftGlove : rightGlove)
+  const trails = gloves.map((g) => {
+    const t = createGloveTrail(GLOVE_COLOR[g.hand])
+    t.reset(g.pos)
+    rig.add(t.mesh)
+    return t
+  })
+  const waves = createShockwaves(8)
+  scene.add(waves.group)
 
   const post = createRenderPipeline(renderer, scene, camera, (level) => {
     sparks.density = nearSparks.density = (level === 'high' ? 1 : 0.5) * FX
@@ -351,7 +403,6 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   // ---------- state ----------
   let time = 0
   let realTime = 0
-  let timeScale = 1
   let hitstopMs = 0
   let guard = false
   let slip: SlipKind | null = null
@@ -372,8 +423,25 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   let lastPending: PendingEffect | null = null
   /** The latest droneHit while it waits for its glove, so a KO can start on that contact. */
   let pendingHit: PendingEffect | null = null
-  let shake = 0
   let redFlash = 0
+  let impactFlash = 0
+  /** Camera follow spring state (world) and the impact kick springs. */
+  const camPos = new Vector3(VIEW.x, EYE_Y + VIEW.y, VIEW.z)
+  const camVel = new Vector3()
+  const camTarget = new Vector3()
+  const kick = { x: { x: 0, v: 0 }, y: { x: 0, v: 0 }, z: { x: 0, v: 0 }, pitch: { x: 0, v: 0 }, roll: { x: 0, v: 0 } }
+  /** The KO head in flight, with where it came from so the next round can put it back. */
+  let headFly: {
+    obj: Object3D
+    parent: Object3D
+    pos: Vector3
+    quat: Quaternion
+    vel: Vector3
+    spin: Vector3
+    settled: boolean
+  } | null = null
+  const eyeLocal = new Vector3()
+  const camQuat = camera.quaternion
   const lean = { x: 0, y: 0 }
   let playerMeter: GuardMeterView = { fraction: 1, broken: false }
   let botMeter: GuardMeterView = { fraction: 1, broken: false }
@@ -508,6 +576,19 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
 
   // ---------- effects ----------
 
+  /** Impulse on the camera kick springs (velocities): metres per second and radians per second. */
+  function kickCam(x: number, y: number, z: number, pitch: number, roll: number): void {
+    kick.x.v += x
+    kick.y.v += y
+    kick.z.v += z
+    kick.pitch.v += pitch
+    kick.roll.v += roll
+  }
+
+  function flashImpact(level: number): void {
+    impactFlash = Math.max(impactFlash, level)
+  }
+
   function defer(ready: () => boolean, fire: () => void): PendingEffect {
     const p: PendingEffect = { ready, fire, hitstopMs: 0 }
     pending.push(p)
@@ -549,14 +630,25 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     const color = counter ? GOLD : GLOVE_COLOR[hand]
     sparks.burst(impact, counter ? 70 : 30 + Math.round(damage * 2), color, counter ? 4.5 : 3.2, SPRAY_OUT, counter ? 0.6 : 0.45)
     sparks.burst(impact, 12, WHITE, 1.6, NO_BIAS, 0.18)
+    // Shockwave right on the contact point, a white inner ring on top for a crisp edge.
+    waves.spawn(impact, color, 0.3 + damage * 0.025 + (counter ? 0.15 : 0), counter ? 0.32 : 0.24)
+    waves.spawn(impact, WHITE, 0.16 + damage * 0.01, 0.14)
+    flashImpact(counter ? IMPACT_FLASH.counter : IMPACT_FLASH.hit)
+    // Camera kick toward the punch: a small dip forward, nudged the way the glove travelled.
+    const dirX = hand === 'left' ? 1 : -1
+    kickCam(dirX * 0.25 * strength, -0.2 * strength, -0.9 * strength, -0.25 * strength, dirX * (kind === 'hook' ? 0.6 : 0.25) * strength)
   }
 
   function applyPlayerHit(blocked: boolean): void {
-    shake = Math.max(shake, blocked ? 0.03 : 0.08)
+    const rollSign = Math.random() < 0.5 ? -1 : 1
     if (!blocked) {
       redFlash = 1
+      // Rocked back: the camera snaps back and tilts, then springs home.
+      kickCam(rollSign * 0.4, 0.5, 2.6, 1.3, rollSign * 2.4)
       return
     }
+    kickCam(0, 0.1, 1.1, 0.4, rollSign * 0.6)
+    flashImpact(IMPACT_FLASH.block)
     for (const g of gloves) g.vel.z += 3 // the block knocks the gloves back a little
     const mid = leftGlove.parts.group.getWorldPosition(tmpA).add(rightGlove.parts.group.getWorldPosition(tmpB))
     mid.multiplyScalar(0.5)
@@ -564,6 +656,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     nearSparks.burst(mid, 18, GLOVE_COLOR.left, 0.9, NO_BIAS, 0.3)
     nearSparks.burst(mid, 18, GLOVE_COLOR.right, 0.9, NO_BIAS, 0.3)
     nearSparks.burst(mid, 10, WHITE, 0.6, NO_BIAS, 0.2)
+    waves.spawn(mid, NEON.white, 0.22, 0.2)
   }
 
   /** life: 1 = powered, 0 = dead (KO). */
@@ -596,7 +689,73 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     sparks.burst(c, 90, ACCENT, 5, SPRAY_KO, 1.1)
     sparks.burst(c, 36, WHITE, 4, SPRAY_KO, 0.7)
     sparks.burst(c, 36, GOLD, 5, SPRAY_KO, 0.9)
-    shake = Math.max(shake, 0.06)
+    knockHeadOff(push)
+    const h = partCenter(drone.head, tmpC)
+    waves.spawn(h, GOLD, 0.75, 0.45)
+    waves.spawn(h, WHITE, 0.4, 0.25)
+    waves.spawn(h, ACCENT, 1.1, 0.6)
+    flashImpact(IMPACT_FLASH.ko)
+    kickCam(-push * 0.6, 0.3, -2.2, -0.9, -push * 1.6)
+  }
+
+  /** Finisher: the head pops clean off the body and flies up and away, spinning. */
+  function knockHeadOff(push: number): void {
+    const obj = drone.headRoot
+    if (headFly || !obj.parent) return
+    const parent = obj.parent
+    headFly = {
+      obj,
+      parent,
+      pos: obj.position.clone(),
+      quat: obj.quaternion.clone(),
+      vel: new Vector3(push * HEAD_OFF.side, HEAD_OFF.up, -HEAD_OFF.back),
+      spin: new Vector3(HEAD_OFF.spinX, push * HEAD_OFF.spinY, push * HEAD_OFF.spinZ),
+      settled: false,
+    }
+    scene.attach(obj) // keeps its world transform
+  }
+
+  function updateHead(k: KoState, dt: number): void {
+    const f = headFly
+    if (!f) return
+    const o = f.obj
+    if (!f.settled) {
+      f.vel.y -= KO.gravity * dt
+      o.position.addScaledVector(f.vel, dt)
+      o.rotation.x += f.spin.x * dt
+      o.rotation.y += f.spin.y * dt
+      o.rotation.z += f.spin.z * dt
+      if (o.position.y < HEAD_OFF.floorY && f.vel.y < 0) {
+        const impact = -f.vel.y
+        o.position.y = HEAD_OFF.floorY
+        f.vel.set(f.vel.x * HEAD_OFF.friction, impact * HEAD_OFF.bounce, f.vel.z * HEAD_OFF.friction)
+        f.spin.multiplyScalar(0.55)
+        sparks.burst(tmpC.set(o.position.x, 0.05, o.position.z), Math.round(impact * 10), WHITE, impact * 0.6, SPRAY_UP, 0.4)
+        kickCam(0, -Math.min(0.5, impact * 0.08), 0, 0, 0)
+        if (impact > 2) waves.spawn(tmpC.set(o.position.x, 0.06, o.position.z), ACCENT, 0.4, 0.25)
+        if (f.vel.y < 0.7) f.settled = true
+      } else if (k.ms < 900 && k.sparkMs === 0) {
+        sparks.burst(o.getWorldPosition(tmpC), 3, GOLD, 0.8, NO_BIAS, 0.3)
+      }
+    } else {
+      // Roll to a stop on the canvas.
+      const e = 1 - Math.exp(-dt * 3)
+      f.vel.multiplyScalar(1 - e)
+      f.spin.multiplyScalar(1 - e)
+      o.position.x += f.vel.x * dt
+      o.position.z += f.vel.z * dt
+      o.rotation.x += f.spin.x * dt
+      o.rotation.z += f.spin.z * dt
+    }
+  }
+
+  function restoreHead(): void {
+    const f = headFly
+    if (!f) return
+    headFly = null
+    f.parent.add(f.obj)
+    f.obj.position.copy(f.pos)
+    f.obj.quaternion.copy(f.quat)
   }
 
   /** Tumble, two bounces, then roll onto its back. Returns the drone's remaining power 0 to 1. */
@@ -616,7 +775,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
         k.spinZ *= 0.4
         k.settled = k.vel.y < 0.6
         sparks.burst(tmpC.set(root.position.x, 0.05, root.position.z), Math.round(impact * 16), ACCENT, impact * 0.8, SPRAY_UP, 0.6)
-        shake = Math.max(shake, Math.min(0.05, impact * 0.012))
+        kickCam(0, -Math.min(0.9, impact * 0.2), 0, -Math.min(0.3, impact * 0.06), 0)
       }
     } else {
       // Slide to a stop and rock onto the nearest lying-on-its-back angle.
@@ -631,14 +790,17 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     if (!k.popped && k.ms >= KO.popMs) {
       k.popped = true
       const h = partCenter(drone.head, tmpC)
-      sparks.burst(h, 60, WHITE, 2.6, SPRAY_UP, 0.5)
-      sparks.burst(h, 40, ACCENT, 2, SPRAY_UP, 0.7)
+      sparks.burst(h, 80, WHITE, 3.2, SPRAY_UP, 0.5)
+      sparks.burst(h, 60, GOLD, 2.6, SPRAY_UP, 0.8)
     }
     k.sparkMs += dt * 1000
     if (k.ms < KO.sparksUntilMs && k.sparkMs >= (k.settled ? KO.emberMs : KO.trailMs)) {
       k.sparkMs = 0
       sparks.burst(partCenter(drone.chest, tmpC), k.settled ? 6 : 4, k.settled ? ACCENT : WHITE, 1.3, SPRAY_UP, 0.4)
+      // The neck stump fizzes where the head used to be.
+      if (headFly && k.ms < HEAD_OFF.stumpMs) sparks.burst(partCenter(drone.head, tmpC), 8, GOLD, 2.2, SPRAY_UP, 0.45)
     }
+    updateHead(k, dt)
 
     // Flicker on the way out, then dark.
     const dark = Math.min(1, k.ms / KO.darkMs)
@@ -801,13 +963,36 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     lean.y += ((slip === 'duck' ? -DUCK_DROP_M : 0) - lean.y) * k
     rig.position.set(lean.x, EYE_Y + lean.y, 0)
     rig.rotation.z = -lean.x * 0.4
-    shake *= Math.exp(-real * 10)
-    const s = shake * SHAKE
-    camera.position.set(VIEW.x + Math.sin(realTime * 71) * s, VIEW.y + Math.sin(realTime * 53 + 1.3) * s * 0.8, VIEW.z)
-    camera.rotation.set(VIEW.pitch + Math.sin(realTime * 41) * s * 0.5, VIEW.yaw, Math.sin(realTime * 37) * s * 1.2)
+    // Smooth follow: part of the lean, on a spring, no roll. Kicks ride on top and settle in ~150 ms.
+    camTarget.set(VIEW.x + lean.x * CAM_FOLLOW.x, EYE_Y + VIEW.y + lean.y * CAM_FOLLOW.y, VIEW.z)
+    springStep(camPos, camVel, camTarget, CAM_OMEGA, real)
+    for (const w of [kick.x, kick.y, kick.z, kick.pitch, kick.roll]) wobble(w, KICK_OMEGA, KICK_ZETA, real)
+    const s = SHAKE / 0.45 // kick size follows the calm-fight SHAKE setting
+    camera.position.set(
+      camPos.x + clamp(kick.x.x, -0.06, 0.06) * s,
+      camPos.y + clamp(kick.y.x, -0.06, 0.06) * s,
+      camPos.z + clamp(kick.z.x, -0.12, 0.12) * s,
+    )
+    camera.rotation.set(VIEW.pitch + clamp(kick.pitch.x, -0.05, 0.05) * s, VIEW.yaw, clamp(kick.roll.x, -0.07, 0.07) * s)
     redFlash = Math.max(0, redFlash - real / 0.35)
     vignetteMat.opacity = redFlash * HIT_VIGNETTE[post.quality]
     vignette.visible = redFlash > 0
+    // Impact frame: full while the hit-stop holds, then a fast fade.
+    if (hitstopMs <= 0) impactFlash = Math.max(0, impactFlash - real / IMPACT_FLASH_FADE_S)
+    impactMat.opacity = impactFlash * (post.quality === 'high' ? 0.5 : 1)
+    impactPlane.visible = impactFlash > 0
+  }
+
+  function updateTrails(dt: number): void {
+    camera.updateMatrixWorld()
+    rig.updateMatrixWorld()
+    rig.worldToLocal(camera.getWorldPosition(eyeLocal))
+    gloves.forEach((g, i) => {
+      const anim = g.punch
+      const w = anim ? (anim.ms < PUNCH_OUT_MS ? 1 : Math.max(0, 1 - (anim.ms - PUNCH_OUT_MS) / PUNCH_BACK_MS)) : 0
+      const fast = clamp((g.vel.length() - 1.8) / 3, 0, 0.7)
+      trails[i].update(g.shown, Math.max(w, fast), eyeLocal, dt > 0)
+    })
   }
 
   // ---------- API ----------
@@ -822,6 +1007,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       camera.updateProjectionMatrix()
       const halfH = Math.tan((camera.fov * Math.PI) / 360) * -vignette.position.z * 1.08
       vignette.scale.set(halfH * camera.aspect, halfH, 1)
+      impactPlane.scale.copy(vignette.scale)
     },
 
     setBody(body) {
@@ -940,6 +1126,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
 
     resetRound() {
       ko = null
+      restoreHead()
       attack = null
       pending.length = 0
       lastPending = pendingHit = null
@@ -955,19 +1142,17 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       drone.root.position.set(0, DRONE.y, DRONE.z)
       sparks.clear()
       nearSparks.clear()
-      hitstopMs = shake = redFlash = 0
-      timeScale = 1
+      waves.clear()
+      hitstopMs = redFlash = impactFlash = 0
+      for (const w of Object.values(kick)) w.x = w.v = 0
       for (const g of gloves) g.punch = null
+      gloves.forEach((g, i) => trails[i].reset(g.shown))
     },
 
     hitstop(ms) {
       // Called right after droneHit or playerHit: if that impact is deferred, freeze on contact instead.
       if (lastPending) lastPending.hitstopMs = Math.max(lastPending.hitstopMs, ms)
       else hitstopMs = Math.max(hitstopMs, ms)
-    },
-
-    setTimeScale(scale) {
-      timeScale = clamp(scale, 0, 4)
     },
 
     get quality(): QualityLevel {
@@ -988,7 +1173,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
         hitstopMs -= frozen
         sceneMs -= frozen
       }
-      const dt = (sceneMs * timeScale) / 1000
+      const dt = sceneMs / 1000
       time += dt
       updateGloves(dt)
       updateDrone(dt)
@@ -999,6 +1184,8 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       sparks.update(dt)
       nearSparks.update(dt)
       updateCamera(realMs / 1000)
+      updateTrails(dt)
+      waves.update(dt, camQuat)
       look?.update(realMs / 1000)
       dressing?.update(realTime)
     },
@@ -1024,6 +1211,8 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       }
       botRing.dispose()
       playerRing.dispose()
+      for (const t of trails) t.dispose()
+      waves.dispose()
       glowMap.dispose()
       vignetteMap.dispose()
       pending.length = 0

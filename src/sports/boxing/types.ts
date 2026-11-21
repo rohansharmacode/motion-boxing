@@ -54,6 +54,10 @@ export interface BoxingSfx {
   playerHit(): void
   bell(): void
   ko(win: boolean): void
+  /** Round-start countdown beat: 3, 2, 1, then 0 for FIGHT. */
+  countdown?(n: number): void
+  /** The finishing blow: a heavy crunch and a metal pop as the head comes off. */
+  finisher?(): void
   setMuted(muted: boolean): void
   dispose(): void
 }
@@ -152,8 +156,6 @@ export interface BoxingScene {
   /** Advance animations by real elapsed time. */
   update(dtMs: number): void
   render(): void
-  /** 1 = normal, 0.25 = slow motion (KO). Camera shake stays real time. */
-  setTimeScale(scale: number): void
   /** high = bloom, pixel ratio up to 2; low = no bloom, pixel ratio 1. The scene also drops to low by itself when frames are slow. */
   readonly quality: QualityLevel
   setQuality(level: QualityLevel): void
@@ -288,6 +290,10 @@ export interface VersusLink {
 
 export interface BoxingEngine extends SportEngine<BoxingScene> {
   readonly phase: BoxingPhase
+  /** Game logic only, fixed step (main.ts runs it at 120 Hz). */
+  step(dtMs: number): void
+  /** Push state to the scene and advance its animation by one rendered frame. Run once per frame. */
+  present(dtMs: number): void
   /** Keyboard path. Same rules as pose actions. */
   onActions(actions: BoxingActions): void
   startRound(): void

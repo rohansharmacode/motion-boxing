@@ -110,7 +110,7 @@ describe('online 1v1 engine', () => {
       a.engine.onActions(punch('uppercut'))
       tick(1300)
     }
-    tick(2000)
+    tick(3000) // the KO finisher plays for 2.6 s before the round ends
     expect(b.ends[0]?.outcome).toBe('ko-loss')
     expect(a.ends[0]?.outcome).toBe('ko-win')
   })
