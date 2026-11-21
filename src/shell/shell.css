@@ -683,3 +683,6 @@
   .shell-tile:hover .shell-tile-art,
   .shell-tile:focus .shell-tile-art { transform: none; }
 }
+
+/* The wide leaderboard tile is too short for its icon: it sat on top of the title. */
+.shell-tile--leaderboard .shell-tile-icon { display: none; }
