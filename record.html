@@ -29,6 +29,8 @@
       .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
       .badge { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 6px; background: rgba(0,0,0,.6); font-weight: 600; }
       .badge.rec { background: var(--rec); }
+      #target { position: absolute; border: 3px solid #3ddc84; background: rgba(61, 220, 132, .28); border-radius: 8px; box-shadow: 0 0 18px rgba(61, 220, 132, .7); transition: background .12s; pointer-events: none; }
+      #target.hit { background: rgba(255, 255, 255, .85); border-color: #fff; }
       .labels { display: flex; flex-wrap: wrap; gap: 4px; }
       .labels button.on { background: var(--rec); color: #fff; }
       .muted { color: var(--muted); }
@@ -56,7 +58,7 @@
     <main>
       <section id="tab-record" class="cols">
         <div>
-          <div class="stage"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div class="badge" id="badge">camera off</div></div>
+          <div class="stage"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div id="target" hidden></div><div class="badge" id="badge">camera off</div></div>
           <div class="card" style="margin-top:10px">
             <button class="primary" id="camera">Start camera</button>
             <span id="calStatus" class="muted"></span>
@@ -77,6 +79,7 @@
             <button id="save" disabled>Save take <kbd>Alt+S</kbd></button>
             <button id="discard" disabled>Discard</button>
             <div id="takeInfo" class="muted" style="margin-top:6px"></div>
+            <label style="display:block;margin-top:8px"><input type="checkbox" id="targets" /> Green-box targets: a box appears at random; swing your hand through it. Each hit is marked as a rep automatically.</label>
             <div class="labels" id="labels" style="margin-top:8px"></div>
             <div id="howTo" class="muted" style="margin-top:6px"></div>
             <div style="margin-top:8px">
@@ -111,7 +114,7 @@
           <div id="scoreOut"></div>
         </div>
         <div class="card" id="tuneCard">
-          <h2>Tune (boxing thresholds)</h2>
+          <h2 id="tuneTitle">Tune (boxing thresholds)</h2>
           <p class="muted" style="margin-top:0">Edit values and press Score to see the effect, or Auto-tune: it tries one step up and down for each value and keeps changes that improve
             mean F1 minus idle triggers. Check per-person results before trusting it (it can overfit one person).</p>
           <div class="grid2" id="params"></div>

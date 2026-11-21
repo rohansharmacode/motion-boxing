@@ -6,6 +6,7 @@ import { createCalibrator } from '../../src/pose/calibration.ts'
 import type { Calibration, PoseFrame } from '../../src/pose/types.ts'
 import { ARCHERY_TRACKER_FILTER, createArcheryDetector } from '../../src/sports/archery/detector.ts'
 import { BOXING_FILTER, DEFAULT_BOXING_CONFIG, createBoxingDetector, type BoxingDetectorConfig } from '../../src/sports/boxing/detector.ts'
+import { DEFAULT_SWING_CONFIG, RACKET_TRACKER_FILTER, createSwingDetector, type SwingConfig } from '../../src/sports/racket/swing.ts'
 import { unpackPose, type MotionLabel, type Recording } from '../../src/dev/recordingFormat.ts'
 
 /** A detector output, named with the recorder's label for the motion it stands for. */
@@ -18,11 +19,13 @@ export interface DetectedEvent {
 
 /** Labels that have a detector today. The others are reported as "no detector". */
 export const SCORED_LABELS: MotionLabel[] = [
-  'jab-L', 'jab-R', 'hook', 'uppercut', 'block', 'dodge-L', 'dodge-R', 'duck', 'archery-draw', 'archery-release',
+  'jab-L', 'jab-R', 'hook', 'uppercut', 'block', 'dodge-L', 'dodge-R', 'duck', 'archery-draw', 'archery-release', 'tt-swing',
 ]
 
 export interface ReplayOptions {
   boxing?: Partial<BoxingDetectorConfig>
+  /** Racket swing detector (table tennis) overrides. */
+  swing?: Partial<SwingConfig>
 }
 
 export interface EventExtractor {
@@ -36,7 +39,9 @@ export interface EventExtractor {
 
 /**
  * The game's chain, frame by frame: the calibrator on the first frames (guard hold), then a body tracker + detector
- * per sport, each with that sport's tracker filter. Boxing and archery run side by side on every frame.
+ * per sport, each with that sport's tracker filter. Boxing, archery and the racket swing run side by side on every
+ * frame. The racket sports calibrate without needing the hands in view (like the game), so they get their own
+ * calibrator and start as soon as the shoulders are steady.
  */
 export function createEventExtractor(aspect: number, opts: ReplayOptions = {}): EventExtractor {
   const calibrator = createCalibrator()
@@ -47,6 +52,9 @@ export function createEventExtractor(aspect: number, opts: ReplayOptions = {}): 
   let arcTracker: ReturnType<typeof createBodyTracker> | null = null
   const boxing = createBoxingDetector(opts.boxing ?? {})
   const archery = createArcheryDetector()
+  const racketCalibrator = createCalibrator({ requireHands: false })
+  let racketTracker: ReturnType<typeof createBodyTracker> | null = null
+  const swing = createSwingDetector(opts.swing ?? {})
   let guard = false
   let slip: string | null = null
   let archeryPhase = 'idle'
@@ -58,6 +66,15 @@ export function createEventExtractor(aspect: number, opts: ReplayOptions = {}): 
     get calibratedAt() { return calibratedAt },
     push(frame) {
       if (frame) lastT = frame.t
+      const out: DetectedEvent[] = []
+      if (!racketTracker) {
+        const rc = racketCalibrator.push(frame, aspect)
+        if (rc.status === 'done' && rc.calibration) racketTracker = createBodyTracker(rc.calibration, RACKET_TRACKER_FILTER)
+      } else {
+        const rb = racketTracker.push(frame)
+        const sw = rb ? swing.push(rb).swing : null
+        if (sw) out.push({ t: sw.t, type: 'tt-swing', detail: `${sw.hand} power ${sw.power.toFixed(2)} aim ${sw.aim.toFixed(2)}` })
+      }
       if (!calibration) {
         const p = calibrator.push(frame, aspect)
         status = p.status
@@ -67,9 +84,8 @@ export function createEventExtractor(aspect: number, opts: ReplayOptions = {}): 
           boxTracker = createBodyTracker(calibration, BOXING_FILTER)
           arcTracker = createBodyTracker(calibration, ARCHERY_TRACKER_FILTER)
         }
-        return []
+        return out
       }
-      const out: DetectedEvent[] = []
       const b = boxing.update(boxTracker!.push(frame))
       for (const p of b.punches) {
         const type: MotionLabel = p.kind === 'hook' ? 'hook' : p.kind === 'uppercut' ? 'uppercut' : p.hand === 'left' ? 'jab-L' : 'jab-R'
@@ -356,6 +372,33 @@ export const BOXING_TUNABLES: Array<{ key: keyof BoxingDetectorConfig; step: num
   { key: 'duckMinDrop', step: 0.03, min: 0.08, max: 0.5, what: 'duck: head drop (SW)' },
 ]
 
+export const SWING_TUNABLES: Array<{ key: keyof SwingConfig; step: number; min: number; max: number; what: string }> = [
+  { key: 'swingMinSpeed', step: 0.3, min: 2, max: 9, what: 'swing: wrist speed to fire (SW/s)' },
+  { key: 'cooldownMs', step: 30, min: 150, max: 800, what: 'swing: cooldown between swings (ms)' },
+  { key: 'handSwitchSpeed', step: 0.3, min: 1, max: 6, what: 'hitting hand switches above (SW/s)' },
+  { key: 'minVisibility', step: 0.05, min: 0.1, max: 0.8, what: 'wrist visibility gate' },
+]
+
+/** What the auto-tuner can tune: one detector's config, its tunables and defaults. */
+export type TuneTarget = 'boxing' | 'swing'
+
+const TARGETS = {
+  boxing: { tunables: BOXING_TUNABLES, defaults: DEFAULT_BOXING_CONFIG as unknown as Record<string, number>, opts: (c: Record<string, number>): ReplayOptions => ({ boxing: c }) },
+  swing: { tunables: SWING_TUNABLES, defaults: DEFAULT_SWING_CONFIG as unknown as Record<string, number>, opts: (c: Record<string, number>): ReplayOptions => ({ swing: c }) },
+} as const
+
+export function tunablesFor(target: TuneTarget): ReadonlyArray<{ key: string; step: number; min: number; max: number; what: string }> {
+  return TARGETS[target].tunables
+}
+
+export function defaultsFor(target: TuneTarget): Record<string, number> {
+  return TARGETS[target].defaults
+}
+
+export function replayOptionsFor(target: TuneTarget, config: Record<string, number>): ReplayOptions {
+  return TARGETS[target].opts(config)
+}
+
 export interface TuneStep {
   round: number
   key: string
@@ -368,6 +411,44 @@ export interface TuneStep {
  * Coordinate search: for each tunable, try one step down and one step up; keep a change only if mean F1 improves
  * and no motion loses a detected rep. Repeats for `rounds`. `onStep` can yield to the UI (await it) and report progress.
  */
+export async function autoTune(
+  target: TuneTarget,
+  recs: Recording[],
+  types: readonly MotionLabel[],
+  start: Record<string, number> = {},
+  rounds = 2,
+  onStep?: (s: TuneStep) => void | Promise<void>,
+): Promise<{ config: Record<string, number>; before: number; after: number }> {
+  const t0 = TARGETS[target]
+  const cfg: Record<string, number> = { ...start }
+  const value = (k: string): number => cfg[k] ?? t0.defaults[k]
+  const start0 = scoreAll(recs, t0.opts(cfg), types)
+  const before = objective(start0, types)
+  let best = before
+  let bestTp = recalls(start0, types)
+  for (let round = 1; round <= rounds; round++) {
+    let improved = false
+    for (const t of t0.tunables) {
+      for (const dir of [-1, 1]) {
+        const v = Math.round((value(t.key) + dir * t.step) * 1000) / 1000
+        if (v < t.min || v > t.max) continue
+        const trial = { ...cfg, [t.key]: v }
+        const sc = scoreAll(recs, t0.opts(trial), types)
+        const o = objective(sc, types)
+        const tp = recalls(sc, types)
+        // A step must raise mean F1 AND not lose a detected rep in any motion (no trading one motion for another).
+        const noLoss = [...bestTp].every(([l, n]) => (tp.get(l) ?? 0) >= n)
+        const accepted = noLoss && o > best + 1e-6
+        if (accepted) { best = o; bestTp = tp; cfg[t.key] = v; improved = true }
+        await onStep?.({ round, key: t.key, value: v, objective: o, accepted })
+      }
+    }
+    if (!improved) break
+  }
+  return { config: cfg, before, after: best }
+}
+
+/** Boxing shorthand (kept for callers and tests). */
 export async function autoTuneBoxing(
   recs: Recording[],
   types: readonly MotionLabel[],
@@ -375,30 +456,5 @@ export async function autoTuneBoxing(
   rounds = 2,
   onStep?: (s: TuneStep) => void | Promise<void>,
 ): Promise<{ config: Partial<BoxingDetectorConfig>; before: number; after: number }> {
-  const cfg: Partial<BoxingDetectorConfig> = { ...start }
-  const value = (k: keyof BoxingDetectorConfig): number => (cfg[k] ?? DEFAULT_BOXING_CONFIG[k]) as number
-  const start0 = scoreAll(recs, { boxing: cfg }, types)
-  const before = objective(start0, types)
-  let best = before
-  let bestTp = recalls(start0, types)
-  for (let round = 1; round <= rounds; round++) {
-    let improved = false
-    for (const t of BOXING_TUNABLES) {
-      for (const dir of [-1, 1]) {
-        const v = Math.round((value(t.key) + dir * t.step) * 1000) / 1000
-        if (v < t.min || v > t.max) continue
-        const trial = { ...cfg, [t.key]: v }
-        const sc = scoreAll(recs, { boxing: trial }, types)
-        const o = objective(sc, types)
-        const tp = recalls(sc, types)
-        // A step must raise mean F1 AND not lose a detected rep in any motion (no trading one motion for another).
-        const noLoss = [...bestTp].every(([l, n]) => (tp.get(l) ?? 0) >= n)
-        const accepted = noLoss && o > best + 1e-6
-        if (accepted) { best = o; bestTp = tp; Object.assign(cfg, { [t.key]: v }); improved = true }
-        await onStep?.({ round, key: t.key, value: v, objective: o, accepted })
-      }
-    }
-    if (!improved) break
-  }
-  return { config: cfg, before, after: best }
+  return autoTune('boxing', recs, types, start as Record<string, number>, rounds, onStep) as Promise<{ config: Partial<BoxingDetectorConfig>; before: number; after: number }>
 }

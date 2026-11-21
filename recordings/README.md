@@ -6,7 +6,7 @@ Only landmark JSON lives here (`*.json.gz`, about 150 to 300 KB per minute). **N
 ## The motion lab: http://localhost:5173/record.html
 
 `npm run dev`, then open **/record.html** (dev server only; it is not part of the production build).
-Pick the game at the top: **Boxing**, **Goalkeeper**, **Archery** or **Bowling**. Each has a **Record** and a **Train** tab.
+Pick the game at the top: **Boxing**, **Goalkeeper**, **Archery**, **Table tennis** or **Bowling**. Each has a **Record** and a **Train** tab.
 Links can go straight to a game and tab: `/record.html?game=archery&tab=train`.
 
 ### Record
@@ -17,6 +17,10 @@ Links can go straight to a game and tab: `/record.html?game=archery&tab=train`.
    - Best: a second person presses **Alt+Space** at each rep. Marked reps give exact matching and latency.
    - **Live detections** shows what the game's detector sees right now: ✓ for the motion being recorded, ✗ for anything else.
    - A wrong set can be deleted from the table before saving.
+   - **Green-box targets** (on by default for table tennis): during a set a green box appears at a random spot on the
+     camera view. Swing a hand through it (at least 2 shoulder widths per second) and it is marked as a rep automatically,
+     with its time and position, then the next box appears. A box nobody hits within 6 s moves on (logged as a timeout).
+     No second person is needed; the hits are the ground truth the swing detector is scored against.
 4. **Save take** (Alt+S). It is written to `recordings/<game>_<person>_<motions>_<time>.json.gz`.
 
 **What to record:** 20+ reps of each motion, from 2 to 3 people, at 1.5 m and 2.5 m, in at least 2 lighting setups.
@@ -27,6 +31,7 @@ adjusting the laptop, someone walking behind).
 |---|---|---|
 | Boxing | `jab-L`, `jab-R` (straight punch with your own left / right; jab or cross both count), `hook`, `uppercut`, `block`, `dodge-L`, `dodge-R`, `duck`, `idle` | yes |
 | Archery | `archery-draw`, `archery-release`, `idle` | yes |
+| Table tennis | `tt-swing` (swing through the green box, forehand and backhand), `idle` | yes (racket swing, also used by tennis) |
 | Goalkeeper | `keeper-dive-L`, `keeper-dive-R`, `idle` | not yet (recorded for later) |
 | Bowling | `bowl-swing`, `idle` | not yet (recorded for later) |
 
@@ -35,9 +40,10 @@ adjusting the laptop, someone walking behind).
 - **Score** runs the selected takes through the real calibrator, trackers and detectors. Per motion: reps, detected (recall),
   precision, false triggers, median latency vs the rep marks, and what fired during each set. ✓ = target met
   (≥90% detected, <5% false triggers). Tick **Also score per person** to spot one person skewing the numbers.
-- **Boxing thresholds** (velocity, extension, hysteresis, visibility gate, guard, slip, duck): edit a value and Score again to see
-  the effect (shown as before → after), or **Auto-tune**: it tries one step up and down per value and keeps what improves
-  mean F1 minus idle triggers. **Copy overrides** gives the JSON for a tuning PR.
+- **Thresholds**: boxing (velocity, extension, hysteresis, visibility gate, guard, slip, duck) and table tennis (swing speed,
+  cooldown, hand switch, visibility gate). Edit a value and Score again to see the effect (before → after), or **Auto-tune**:
+  it tries one step up and down per value and keeps a change only if mean F1 improves and no motion loses a detected rep.
+  **Copy overrides** gives the JSON for a tuning PR.
 
 ## Command line
 

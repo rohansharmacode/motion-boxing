@@ -6,13 +6,12 @@
 import { createPoseOverlay } from '../pose/overlay.ts'
 import { startPosePipeline, type PosePipeline } from '../pose/pipeline.ts'
 import type { PoseFrame } from '../pose/types.ts'
-import { DEFAULT_BOXING_CONFIG, type BoxingDetectorConfig } from '../sports/boxing/detector.ts'
 import {
   GAMES, RECORDING_VERSION, gameOf, packPose, parseRecording, recordingFileName,
-  type GameId, type MotionLabel, type PackedPose, type Recording, type RecordingSegment,
+  type GameId, type MotionLabel, type PackedPose, type Recording, type RecordingSegment, type RecordingTarget,
 } from './recordingFormat.ts'
 import {
-  BOXING_TUNABLES, autoTuneBoxing, createEventExtractor, emptyScores, idleSummary, objective, replayTake, scoreAll, scoreRows,
+  autoTune, createEventExtractor, defaultsFor, replayOptionsFor, tunablesFor, type TuneTarget, emptyScores, idleSummary, objective, replayTake, scoreAll, scoreRows,
   scoreTake, type EventExtractor, type Scores,
 } from '../../tools/replay/score.ts'
 
@@ -44,6 +43,92 @@ let infN = 0
 let fps = 0
 let prevT = 0
 
+// ------------------------------------------------------------------ green-box targets
+/** Box size and placement, in frame units (0..1, mirrored like the preview). */
+const BOX_W = 0.16
+const BOX_H = 0.2
+/** SW/s. A wrist must move through the box at least this fast to count (a swing, not a hand resting there).
+ *  Deliberately below the swing detector's own threshold, so hits are ground truth the detector is scored against. */
+const HIT_MIN_SPEED = 2
+/** ms. A box nobody hits moves on after this (logged as a timeout). */
+const BOX_TIMEOUT_MS = 6000
+/** ms. Pause after a hit before the next box. */
+const BOX_GAP_MS = 500
+
+let box: RecordingTarget | null = null
+let nextBoxAt = 0
+const prevWrist: Record<'left' | 'right', { x: number; y: number; t: number } | null> = { left: null, right: null }
+
+const targetsOn = (): boolean => $<HTMLInputElement>('targets').checked
+
+function placeBox(t: number): void {
+  let x = 0
+  let y = 0
+  for (let i = 0; i < 20; i++) {
+    x = 0.12 + Math.random() * (0.76 - BOX_W)
+    y = 0.15 + Math.random() * (0.7 - BOX_H)
+    const last = current?.targets?.at(-1)
+    if (!last || Math.hypot(x - last.x, y - last.y) > 0.25) break
+  }
+  box = { shownT: Math.round(t), hitT: null, x, y, w: BOX_W, h: BOX_H, hand: null }
+  const div = $('target')
+  div.hidden = false
+  div.classList.remove('hit')
+  Object.assign(div.style, { left: `${x * 100}%`, top: `${y * 100}%`, width: `${BOX_W * 100}%`, height: `${BOX_H * 100}%` })
+}
+
+function hideBox(): void {
+  box = null
+  $('target').hidden = true
+}
+
+/** Per frame while a set runs in target mode: spawn, hit-test both wrists, time out. */
+function updateTargets(frame: PoseFrame | null): void {
+  if (!current || !targetsOn() || current.label === 'idle') { if (box) hideBox(); return }
+  // Frame t is on the performance.now clock; without a body in view, keep the boxes moving on the same clock.
+  const t = frame?.t ?? performance.now()
+  if (!box) {
+    if (t >= nextBoxAt) placeBox(t)
+    return
+  }
+  if (frame && pipeline) {
+    const a = pipeline.videoWidth / Math.max(1, pipeline.videoHeight)
+    const ls = frame.image[11]
+    const rs = frame.image[12]
+    const sw = Math.max(0.02, Math.hypot((ls.x - rs.x) * a, ls.y - rs.y))
+    for (const side of ['left', 'right'] as const) {
+      const w = frame.image[side === 'left' ? 15 : 16]
+      const prev = prevWrist[side]
+      prevWrist[side] = { x: w.x, y: w.y, t }
+      if (!prev || (w.visibility ?? 0) < 0.3) continue
+      const dt = (t - prev.t) / 1000
+      if (dt <= 0 || dt > 0.2) continue
+      const speed = Math.hypot((w.x - prev.x) * a, w.y - prev.y) / dt / sw
+      const inside = w.x >= box.x && w.x <= box.x + box.w && w.y >= box.y && w.y <= box.y + box.h
+      if (inside && speed >= HIT_MIN_SPEED) {
+        box.hitT = Math.round(t)
+        box.hand = side
+        current.marks.push(Math.round(t))
+        ;(current.targets ??= []).push(box)
+        $('target').classList.add('hit')
+        logEvent(`target hit (${side} hand, ${speed.toFixed(1)} SW/s)`, 'ok')
+        box = null
+        nextBoxAt = t + BOX_GAP_MS
+        setTimeout(() => { if (!box) $('target').hidden = true }, 150)
+        renderTake()
+        return
+      }
+    }
+  }
+  if (t - box.shownT > BOX_TIMEOUT_MS) {
+    ;(current.targets ??= []).push(box)
+    logEvent('target timed out (no hit)', 'bad')
+    hideBox()
+    nextBoxAt = t + BOX_GAP_MS
+    renderTake()
+  }
+}
+
 const CAL_HINT: Record<string, string> = {
   'no-pose': 'No body found: step back so head and upper body are in view; add light in front of you.',
   'shoulders-hidden': 'Shoulders unclear: face the camera square-on; avoid a bright window behind you.',
@@ -58,7 +143,13 @@ function renderHeader(): void {
   const games = $('games')
   games.replaceChildren(...(Object.keys(GAMES) as GameId[]).map((id) => {
     const b = el('button', { textContent: GAMES[id].name, className: id === game ? 'on' : '' })
-    b.onclick = () => { if (taking) return alert('Save or discard the take first.'); game = id; syncUrl(); renderAll() }
+    b.onclick = () => {
+      if (taking) return alert('Save or discard the take first.')
+      game = id
+      $<HTMLInputElement>('targets').checked = id === 'tabletennis'
+      syncUrl()
+      renderAll()
+    }
     return b
   }))
   for (const b of $('tabs').querySelectorAll<HTMLButtonElement>('button')) {
@@ -100,9 +191,11 @@ function renderTake(): void {
   badge.textContent = !pipeline ? 'camera off' : taking ? (current ? `REC ${current.label} (${current.marks.length})` : 'REC') : 'ready'
   badge.className = `badge${taking ? ' rec' : ''}`
   const secs = taking && frames.length ? Math.round((lastT - (frames.find((f) => f)?.[0] ?? lastT)) / 1000) : 0
-  $('takeInfo').textContent = taking
+  const tg = current?.targets
+  const tgInfo = tg ? ` Targets: ${tg.filter((x) => x.hitT !== null).length} hit, ${tg.filter((x) => x.hitT === null).length} timed out.` : ''
+  $('takeInfo').textContent = (taking
     ? `${frames.length} frames, ${secs} s. ${live?.calibration ? 'Calibrated.' : 'Hold guard still to calibrate first.'}`
-    : pipeline ? 'Start a take, then have the player hold the guard still for 2 s.' : 'Start the camera first.'
+    : pipeline ? 'Start a take, then have the player hold the guard still for 2 s.' : 'Start the camera first.') + tgInfo
   $('sets').replaceChildren(...[...sets, ...(current ? [current] : [])].map((s, i) => {
     const del = el('button', { textContent: 'Delete', disabled: s === current })
     del.onclick = () => { if (del.textContent !== 'Sure?') { del.textContent = 'Sure?'; setTimeout(() => (del.textContent = 'Delete'), 3000); return } sets.splice(i, 1); renderTake() }
@@ -167,6 +260,7 @@ function onFrame(frame: PoseFrame | null): void {
     lastT = frame.t
   }
   overlay.draw(frame, false)
+  if (taking) updateTargets(frame)
   if (taking) {
     frames.push(packPose(frame))
     infSum += pipeline!.inferenceMs
@@ -227,7 +321,8 @@ function startTake(): void {
 
 function startSet(label: MotionLabel): void {
   if (!taking || current) return
-  current = { label, startT: lastT || performance.now(), endT: 0, reps: 0, marks: [], live: 0 }
+  current = { label, startT: lastT || performance.now(), endT: 0, reps: 0, marks: [], live: 0, ...(targetsOn() && label !== 'idle' ? { targets: [] } : {}) }
+  nextBoxAt = performance.now() + 800
   logEvent(`set: ${label}`)
   renderTake()
 }
@@ -241,6 +336,7 @@ function markRep(): void {
 function endSet(): void {
   if (!current) return
   current.endT = lastT || performance.now()
+  hideBox()
   let reps = 0
   if (current.label !== 'idle') {
     const answer = prompt(`How many ${current.label} reps were actually done?`, String(current.marks.length || 20))
@@ -273,6 +369,7 @@ async function saveTake(): Promise<void> {
   }
   const name = recordingFileName(rec)
   const body = JSON.stringify(rec)
+  hideBox()
   taking = false
   renderTake()
   try {
@@ -290,6 +387,7 @@ async function saveTake(): Promise<void> {
 
 function discardTake(): void {
   if (!taking || !confirm('Discard this take?')) return
+  hideBox()
   taking = false
   current = null
   sets = []
@@ -321,7 +419,11 @@ window.addEventListener('keydown', (e) => {
 interface Loaded { file: string; bytes: number; rec: Recording }
 let loaded: Loaded[] = []
 const selected = new Set<string>()
-let overrides: Partial<BoxingDetectorConfig> = {}
+/** Threshold overrides per tunable detector (boxing, racket swing). */
+const overridesBy: Record<TuneTarget, Record<string, number>> = { boxing: {}, swing: {} }
+/** The detector the Train tab tunes for the selected game, or null (score only). */
+const tuneTarget = (): TuneTarget | null => (game === 'boxing' ? 'boxing' : game === 'tabletennis' ? 'swing' : null)
+const currentOverrides = (): Record<string, number> => overridesBy[tuneTarget() ?? 'boxing']
 
 async function loadRecordings(): Promise<void> {
   $('recInfo').textContent = 'loading...'
@@ -359,19 +461,24 @@ function renderTrain(): void {
   const hasDet = GAMES[game].detector
   $('noDetector').hidden = hasDet
   $('scoreCard').hidden = !hasDet
-  $('tuneCard').hidden = game !== 'boxing'
+  $('tuneCard').hidden = tuneTarget() === null
+  $('tuneTitle').textContent = game === 'tabletennis' ? 'Tune (table tennis swing)' : 'Tune (boxing thresholds)'
   renderParams()
 }
 
 function renderParams(): void {
-  $('params').replaceChildren(...BOXING_TUNABLES.map((t) => {
-    const def = DEFAULT_BOXING_CONFIG[t.key] as number
+  const target = tuneTarget()
+  if (!target) return
+  const overrides = overridesBy[target]
+  const defaults = defaultsFor(target)
+  $('params').replaceChildren(...tunablesFor(target).map((t) => {
+    const def = defaults[t.key]
     const input = el('input', { type: 'number', step: String(t.step), value: String(overrides[t.key] ?? def) })
     input.style.color = overrides[t.key] !== undefined && overrides[t.key] !== def ? 'var(--warn)' : ''
     input.onchange = () => {
       const v = Number(input.value)
       if (!Number.isFinite(v) || v === def) delete overrides[t.key]
-      else Object.assign(overrides, { [t.key]: v })
+      else overrides[t.key] = v
       renderParams()
     }
     return el('label', { title: `${t.key} (default ${def})` }, el('span', { textContent: t.what }), input)
@@ -416,9 +523,11 @@ async function runScore(): Promise<void> {
   await sleep0()
   const types = gameTypes()
   const t0 = performance.now()
-  const opts = game === 'boxing' ? { boxing: overrides } : {}
+  const target = tuneTarget()
+  const overrides = currentOverrides()
+  const opts = target ? replayOptionsFor(target, overrides) : {}
   const now = scoreAll(recs, opts, types)
-  const base = Object.keys(overrides).length && game === 'boxing' ? scoreAll(recs, {}, types) : undefined
+  const base = target && Object.keys(overrides).length ? scoreAll(recs, {}, types) : undefined
   const out: HTMLElement[] = [renderScores(now, base ? 'With your overrides (defaults → now)' : 'All selected', base)]
   if ($<HTMLInputElement>('byPerson').checked) {
     const people = [...new Set(recs.map((r) => r.person))]
@@ -441,30 +550,34 @@ async function runAutotune(): Promise<void> {
   log.hidden = false
   log.textContent = ''
   const types = gameTypes()
-  const baseline = scoreAll(recs, { boxing: overrides }, types)
+  const target = tuneTarget()
+  if (!target) { btn.disabled = false; return }
+  const baseline = scoreAll(recs, replayOptionsFor(target, overridesBy[target]), types)
   let n = 0
-  const res = await autoTuneBoxing(recs, types, overrides, Math.max(1, Number($<HTMLInputElement>('rounds').value) || 2), async (s) => {
+  const res = await autoTune(target, recs, types, overridesBy[target], Math.max(1, Number($<HTMLInputElement>('rounds').value) || 2), async (s) => {
     n++
     $('tuneInfo').textContent = `round ${s.round}, trial ${n}: ${s.key} = ${s.value} -> ${s.objective.toFixed(3)}`
     if (s.accepted) log.textContent += `kept ${s.key} = ${s.value} (score ${s.objective.toFixed(3)})\n`
     await sleep0()
   })
-  overrides = res.config
-  for (const k of Object.keys(overrides) as Array<keyof BoxingDetectorConfig>) if (overrides[k] === DEFAULT_BOXING_CONFIG[k]) delete overrides[k]
+  const defaults = defaultsFor(target)
+  const overrides: Record<string, number> = {}
+  for (const [k, v] of Object.entries(res.config)) if (v !== defaults[k]) overrides[k] = v
+  overridesBy[target] = overrides
   $('tuneInfo').textContent = `done: score ${res.before.toFixed(3)} -> ${res.after.toFixed(3)} after ${n} trials`
   if (!log.textContent) log.textContent = 'No single-step change improved the score.\n'
   log.textContent += `\nOverrides vs defaults:\n${JSON.stringify(overrides, null, 2)}`
   renderParams()
-  $('scoreOut').replaceChildren(renderScores(scoreAll(recs, { boxing: overrides }, types), 'After auto-tune (before → after)', baseline))
+  $('scoreOut').replaceChildren(renderScores(scoreAll(recs, replayOptionsFor(target, overrides), types), 'After auto-tune (before → after)', baseline))
   btn.disabled = false
 }
 
 $('reload').onclick = () => void loadRecordings()
 $('score').onclick = () => void runScore()
 $('autotune').onclick = () => void runAutotune()
-$('resetParams').onclick = () => { overrides = {}; renderParams() }
+$('resetParams').onclick = () => { const t = tuneTarget(); if (t) overridesBy[t] = {}; renderParams() }
 $('copyCfg').onclick = () => {
-  const text = JSON.stringify(overrides, null, 2)
+  const text = JSON.stringify(currentOverrides(), null, 2)
   void navigator.clipboard?.writeText(text)
   $('tuneInfo').textContent = `copied: ${text.replace(/\s+/g, ' ')}`
 }
@@ -475,6 +588,7 @@ $<HTMLInputElement>('all').onchange = (e) => {
 }
 
 // ------------------------------------------------------------------ boot
+$<HTMLInputElement>('targets').checked = game === 'tabletennis'
 function renderAll(): void {
   renderHeader()
   renderTake()
