@@ -118,6 +118,8 @@ const PUNCH_OUT_MS = 90
 const PUNCH_BACK_MS = 160
 /** Arcade hit radius = visual sphere radius times this. */
 const HIT_RADIUS_SCALE = 1.6
+/** Online 1v1: hit spheres barely larger than the armour (a little slack for network lag). */
+const STRICT_HIT_SCALE = 1.2
 const SLIP_LEAN_M = 0.12
 const DUCK_DROP_M = 0.15
 /** Untracked glove poses in rig metres (x is mirrored per side). These drive aiming, so hit rates stay put. */
@@ -603,6 +605,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   let botStance: BotStance = { guard: 'down', dodge: null, dodgePhase: null, broken: false }
   /** Online 1v1: the friend's relayed gloves and lean (target) and the smoothed pose we draw. */
   let puppet: OpponentPuppet | null = null
+  /** Hit sphere scale: generous vs the bot, tight in 1v1 so only a glove that really reaches the head or body lands. */
+  let hitScale = HIT_RADIUS_SCALE
   const puppetShown = { l: new Vector3(), r: new Vector3(), x: 0, y: 0, roll: 0, fresh: true }
   /** Smoothed bot defence pose: offset, roll, guard 0 to 1, stun 0 to 1. */
   const def = { x: 0, y: 0, roll: 0, guard: 0, stun: 0 }
@@ -723,7 +727,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       ['chest', drone.chest],
     ] as const) {
       const c = partCenter(part, tmpA)
-      const ratio = Math.hypot(aim.x - c.x, aim.y - c.y) / (part.radius * HIT_RADIUS_SCALE)
+      const ratio = Math.hypot(aim.x - c.x, aim.y - c.y) / (part.radius * hitScale)
       if (ratio < bestRatio) {
         bestRatio = ratio
         best = { part, target, accuracy: Math.round(100 * (1 - ratio * ratio)) }
@@ -1035,7 +1039,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   function applyPuppet(dt: number): void {
     const p = puppet
     if (!p) return
-    const k = puppetShown.fresh ? 1 : 1 - Math.exp(-dt * 30) // 30 Hz updates: catch up within ~3 frames
+    const k = puppetShown.fresh ? 1 : 1 - Math.exp(-dt * 45) // light smoothing only: follows the friend within ~2 frames
     puppetShown.fresh = false
     // Their right glove is on our left: pod 0 (screen left) is their right hand, pod 1 their left.
     const target = (g: [number, number, number], out: Vector3): Vector3 =>
@@ -1339,9 +1343,12 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       g.punch = { kind, ms: 0, from, strike: strikePoint, control }
     },
 
-    resolveHit(hand, kind) {
+    resolveHit(hand, kind, loose) {
       const aim = aimPoint(gloveOf(hand), kind, new Vector3())
+      const scale = hitScale
+      if (loose) hitScale = HIT_RADIUS_SCALE
       const hit = hitTest(aim)
+      hitScale = scale
       lastHit = hit ? { target: hit.target, aim } : null
       return hit ? { target: hit.target, accuracy: hit.accuracy } : null
     },
@@ -1439,6 +1446,10 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     getPuppet() {
       const v = (g: Vector3): [number, number, number] => [round3(g.x), round3(g.y), round3(g.z)]
       return { left: v(leftGlove.shown), right: v(rightGlove.shown), lean: [round3(bodyLean.x), round3(bodyLean.y), round3(bodyLean.roll)] }
+    },
+
+    setStrictHits(on) {
+      hitScale = on ? STRICT_HIT_SCALE : HIT_RADIUS_SCALE
     },
 
     setOpponentPuppet(p) {

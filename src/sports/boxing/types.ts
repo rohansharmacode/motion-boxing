@@ -134,7 +134,8 @@ export interface BoxingScene {
   /** Play a punch animation on one glove, layered on top of tracking. */
   punch(hand: Hand, kind: PunchKind): void
   /** Generous arcade hit test of that glove against the drone head and chest spheres. */
-  resolveHit(hand: Hand, kind: PunchKind): HitResult | null
+  /** loose: keep the arcade hit spheres even in a strict 1v1 (keyboard punches have no real glove position). */
+  resolveHit(hand: Hand, kind: PunchKind, loose?: boolean): HitResult | null
   setGuard(on: boolean): void
   /** Lean or drop the camera a little so slips and ducks feel physical. */
   setSlip(slip: SlipKind | null): void
@@ -152,6 +153,8 @@ export interface BoxingScene {
   setBotStance?(stance: BotStance): void
   /** Online 1v1: dress the opponent in the friend's customised robot look (null = the drone's own). */
   setOpponentLook?(look: RobotLook | null): void
+  /** Online 1v1: tight hit spheres (true) or the generous arcade ones used against the bot. */
+  setStrictHits?(on: boolean): void
   /** Online 1v1: this player's gloves and lean, to send to the other laptop. */
   getPuppet?(): OpponentPuppet
   /** Online 1v1: drive the opponent robot from the friend's relayed gloves and lean (null = bot animation). */
