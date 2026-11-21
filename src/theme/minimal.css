@@ -333,3 +333,51 @@
     url('/art/neon/title-screen-bg.svg') center / cover no-repeat,
     var(--navy);
 }
+
+/* ---------- neon: arcade fighter health bars (docs/STYLE_GUIDE.md section 6) ----------
+   Slanted framed bars mirrored around the timer, the name above in the display face, a white
+   chip segment that drains 400 ms after a hit, and a red/white flash at low health. */
+:root:not(#_)[data-theme='neon'] .kr-fighter { gap: 4px; }
+:root:not(#_)[data-theme='neon'] .kr-fighter-name {
+  font: 400 20px/1 'Bebas Neue', 'Outfit', sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5f3ff;
+  padding: 0 6px;
+}
+:root:not(#_)[data-theme='neon'] .kr-hp-num { font: 400 16px/1 'Bebas Neue', sans-serif; color: #a9a3c9; opacity: 1; }
+:root:not(#_)[data-theme='neon'] .kr-hp {
+  width: min(34vw, 420px);
+  height: 14px;
+  border-radius: 0;
+  border: 2px solid #f5f3ff;
+  background: #14082e;
+  box-shadow: 0 0 0 2px #0b0420, 0 2px 10px rgba(0, 0, 0, 0.5);
+  transform: skewX(-20deg);
+}
+:root:not(#_)[data-theme='neon'] .kr-right .kr-hp { transform: skewX(20deg); }
+:root:not(#_)[data-theme='neon'] .kr-hp-fill {
+  border-radius: 0;
+  background: linear-gradient(180deg, #8ff4ff 0 30%, #00e5ff 30% 100%);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.55);
+  transition: width 0.1s ease-out;
+}
+:root:not(#_)[data-theme='neon'] .kr-right .kr-hp-fill {
+  background: linear-gradient(180deg, #ff8cc0 0 30%, #ff2e88 30% 100%);
+  box-shadow: 0 0 8px rgba(255, 46, 136, 0.55);
+}
+/* Chip damage: white segment that holds, then drains. */
+:root:not(#_)[data-theme='neon'] .kr-hp-lag {
+  border-radius: 0;
+  background: #ffffff;
+  transition: width 0.4s 0.4s ease-in;
+}
+:root:not(#_)[data-theme='neon'] .kr-hp.kr-hit { animation: mh-hp-hit 0.18s ease-out; }
+:root:not(#_)[data-theme='neon'] .kr-hp.kr-low { border-color: #ff4d4d; }
+:root:not(#_)[data-theme='neon'] .kr-hp.kr-low .kr-hp-fill {
+  background: #ff4d4d;
+  box-shadow: 0 0 10px rgba(255, 77, 77, 0.7);
+  animation: mh-hp-low 0.5s steps(2) infinite;
+}
+@keyframes mh-hp-low { 50% { background: #ffffff; } }
+@keyframes mh-hp-hit { 30% { filter: brightness(1.8); } }
