@@ -1,7 +1,7 @@
 // Dev-only preview of the dashboard with a stand-in boxing game. Not part of the build.
 import '../style.css'
 import { mountShell } from './index.ts'
-import type { GameLauncher } from './index.ts'
+import type { GameLauncher, TileId } from './index.ts'
 
 const demoBoxing: GameLauncher = (ctx) => {
   const panel = document.createElement('div')
@@ -31,7 +31,11 @@ const demoBoxing: GameLauncher = (ctx) => {
   return { dispose: () => panel.remove() }
 }
 
-const shell = mountShell({ launchers: { boxing: demoBoxing } })
+// ?launch=boxing,goalkeeper picks which tiles get the stand-in game (default: boxing only).
+const ids = (new URLSearchParams(location.search).get('launch') ?? 'boxing').split(',')
+const launchers: Partial<Record<TileId, GameLauncher>> = {}
+for (const id of ids) if (id === 'boxing' || id === 'goalkeeper' || id === 'archery' || id === 'leaderboard') launchers[id] = demoBoxing
+const shell = mountShell({ launchers })
 
 if (new URLSearchParams(location.search).has('dwell')) {
   window.addEventListener('pointermove', (e) => shell.setCursor({ x: e.clientX / innerWidth, y: e.clientY / innerHeight }))

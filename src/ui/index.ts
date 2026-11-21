@@ -1,3 +1,5 @@
+import '../theme/index.ts';
+import '../theme/bright/ui.css';
 import './styles.css';
 import './components.css';
 

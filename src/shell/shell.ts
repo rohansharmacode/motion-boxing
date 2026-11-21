@@ -1,6 +1,9 @@
 // Home dashboard, game selection, launch transition and return-to-home.
 // Mount once: mountShell({ launchers: { boxing: startBoxing } }).
+import '../theme/index.ts'
+import '../theme/bright/shell.css'
 import './shell.css'
+import { isBright } from '../theme/index.ts'
 import { TILES, artUrl } from './catalogue.ts'
 import { createRecords } from './records.ts'
 import { createSfx } from './sfx.ts'
@@ -14,12 +17,30 @@ const LAUNCH_MS = 900
 type View = 'home' | 'launching' | 'game'
 
 // Static markup only. Dynamic text is always set with textContent.
-const TEMPLATE = `
-<div class="shell-bg" aria-hidden="true">
+const NEON_BG = `
   <span class="shell-orb shell-orb--1"></span>
   <span class="shell-orb shell-orb--2"></span>
   <span class="shell-orb shell-orb--3"></span>
-  <div class="shell-floor"></div>
+  <div class="shell-floor"></div>`
+
+/** Bright theme: sunny sky, drifting clouds, sea and sand. All CSS shapes, original. */
+const BRIGHT_BG = `
+  <span class="shell-sun"></span>
+  <span class="shell-cloud shell-cloud--1"></span>
+  <span class="shell-cloud shell-cloud--2"></span>
+  <span class="shell-cloud shell-cloud--3"></span>
+  <span class="shell-cloud shell-cloud--4"></span>
+  <span class="shell-isle"></span>
+  <span class="shell-sea"></span>
+  <span class="shell-sand"></span>
+  <span class="shell-spark shell-spark--1"></span>
+  <span class="shell-spark shell-spark--2"></span>
+  <span class="shell-spark shell-spark--3"></span>
+  <span class="shell-spark shell-spark--4"></span>
+  <span class="shell-spark shell-spark--5"></span>`
+
+const TEMPLATE = `
+<div class="shell-bg" aria-hidden="true">${isBright() ? BRIGHT_BG : NEON_BG}
 </div>
 
 <header class="shell-top">
