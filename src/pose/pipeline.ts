@@ -7,7 +7,25 @@ import type { Joint, PoseFrame, StartupErrorKind } from './types.ts'
 
 /** WASM runtime. The version in this URL must match @mediapipe/tasks-vision in package.json. */
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
-const MODEL_PATH = import.meta.env.BASE_URL + 'models/pose_landmarker_lite.task'
+const MODEL_LITE = import.meta.env.BASE_URL + 'models/pose_landmarker_lite.task'
+/** The full model tracks arms far better (fewer flipped elbows and lost wrists) and is fast enough on a GPU. */
+const MODEL_FULL = import.meta.env.BASE_URL + 'models/pose_landmarker_full.task'
+/** ?model=lite or ?model=full forces a model, for slow laptops or testing. */
+function modelOverride(): 'lite' | 'full' | null {
+  try {
+    const m = new URLSearchParams(location.search).get('model')
+    return m === 'lite' || m === 'full' ? m : null
+  } catch {
+    return null
+  }
+}
+/**
+ * Detection, presence and tracking confidence. Slightly below MediaPipe's 0.5 defaults so a fast punch with a
+ * motion-blurred arm keeps tracking instead of dropping to a fresh (jumpy) detection.
+ */
+const MIN_DETECTION_CONFIDENCE = 0.5
+const MIN_PRESENCE_CONFIDENCE = 0.4
+const MIN_TRACKING_CONFIDENCE = 0.4
 /** Weight of the newest sample in the inference time average. */
 const INFERENCE_EMA = 0.1
 /** Safety net so a stalled download can never hang startup. Offline failures reject much sooner. */
@@ -48,7 +66,8 @@ let prefetched = false
 export function prefetchPoseAssets(): void {
   if (prefetched) return
   prefetched = true
-  const urls = [MODEL_PATH, `${WASM_BASE}/vision_wasm_internal.js`, `${WASM_BASE}/vision_wasm_internal.wasm`]
+  const model = modelOverride() === 'lite' ? MODEL_LITE : MODEL_FULL
+  const urls = [model, `${WASM_BASE}/vision_wasm_internal.js`, `${WASM_BASE}/vision_wasm_internal.wasm`]
   for (const url of urls) {
     // MediaPipe later loads these with CORS and no credentials, so match that to share the cache entry.
     fetch(url, { priority: 'low', mode: 'cors', credentials: 'omit' })
@@ -82,7 +101,8 @@ async function openCamera(): Promise<MediaStream> {
   }
   try {
     return await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      // 30 fps keeps motion blur and frame gaps down; most webcams default lower in dim rooms otherwise.
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, min: 15 } },
       audio: false,
     })
   } catch (err) {
@@ -94,16 +114,30 @@ async function buildLandmarker(): Promise<Tracker> {
   try {
     const { FilesetResolver, PoseLandmarker } = await loadVision()
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
-    for (const delegate of ['GPU', 'CPU'] as const) {
+    // GPU gets the full model, CPU the lite one (the full model is too slow for 30 fps on most CPUs).
+    const forced = modelOverride()
+    const attempts: Array<{ delegate: Delegate; model: string }> = [
+      { delegate: 'GPU', model: forced === 'lite' ? MODEL_LITE : MODEL_FULL },
+      { delegate: 'GPU', model: MODEL_LITE },
+      { delegate: 'CPU', model: forced === 'full' ? MODEL_FULL : MODEL_LITE },
+    ]
+    const tried = new Set<string>()
+    for (const { delegate, model } of attempts) {
+      const key = delegate + model
+      if (tried.has(key)) continue
+      tried.add(key)
       try {
         const landmarker = await PoseLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_PATH, delegate },
+          baseOptions: { modelAssetPath: model, delegate },
           runningMode: 'VIDEO',
           numPoses: 1,
+          minPoseDetectionConfidence: MIN_DETECTION_CONFIDENCE,
+          minPosePresenceConfidence: MIN_PRESENCE_CONFIDENCE,
+          minTrackingConfidence: MIN_TRACKING_CONFIDENCE,
         })
         return { landmarker, delegate }
       } catch (err) {
-        console.warn(`Pose landmarker failed on ${delegate}`, err)
+        console.warn(`Pose landmarker failed on ${delegate} with ${model}`, err)
       }
     }
   } catch (err) {

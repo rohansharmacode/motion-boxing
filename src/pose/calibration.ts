@@ -23,6 +23,12 @@ const MIN_VISIBILITY = 0.5
 const MAX_GAP_MS = 500
 /** Smallest believable 2D shoulder width (aspect-corrected image units). Narrower means side-on or a bad fit. */
 const MIN_SHOULDER_2D = 0.03
+/** Widest shoulder line that still leaves room for the arms (aspect-corrected units, 1 = frame height). */
+const MAX_SHOULDER_2D = 0.5
+/** Wrist visibility needed to count a fist as in view. */
+const MIN_WRIST_VISIBILITY = 0.4
+/** Fists this close to the frame edge are about to leave it. */
+const EDGE_MARGIN = 0.02
 /** Floor for the world shoulder width, metres. */
 const MIN_SHOULDER_WORLD = 0.1
 
@@ -40,9 +46,11 @@ export function defaultCalibration(aspect: number): Calibration {
   }
 }
 
-export function createCalibrator(options?: { holdMs?: number; minFrames?: number }): Calibrator {
-  const holdMs = options?.holdMs ?? 2000
-  const minFrames = options?.minFrames ?? 15
+export function createCalibrator(options?: { holdMs?: number; minFrames?: number; requireHands?: boolean }): Calibrator {
+  // Short hold: players lose patience past a second, and the averages settle within about 10 frames.
+  const holdMs = options?.holdMs ?? 1200
+  const minFrames = options?.minFrames ?? 10
+  const requireHands = options?.requireHands ?? true
 
   let sum = { s: 0, sw: 0, cx: 0, cy: 0, nx: 0, ny: 0 }
   let count = 0
@@ -89,6 +97,27 @@ export function createCalibrator(options?: { holdMs?: number; minFrames?: number
       if (l.visibility <= MIN_VISIBILITY || r.visibility <= MIN_VISIBILITY || !(s >= MIN_SHOULDER_2D)) {
         prevValid = false
         return report('shoulders-hidden')
+      }
+      if (s > MAX_SHOULDER_2D) {
+        prevValid = false
+        return report('too-close')
+      }
+      if (requireHands) {
+        const inView = (i: number): boolean => {
+          const w = frame.image[i]
+          return (
+            w !== undefined &&
+            w.visibility >= MIN_WRIST_VISIBILITY &&
+            w.x > EDGE_MARGIN &&
+            w.x < 1 - EDGE_MARGIN &&
+            w.y > EDGE_MARGIN &&
+            w.y < 1 - EDGE_MARGIN
+          )
+        }
+        if (!inView(LM.L_WRIST) || !inView(LM.R_WRIST)) {
+          prevValid = false
+          return report('hands-hidden')
+        }
       }
 
       if (prevValid && lastValidT !== null) validMs += frame.t - lastValidT

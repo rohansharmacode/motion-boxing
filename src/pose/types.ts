@@ -54,7 +54,11 @@ export interface Calibration {
   neutralNose: { x: number; y: number }
 }
 
-export type CalibrationStatus = 'no-pose' | 'shoulders-hidden' | 'holding' | 'done'
+/**
+ * no-pose: nobody in view. shoulders-hidden: shoulders not both visible. too-close: the player fills the frame,
+ * so punches and reaches would leave it. hands-hidden: shoulders fine but a fist is out of view (raise both hands).
+ */
+export type CalibrationStatus = 'no-pose' | 'shoulders-hidden' | 'too-close' | 'hands-hidden' | 'holding' | 'done'
 
 /** Smoothed, calibrated body for game logic (built by src/pose/body.ts). */
 export interface BodyFrame {

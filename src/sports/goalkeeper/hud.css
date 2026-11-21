@@ -325,7 +325,9 @@ body.gk-page {
 }
 
 .gk-calib[data-status='no-pose'] .gk-ring-fill,
-.gk-calib[data-status='shoulders-hidden'] .gk-ring-fill {
+.gk-calib[data-status='shoulders-hidden'] .gk-ring-fill,
+.gk-calib[data-status='too-close'] .gk-ring-fill,
+.gk-calib[data-status='hands-hidden'] .gk-ring-fill {
   stroke: var(--gk-bad);
   filter: none;
 }
