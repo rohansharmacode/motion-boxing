@@ -20,6 +20,8 @@ type MeterState = 'idle' | 'drawing' | 'hold' | 'release'
 const CALIB_COPY: Record<CalibrationStatus, { title: string; sub: string }> = {
   'no-pose': { title: 'Step into view', sub: 'Stand back until the camera sees you.' },
   'shoulders-hidden': { title: 'Show both shoulders', sub: 'Face the screen, upper body in frame.' },
+  'too-close': { title: 'Step back', sub: 'Move back until your upper body fits.' },
+  'hands-hidden': { title: 'Show both hands', sub: 'Keep both hands in frame.' },
   holding: { title: 'Hold still…', sub: 'Face the screen, both arms down.' },
   done: { title: 'Ready!', sub: 'Nock your first arrow.' },
 }
