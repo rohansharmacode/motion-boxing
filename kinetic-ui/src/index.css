@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* Design tokens: the single source of truth for colour, type and motion. */
+@theme {
+  --color-navy: #0B1026;
+  --color-navy-2: #121A3D;
+  --color-navy-3: #1B2556;
+  --color-cyan: #22E5FF;
+  --color-pink: #FF2E88;
+  --color-lime: #C8FF3D;
+  --color-amber: #FFB72E;
+  --color-white: #F3F6FF;
+  --color-muted: #8B96C9;
+  --color-gold: #FFD166;
+  --color-silver: #C9D3F2;
+  --color-bronze: #E0915A;
+
+  --font-display: "Chakra Petch", system-ui, sans-serif;
+  --font-body: "Rajdhani", system-ui, sans-serif;
+
+  --ease-punch: cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-navy);
+  color: var(--color-white);
+  font-family: var(--font-body);
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+.font-display { font-family: var(--font-display); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* -12deg skew motif: skew the box, un-skew the content */
+.skew-panel { transform: skewX(-12deg); }
+.skew-panel > * { transform: skewX(12deg); }
+
+.glow-cyan { box-shadow: 0 0 18px rgb(34 229 255 / .45), inset 0 0 12px rgb(34 229 255 / .15); }
+.glow-pink { box-shadow: 0 0 18px rgb(255 46 136 / .5), inset 0 0 12px rgb(255 46 136 / .15); }
+.glow-lime { box-shadow: 0 0 18px rgb(200 255 61 / .45); }
+.text-glow-cyan { text-shadow: 0 0 18px rgb(34 229 255 / .7); }
+.text-glow-pink { text-shadow: 0 0 18px rgb(255 46 136 / .75); }
+.text-glow-lime { text-shadow: 0 0 18px rgb(200 255 61 / .7); }
+
+/* Perspective grid floor */
+.grid-floor {
+  position: absolute; inset: auto -50% 0 -50%; height: 55%;
+  background-image:
+    linear-gradient(rgb(255 46 136 / .55) 2px, transparent 2px),
+    linear-gradient(90deg, rgb(34 229 255 / .4) 2px, transparent 2px);
+  background-size: 80px 80px;
+  transform: perspective(420px) rotateX(62deg);
+  transform-origin: top center;
+  mask-image: linear-gradient(to top, black 10%, transparent 95%);
+  animation: grid-scroll 2.4s linear infinite;
+}
+@keyframes grid-scroll { to { background-position: 0 80px, 0 80px; } }
+
+@keyframes live-pulse { 50% { opacity: .35; transform: scale(.8); } }
+.live-dot { animation: live-pulse 1.2s ease-in-out infinite; }
+
+@keyframes pop-in { 0% { transform: scale(2.4); opacity: 0; } 60% { transform: scale(.92); opacity: 1; } 100% { transform: scale(1); } }
+.pop-in { animation: pop-in 420ms var(--ease-punch) both; }
+
+@keyframes pop-text { 0% { transform: scale(.4) skewX(-12deg); opacity: 0; } 25% { transform: scale(1.15) skewX(-12deg); opacity: 1; } 75% { opacity: 1; } 100% { transform: scale(1) skewX(-12deg) translateY(-20px); opacity: 0; } }
+.pop-text { animation: pop-text 700ms ease-out both; }
+
+@keyframes shake { 0%,100% { transform: translate(0); } 20% { transform: translate(-10px, 6px); } 40% { transform: translate(9px, -6px); } 60% { transform: translate(-6px, 3px); } 80% { transform: translate(4px, -2px); } }
+.shake { animation: shake 320ms ease-out; }
+
+@keyframes vignette { 0% { opacity: .9; } 100% { opacity: 0; } }
+.vignette-hit { animation: vignette 450ms ease-out both; }
+
+@keyframes flash-lime { 0% { opacity: .8; } 100% { opacity: 0; } }
+.flash-lime { animation: flash-lime 600ms ease-out both; }
+
+@keyframes timer-pulse { 50% { transform: scale(1.12); } }
+.timer-pulse { animation: timer-pulse 1s ease-in-out infinite; }
+
+@keyframes eq { 0%,100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+.eq-bar { animation: eq 900ms ease-in-out infinite; transform-origin: bottom; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 420ms ease-out both; }
+
+@keyframes new-flash { 0% { background: rgb(200 255 61 / .35); } 100% { background: transparent; } }
+.new-flash { animation: new-flash 1.6s ease-out; }
+
+@keyframes shimmer { to { background-position: -200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--color-navy-3) 25%, #2a3570 50%, var(--color-navy-3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 4px;
+}
+
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.ticker { animation: ticker 28s linear infinite; }
+
+@keyframes screen-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.screen-in { animation: screen-in 300ms ease-out both; }
+
+:focus-visible { outline: 3px solid var(--color-cyan); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shake, .grid-floor, .live-dot, .timer-pulse, .eq-bar, .ticker, .skeleton, .flash-lime, .vignette-hit { animation: none !important; }
+  .flash-lime, .vignette-hit { opacity: 0; }
+  .pop-in, .pop-text, .rise, .screen-in, .new-flash { animation-duration: 1ms !important; }
+}
