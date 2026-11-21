@@ -48,7 +48,7 @@ const STRIKER_PLANT_Z = PENALTY_Z - 0.35
 const HIP_Y = 0.92
 
 // ---------- pools ----------
-const SPARK_N = 140
+const SPARK_N = 48
 const RING_N = 6
 const TRAIL_N = 30
 
@@ -602,7 +602,6 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   const thumbGeo = new THREE.SphereGeometry(GLOVE_VISUAL * 0.38, 12, 8)
   const cuffGeo = new THREE.CylinderGeometry(GLOVE_VISUAL * 0.55, GLOVE_VISUAL * 0.62, GLOVE_VISUAL * 0.6, 14)
   const haloGeo = new THREE.RingGeometry(GLOVE_RADIUS - 0.022, GLOVE_RADIUS, 48)
-  const haloFillGeo = new THREE.CircleGeometry(GLOVE_RADIUS, 40)
   const cuffMat = new THREE.MeshStandardMaterial({ color: 0xe8ecff, emissive: 0x4a4f66, roughness: 0.5 })
   const makeGlove = (color: number, side: -1 | 1): GloveRig => {
     const group = new THREE.Group()
@@ -629,12 +628,6 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     const halo = new THREE.Mesh(haloGeo, haloMat)
     halo.renderOrder = 4
     group.add(halo)
-    const fill = new THREE.Mesh(
-      haloFillGeo,
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    fill.renderOrder = 4
-    group.add(fill)
     const start = side < 0 ? READY_LEFT : READY_RIGHT
     group.position.copy(start)
     scene.add(group)
@@ -1263,9 +1256,9 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     flashSave(point: Vec3, part: KeeperPart, strength: number): void {
       const s = clamp(strength, 0, 1)
       const color = part === 'left' ? CYAN : part === 'right' ? MAGENTA : SAVE_GREEN
-      spawnSparks(point, Math.round(22 + 40 * s), color, 3 + 5 * s)
+      // Few particles: a short burst plus one ring.
+      spawnSparks(point, Math.round(10 + 22 * s), color, 3 + 5 * s)
       spawnRing(point, color, 0.7 + 0.7 * s, 0.45)
-      spawnRing(point, 0xffffff, 0.35 + 0.3 * s, 0.3)
       if (part === 'left') gloveL.glow = 1
       else if (part === 'right') gloveR.glow = 1
       else torsoGlow = 1
@@ -1279,7 +1272,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       ripple.y = clamp(point.y, 0, GOAL_HEIGHT)
       frameFlash = 1
       const behind = { x: ripple.x, y: ripple.y, z: GOAL_Z + 0.9 }
-      spawnSparks(behind, 34, RED, 3.5)
+      spawnSparks(behind, 18, RED, 3.5)
       spawnRing({ x: ripple.x, y: ripple.y, z: GOAL_Z }, RED, 1.3, 0.6)
       api.shake(0.55)
     },

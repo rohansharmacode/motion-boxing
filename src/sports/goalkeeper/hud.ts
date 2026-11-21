@@ -131,6 +131,8 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   }
   function markLevel(level: Difficulty): void {
     currentLevel = level
+    levelTag.textContent = LEVEL_LABEL[level]
+    levelTag.dataset.level = level
     for (const g of levelPickers) {
       for (const b of g.children) {
         if (b instanceof HTMLElement) b.setAttribute('aria-checked', String(b.dataset.level === level))
@@ -192,10 +194,17 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   pips.setAttribute('aria-label', 'Kicks')
   const counter = el('p', 'gk-counter', 'KICK 1/5')
   counter.setAttribute('aria-live', 'polite')
-  topbar.append(pips, counter)
-  const badge = el('p', 'gk-badge', 'CAMERA')
+  // Slim corner HUD: KICK n/5 + pips, then combo, level and input mode on one small line.
+  const comboTag = el('span', 'gk-combo-tag')
+  const levelTag = el('span', 'gk-level-tag')
+  const badge = el('span', 'gk-badge', 'CAMERA')
   badge.dataset.mode = 'camera'
-  play.append(topbar, badge)
+  const metaRow = el('div', 'gk-meta')
+  metaRow.append(comboTag, levelTag, badge)
+  const kickRow = el('div', 'gk-kickrow')
+  kickRow.append(counter, pips)
+  topbar.append(kickRow, metaRow)
+  play.append(topbar)
   if (opts.onHome && opts.cornerHome !== false) {
     const corner = homeButton()
     corner.className = 'gk-home-corner'
@@ -280,6 +289,9 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
     }
     const shown = Math.min(results.length + 1, total)
     counter.textContent = `KICK ${shown}/${total}`
+    const combo = results.length > 0 ? (results[results.length - 1].combo ?? 0) : 0
+    comboTag.textContent = combo > 1 ? `x${combo} COMBO` : ''
+    comboTag.hidden = combo <= 1
   }
 
   function stat(label: string, value: string, unit?: string): HTMLElement {
