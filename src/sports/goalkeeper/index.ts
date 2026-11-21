@@ -366,6 +366,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     if (nextQuality) scene.setQuality(nextQuality)
     if (dt > 0) fps += (1000 / dt - fps) * 0.05
 
+    input.update(dt)
     engine.setPointer(input.mouseOn ? input.target() : null)
     engine.update(dt)
     scene.update(dt * engine.timeScale)

@@ -104,6 +104,8 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   startNote.append(
     el('span', 'gk-kbd', 'D'),
     document.createTextNode(' mouse mode  '),
+    el('span', 'gk-kbd', '← → ↑ ↓'),
+    document.createTextNode(' keyboard  '),
     el('span', 'gk-kbd', 'R'),
     document.createTextNode(' restart  '),
     el('span', 'gk-kbd', 'P'),
@@ -426,7 +428,7 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
 
     setInputMode(mode: InputMode) {
       badge.dataset.mode = mode
-      badge.textContent = mode === 'mouse' ? 'MOUSE · D' : 'CAMERA'
+      badge.textContent = mode === 'mouse' ? 'MOUSE / ARROWS' : 'CAMERA'
     },
 
     showEnd(result: ShootoutResult, againCb) {
