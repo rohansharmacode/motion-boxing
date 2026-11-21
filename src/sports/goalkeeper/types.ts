@@ -11,6 +11,7 @@
 
 import type { BodyFrame, Calibration, CalibrationStatus } from '../../pose/types.ts'
 import type { Difficulty } from './difficulty.ts'
+import type { ShotType } from './shots.ts'
 
 export type { BodyFrame, Calibration, CalibrationStatus }
 
@@ -68,6 +69,8 @@ export type StrikerPhase = 'idle' | 'runup' | 'telegraph' | 'kick' | 'recover'
 export interface StrikerTell {
   side: -1 | 0 | 1
   high: boolean
+  /** Shot type, colours the wind-up arrow. */
+  kind?: ShotType
 }
 
 /** One planned kick, chosen by striker.ts. */
@@ -146,6 +149,9 @@ export interface KickResult {
   difficulty?: Difficulty
   /** Auto-ramp step (0 = base speed) the kick was taken at. */
   rampStep?: number
+  shot?: ShotType
+  /** True when the wind-up arrow feinted to the other side first. */
+  fake?: boolean
 }
 
 export interface ShootoutResult {

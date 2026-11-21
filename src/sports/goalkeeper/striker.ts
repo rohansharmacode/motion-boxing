@@ -6,8 +6,8 @@ import type { KickPlan, StrikerTell, Vec3, Zone } from './types.ts'
 /** Waiting at the ball before the run-up. */
 export const IDLE_MS = 1400
 export const RUNUP_MS = 1000
-/** The doc's 0.5 s stance telegraph. */
-export const TELEGRAPH_MS = 500
+/** Readable 0.6 s wind-up: striker lean plus the ground arrow (was the doc's 0.5 s). */
+export const TELEGRAPH_MS = 600
 export const KICK_MS = 120
 /**
  * Nominal recover length (rest of the flight after the strike frame). The engine ends recover

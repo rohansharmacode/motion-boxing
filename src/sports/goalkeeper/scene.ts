@@ -779,6 +779,50 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   botRoot.scale.setScalar(1.12)
   scene.add(botRoot)
 
+  // ---------- wind-up arrow (0.6 s telegraph) ----------
+  // Solid, opaque arrow on the grass in front of the ball, pointing where the shot goes. Colour by
+  // shot: amber = straight/curl, cyan = low skimmer, magenta = high (top corner / dip). It swings to
+  // the real side mid wind-up on a fake.
+  const arrowShape = new THREE.Shape()
+  arrowShape.moveTo(-0.2, 0)
+  arrowShape.lineTo(0.2, 0)
+  arrowShape.lineTo(0.2, 1.25)
+  arrowShape.lineTo(0.55, 1.25)
+  arrowShape.lineTo(0, 2.05)
+  arrowShape.lineTo(-0.55, 1.25)
+  arrowShape.lineTo(-0.2, 1.25)
+  arrowShape.closePath()
+  const arrowMat = new THREE.MeshBasicMaterial({ color: AMBER, side: THREE.DoubleSide, fog: false })
+  const arrowMesh = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), arrowMat)
+  arrowMesh.rotation.x = Math.PI / 2 // shape +y -> world +z (toward the goal)
+  const arrowRoot = new THREE.Group()
+  // Mid-pitch, so it shows below the keeper's gloves from the camera behind the goal.
+  arrowRoot.position.set(0, 0.03, -5.2)
+  arrowRoot.add(arrowMesh)
+  arrowRoot.visible = false
+  arrowRoot.renderOrder = 2
+  scene.add(arrowRoot)
+  const ARROW_YAW = 0.42
+  const ARROW_HIGH = 0xff3fd0
+  const ARROW_LOW = 0x22e6ff
+  let arrowColor = AMBER
+  function updateArrow(phase: StrikerPhase, p: number, tell: StrikerTell): void {
+    if (phase !== 'telegraph') {
+      arrowRoot.visible = false
+      return
+    }
+    arrowRoot.visible = true
+    const grow = smooth(Math.min(1, p / 0.25))
+    const len = (tell.high ? 1.35 : 1.05) * grow
+    arrowRoot.scale.set(1.5 * (0.6 + 0.4 * grow), 1, 1.5 * len)
+    arrowRoot.rotation.y = tell.side * ARROW_YAW
+    const color = tell.kind === 'skimmer' ? ARROW_LOW : tell.high ? ARROW_HIGH : AMBER
+    if (color !== arrowColor) {
+      arrowColor = color
+      arrowMat.color.setHex(color)
+    }
+  }
+
   // striker animation state
   let sPhase: StrikerPhase = 'idle'
   let sProgress = 0
@@ -1213,6 +1257,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       sProgress = clamp(Number.isFinite(progress) ? progress : 0, 0, 1)
       sTell.side = tell.side
       sTell.high = tell.high
+      updateArrow(phase, sProgress, tell)
     },
 
     flashSave(point: Vec3, part: KeeperPart, strength: number): void {

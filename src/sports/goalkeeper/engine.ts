@@ -3,6 +3,8 @@
 // All time is driven by update(dtMs); no timers.
 
 import { DIFFICULTY_PARAMS, rampSteps, rampedSpeed } from './difficulty.ts'
+import { planShot, tellAt } from './shots.ts'
+import type { ShotPlan } from './shots.ts'
 import type { Difficulty } from './difficulty.ts'
 import { OneEuroVec3 } from './filter.ts'
 import { keeperPoseFromBody, pointerPose } from './mapping.ts'
@@ -27,7 +29,6 @@ import {
   RESULT_MS,
   RUNUP_MS,
   TELEGRAPH_MS,
-  planKick,
 } from './striker.ts'
 import { createKeeperTelemetry } from './telemetry.ts'
 import {
@@ -41,7 +42,6 @@ import {
   type KeeperPose,
   type KeeperScene,
   type KeeperTelemetry,
-  type KickPlan,
   type KickResult,
   type ShootoutResult,
   type StrikerPhase,
@@ -183,7 +183,7 @@ export function createKeeperEngine(opts?: {
   let stage: Stage = 'idle'
   let stageMs = 0
   let lastSceneStriker: StrikerPhase | null = null
-  let plan: KickPlan | null = null
+  let plan: ShotPlan | null = null
   let telegraphStart = -1
   let leftSaves = 0
   let rightSaves = 0
@@ -304,13 +304,15 @@ export function createKeeperEngine(opts?: {
     kick = n
     stage = 'idle'
     stageMs = 0
-    const level = DIFFICULTY_PARAMS[difficulty]
-    plan = planKick(
+    plan = planShot(
       n,
       rng,
       results.map((r) => r.zone),
-      { speed: rampedSpeed(difficulty, roundSaves), curve: level.curve, spread: level.spread },
+      DIFFICULTY_PARAMS[difficulty],
+      rampedSpeed(difficulty, roundSaves),
     )
+    plan.tell.kind = plan.shot
+    if (plan.fake) plan.fake.kind = plan.shot
     telegraphStart = -1
     ballLaunched = false
     resolved = false
@@ -370,6 +372,8 @@ export function createKeeperEngine(opts?: {
       ballSpeed: launchSpeed,
       difficulty,
       rampStep: rampSteps(roundSaves),
+      shot: plan.shot,
+      fake: plan.fake !== null,
     }
     if (outcome === 'save' && part !== null) roundSaves++
     results.push(result)
@@ -690,7 +694,7 @@ export function createKeeperEngine(opts?: {
   function pushScene(): void {
     if (!scene) return
     const sp: StrikerPhase = phase === 'playing' ? sceneStriker() : 'idle'
-    const tell = plan && phase === 'playing' ? plan.tell : NEUTRAL_TELL
+    const tell = plan && phase === 'playing' ? (sp === 'telegraph' ? tellAt(plan, strikerProgress()) : plan.tell) : NEUTRAL_TELL
     scene.setStriker(sp, strikerProgress(), tell)
     if (sp !== lastSceneStriker) {
       lastSceneStriker = sp
