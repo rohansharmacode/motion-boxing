@@ -252,6 +252,8 @@
 /* With a webcam thumbnail in the bottom-left, sit just above it. */
 :root:not(#_) body:not(.bx-no-cam):has(#stage:not([style*='none'])):is([data-state='fighting'], [data-state='tutorial'], [data-state='ended']) .shell[data-view='game'] .shell-home { bottom: 140px; }
 :root:not(#_) .shell[data-view='game'] .shell-home span { font-size: 18px; line-height: 1; }
+/* Bowling and racket sports show their own 150 px webcam thumbnail bottom-left (12 px inset): sit above it, never on it (beats the hand-sized menu button in handnav/menus.css). */
+:root:not(#_):not(#__):not(#___) .shell[data-view='game']:has(.bw-cam.bw-live, .rk-cam.rk-live) .shell-home { bottom: calc(12px + 150px * 0.75 + 10px); }
 :root:not(#_) .shell[data-view='game'] .shell-home:is(:hover, :focus-visible) { opacity: 1; }
 
 /* ---------- webcam thumbnail: small, bottom-left ---------- */

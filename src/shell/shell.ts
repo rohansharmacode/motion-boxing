@@ -441,6 +441,7 @@ export function mountShell(options: ShellOptions): Shell {
   function setView(v: View): void {
     view = v
     wrap.dataset.view = v
+    if (v === 'game') wrap.scrollTo(0, 0)
     syncTicker(v)
     if (v !== 'home') setCursorVisible(false)
   }

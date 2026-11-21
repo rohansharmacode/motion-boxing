@@ -565,6 +565,9 @@
 
 .shell[data-view='game'] {
   pointer-events: none;
+  /* Not a scroll container in a game: focusing a far tile used to scroll the home grid, and the game layer
+     (inset 0 of .shell) stayed offset with it (table tennis / tennis showed only a corner). */
+  overflow: clip;
 }
 
 .shell[data-view='game'] :is(.shell-bg, .shell-top, .shell-greeting, .shell-grid, .shell-hints, .shell-launch) {
@@ -689,6 +692,8 @@
 /* "Live from Snowflake" highlights ticker (src/ui/HighlightsTicker.ts), between the grid and the hints. */
 .shell-ticker { display: flex; justify-content: center; min-height: 0; }
 .shell-ticker:empty { display: none; }
+/* Home only: in a game it sat over Start camera, the calibration preview and Rematch, and doubled the end screen's own ticker. */
+.shell:not([data-view='home']) > .shell-ticker { display: none; }
 .shell-ticker .kr-hl { max-width: min(720px, 92vw); }
 .shell:has(> .shell-ticker) { grid-template-rows: auto auto 1fr auto auto; }
 @media (max-width: 760px), (max-height: 520px) { .shell:has(> .shell-ticker) { grid-template-rows: auto auto auto auto auto; } }
