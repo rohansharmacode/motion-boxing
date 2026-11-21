@@ -5,7 +5,7 @@ import type { EventQueue } from './eventQueue';
 import type { Logger } from './logger';
 import { sessionMetrics } from './metrics';
 import { isMultiSport, sportSummary } from './multisport';
-import { generateSportCoachCard, sportFallbackCard } from './sportCoach';
+import { generateSportCoachCard, sportFallbackCard, sportMeta } from './sportCoach';
 import { computePercentiles } from './percentile';
 import type { Repo } from './repo/types';
 import type { Benchmark, CoachCard, CoachMeta, Percentiles, SessionEndResult, SessionRecord, StoredCoach } from './types';
@@ -131,10 +131,13 @@ export class SessionService {
     const sport = String(session.sport ?? '').toLowerCase();
     let full: Promise<CoachResult>;
     let provisionalCard: CoachCard;
+    /** Sport badge note for the provisional card; boxing leaves it undefined (output unchanged). */
+    let provisionalMeta: CoachMeta | undefined;
     if (isMultiSport(sport)) {
       const summary = sportSummary(sport, await db(repo.sessionEvents(sessionId)));
       full = generateSportCoachCard({ cortex: this.d.cortex, timeoutMs: this.d.coachTimeoutMs, log }, summary);
       provisionalCard = sportFallbackCard(summary);
+      provisionalMeta = sportMeta(summary);
     } else {
       let percentiles: Partial<Percentiles> = {};
       try {
@@ -168,6 +171,7 @@ export class SessionService {
           coach: publicCard(provisionalCard),
           fallback: true,
           warming_up: true,
+          ...(provisionalMeta ? { coach_meta: provisionalMeta } : {}),
         };
         this.warming.set(sessionId, provisional);
         log.info('session end: Cortex slower than COACH_FAST_MS, answered with provisional card', { sessionId, fastMs });

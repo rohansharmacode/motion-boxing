@@ -21,6 +21,8 @@ interface ShootoutState {
   serverSessionId: Promise<string | null>;
   startedAt: string;
   events: MotionEvent[];
+  /** Unrounded arcade score so far: the engine rounds once per shootout, not per kick. */
+  raw: number;
 }
 
 export interface ShootoutSummary {
@@ -82,7 +84,7 @@ export function createGoalkeeperLink(opts: { displayName?: string } = {}): Goalk
       const s = await startSession(p, SPORT);
       return s.offline ? null : s.sessionId;
     });
-    return { clientSessionId, serverSessionId, startedAt: new Date().toISOString(), events: [] };
+    return { clientSessionId, serverSessionId, startedAt: new Date().toISOString(), events: [], raw: 0 };
   }
 
   function endRound(r: ShootoutState, summary: Record<string, unknown>): void {
@@ -134,6 +136,18 @@ export function createGoalkeeperLink(opts: { displayName?: string } = {}): Goalk
     }
     if (d.event_type !== 'SAVE' && d.event_type !== 'GOAL') return;
 
+    // engine.ts endShootout sums the unrounded accuracy/2 and rounds the total once. Send each
+    // save the change in the rounded running total, so SUM(points) on the server and the
+    // leaderboard equal the score on the game's end screen exactly.
+    let points: number | null = num(metrics.points);
+    if (points === null && d.event_type === 'SAVE') {
+      const reaction = num(d.reaction_ms);
+      const acc = Math.max(0, Math.min(100, num(d.accuracy_score) ?? 0));
+      const rawPts = 1000 + (reaction !== null && reaction < 450 ? 250 : 0) + (metrics.punch === true ? 150 : 0) + acc / 2;
+      points = Math.round(r.raw + rawPts) - Math.round(r.raw);
+      r.raw += rawPts;
+    }
+
     const ev: MotionEvent = {
       event_id: String(d.event_id ?? crypto.randomUUID()),
       session_id: r.clientSessionId,
@@ -146,7 +160,8 @@ export function createGoalkeeperLink(opts: { displayName?: string } = {}): Goalk
       reaction_ms: num(d.reaction_ms),
       accuracy_score: num(d.accuracy_score),
       symmetry_ratio: num(d.symmetry_ratio),
-      metrics,
+      // A copy: other 'motion-event' listeners (shell records) see the game's own metrics.
+      metrics: points === null ? metrics : { ...metrics, points },
     };
     r.events.push(ev);
 

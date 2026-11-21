@@ -156,7 +156,7 @@ export function mapMultiSportFrontendEvent(e: FrontendEventInput, sport: MultiSp
 export function withSportPayload(sport: MultiSport, payload: Record<string, unknown> | null | undefined, accuracy01: number | null): Record<string, unknown> {
   const p = payload ?? {};
   const src = isRecord(p.metrics) ? { ...p.metrics, ...p } : p;
-  const fields = sportPayloadFields(sport, src, accuracy01 === null ? null : accuracy01 * 100);
+  const fields = sportPayloadFields(sport, src, accuracy01 === null ? null : Math.round(accuracy01 * 1e4) / 100);
   const out: Record<string, unknown> = { ...p };
   for (const [k, v] of Object.entries(fields)) if (out[k] === undefined || out[k] === null) out[k] = v;
   return out;
