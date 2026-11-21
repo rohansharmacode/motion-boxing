@@ -1,25 +1,19 @@
-// Kinetic Ring entry: wires the pose pipeline, boxing detector, engine, scene and HUD.
+// Motion Sports entry: mounts the home dashboard. Each sport loads lazily on launch so the dashboard paints fast.
 import './style.css'
-import { createBodyTracker } from './pose/body.ts'
+import { mountShell } from './shell/index.ts'
+import type { GameContext, GameSession } from './shell/index.ts'
 import type { BodyTracker } from './pose/body.ts'
-import { createCalibrator, defaultCalibration } from './pose/calibration.ts'
 import type { Calibrator } from './pose/calibration.ts'
-import { createPoseOverlay } from './pose/overlay.ts'
-import { startPosePipeline } from './pose/pipeline.ts'
 import type { PosePipeline } from './pose/pipeline.ts'
-import { StartupError } from './pose/types.ts'
-import type { Calibration, PoseFrame } from './pose/types.ts'
-import { BOXING_FILTER, createBoxingDetector } from './sports/boxing/detector.ts'
-import { createBoxingEngine } from './sports/boxing/engine.ts'
-import { createBoxingHud } from './sports/boxing/hud.ts'
-import { createKeyboardFallback } from './sports/boxing/keyboard.ts'
-import { createBoxingScene } from './sports/boxing/scene.ts'
-import { createTelemetry } from './sports/boxing/telemetry.ts'
+import type { Calibration, PoseFrame, StartupErrorKind } from './pose/types.ts'
+import type { RoundResult } from './sports/boxing/types.ts'
 
-type AppState = 'start' | 'loading' | 'calibrating' | 'fighting' | 'ended' | 'error'
+type BoxingState = 'start' | 'loading' | 'calibrating' | 'fighting' | 'ended' | 'error'
 
 /** Longest frame step fed to the game, ms (a hidden tab must not jump the round). */
 const MAX_DT_MS = 50
+const DEBUG_INTERVAL_MS = 100
+const NOOP_SESSION: GameSession = { dispose() {} }
 
 function el<T extends HTMLElement>(selector: string, type: new () => T): T {
   const node = document.querySelector(selector)
@@ -27,183 +21,339 @@ function el<T extends HTMLElement>(selector: string, type: new () => T): T {
   return node
 }
 
-const app = el('#app', HTMLElement)
-const video = el('#webcam', HTMLVideoElement)
-const overlayCanvas = el('#overlay', HTMLCanvasElement)
-const ui = el('#ui', HTMLDivElement)
-
-const arena = document.createElement('div')
-arena.id = 'arena'
-app.prepend(arena)
-
-const scene = createBoxingScene(arena)
-const hud = createBoxingHud(ui)
-const telemetry = createTelemetry()
-const detector = createBoxingDetector()
-const engine = createBoxingEngine({ hud, telemetry, detector })
-const keyboard = createKeyboardFallback()
-const overlay = createPoseOverlay(overlayCanvas)
-
-let state: AppState = 'start'
-let pipeline: PosePipeline | null = null
-let cameraStarting = false
-let calibrator: Calibrator | null = null
-let bodyTracker: BodyTracker | null = null
-let aspect = 16 / 9
-let engineReady = false
-let frames = 0
-
-function setState(next: AppState): void {
-  state = next
-  document.body.dataset.state = next
+function isTyping(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select') !== null)
 }
 
-// Test hooks: count telemetry events on the page.
-let eventCount = 0
-let punchCount = 0
-window.addEventListener('motion-event', (e) => {
-  eventCount++
-  const detail: unknown = e instanceof CustomEvent ? e.detail : null
-  if (typeof detail === 'object' && detail !== null && 'event_type' in detail && detail.event_type === 'PUNCH') {
-    punchCount++
-  }
-  document.body.dataset.events = String(eventCount)
-  document.body.dataset.punches = String(punchCount)
-})
-document.body.dataset.events = '0'
-document.body.dataset.punches = '0'
-document.body.dataset.frames = '0'
+async function startBoxing(ctx: GameContext): Promise<GameSession> {
+  const [
+    { createBoxingScene },
+    { createBoxingHud },
+    { createTelemetry },
+    { BOXING_FILTER, createBoxingDetector },
+    { createBoxingEngine },
+    { createKeyboardFallback },
+    { createBoxingSfx },
+    { buildLocalCoachCard },
+    { createDemoRound, emitDemoTelemetry },
+    { createBodyTracker },
+    { createCalibrator, defaultCalibration },
+    { createPoseOverlay },
+    { onPipelineEnded, startPosePipeline },
+    { StartupError },
+  ] = await Promise.all([
+    import('./sports/boxing/scene.ts'),
+    import('./sports/boxing/hud.ts'),
+    import('./sports/boxing/telemetry.ts'),
+    import('./sports/boxing/detector.ts'),
+    import('./sports/boxing/engine.ts'),
+    import('./sports/boxing/keyboard.ts'),
+    import('./sports/boxing/sfx.ts'),
+    import('./sports/boxing/coach.ts'),
+    import('./sports/boxing/demo.ts'),
+    import('./pose/body.ts'),
+    import('./pose/calibration.ts'),
+    import('./pose/overlay.ts'),
+    import('./pose/pipeline.ts'),
+    import('./pose/types.ts'),
+  ])
+  // Nothing has been created yet, so there is nothing to dispose.
+  if (ctx.signal.aborted) return NOOP_SESSION
 
-function beginFight(calibration: Calibration): void {
-  if (!engineReady) {
-    engine.init(scene, calibration)
-    engineReady = true
-  }
-  engine.startRound()
-  hud.showFight()
-  setState('fighting')
-}
+  const app = el('#app', HTMLElement)
+  const video = el('#webcam', HTMLVideoElement)
+  const overlayCanvas = el('#overlay', HTMLCanvasElement)
+  const ui = el('#ui', HTMLDivElement)
 
-function again(): void {
-  engine.startRound()
-  hud.showFight()
-  setState('fighting')
-}
-
-engine.onRoundEnd((result) => {
-  setState('ended')
-  hud.showRoundEnd(result, again)
-})
-
-function onFrame(frame: PoseFrame | null): void {
-  frames++
-  overlay.draw(frame, state === 'fighting' && engine.debug.guard === 1)
-  if (state === 'calibrating' && calibrator) {
-    const p = calibrator.push(frame, aspect)
-    hud.showCalibration(p.progress, p.status)
-    if (p.status === 'done' && p.calibration) {
-      bodyTracker = createBodyTracker(p.calibration, BOXING_FILTER)
-      beginFight(p.calibration)
-    }
-  } else if ((state === 'fighting' || state === 'ended') && bodyTracker) {
-    engine.onPoseFrame(bodyTracker.push(frame))
-  }
-}
-
-async function startCamera(): Promise<void> {
-  if (cameraStarting || pipeline) return
-  cameraStarting = true
-  setState('loading')
-  hud.showLoading('Starting camera and pose tracker')
+  const arena = document.createElement('div')
+  arena.id = 'arena'
+  app.prepend(arena)
+  let scene: ReturnType<typeof createBoxingScene>
   try {
-    const p = await startPosePipeline(video)
-    pipeline = p
-    overlay.resize(p.videoWidth, p.videoHeight)
-    document.body.dataset.delegate = p.delegate
-    aspect = p.videoWidth / p.videoHeight
-    p.subscribe(onFrame)
-    // The player may have switched to keyboard play while the camera was loading.
-    if (state === 'loading') {
-      calibrator = createCalibrator()
-      setState('calibrating')
-      hud.showCalibration(0, 'no-pose')
-    }
+    scene = createBoxingScene(arena)
   } catch (err) {
-    console.error('Kinetic Ring: startup failed', err)
-    if (state === 'loading') {
-      const kind = err instanceof StartupError ? err.kind : 'tracker-failed'
-      setState('error')
-      hud.showError(kind, () => void startCamera(), startKeyboard)
-    }
-  } finally {
-    cameraStarting = false
+    arena.remove()
+    throw err
   }
-}
+  const hud = createBoxingHud(ui)
+  const telemetry = createTelemetry()
+  const detector = createBoxingDetector()
+  const sfx = createBoxingSfx()
+  const engine = createBoxingEngine({ hud, telemetry, detector, sfx, getPlayerName: () => hud.playerName })
+  const keyboard = createKeyboardFallback()
+  const overlay = createPoseOverlay(overlayCanvas)
+  // Bind the scene now so the drone idles on the start screen; beginFight rebinds with the real calibration.
+  engine.init(scene, defaultCalibration(16 / 9))
 
-function startKeyboard(): void {
-  keyboard.setEnabled(true)
-  hud.setKeyboardMode(true)
-  if (state === 'fighting' || state === 'ended') return
-  beginFight(defaultCalibration(16 / 9))
-}
+  let state: BoxingState = 'start'
+  let disposed = false
+  let pipeline: PosePipeline | null = null
+  let stopFrames: (() => void) | null = null
+  /** Bumped whenever the camera is stopped, so a pending start knows it is stale. */
+  let cameraToken = 0
+  let calibrator: Calibrator | null = null
+  let bodyTracker: BodyTracker | null = null
+  let calibration: Calibration = defaultCalibration(16 / 9)
+  let aspect = 16 / 9
+  let frames = 0
+  let eventCount = 0
+  let punchCount = 0
+  let raf = 0
 
-// One animation loop for the whole app.
-let last = performance.now()
-let fps = 0
-let statAcc = 0
-let statFrames = 0
-function loop(now: number): void {
-  const dt = Math.min(Math.max(now - last, 0), MAX_DT_MS)
-  last = now
-  if (keyboard.enabled) engine.onActions(keyboard.poll())
-  engine.update(dt)
-  scene.render()
-
-  statFrames++
-  statAcc += dt
-  if (statAcc >= 1000) {
-    fps = Math.round((statFrames * 1000) / statAcc)
-    statAcc = 0
-    statFrames = 0
-    document.body.dataset.frames = String(frames)
+  function setState(next: BoxingState): void {
+    state = next
+    document.body.dataset.state = next
   }
-  hud.setDebug({
-    ...engine.debug,
-    fps,
-    inferenceMs: pipeline ? Math.round(pipeline.inferenceMs * 10) / 10 : 0,
-    delegate: pipeline ? pipeline.delegate : 'none',
+
+  function stopCamera(): void {
+    cameraToken++
+    stopFrames?.()
+    stopFrames = null
+    pipeline?.stop()
+    pipeline = null
+    calibrator = null
+    bodyTracker = null
+    overlay.draw(null, false)
+  }
+
+  function showStart(): void {
+    setState('start')
+    hud.showStart(() => void startCamera(), startKeyboard)
+  }
+
+  function showError(kind: StartupErrorKind): void {
+    setState('error')
+    hud.showError(kind, () => void startCamera(), startKeyboard)
+  }
+
+  function beginCalibration(): void {
+    calibrator = createCalibrator()
+    bodyTracker = null
+    setState('calibrating')
+    hud.showCalibration(0, 'no-pose')
+  }
+
+  function beginFight(c: Calibration): void {
+    calibration = c
+    engine.init(scene, c)
+    engine.startRound()
+    hud.setCameraActive(pipeline !== null)
+    hud.showFight()
+    setState('fighting')
+  }
+
+  function again(): void {
+    if (bodyTracker || keyboard.enabled) beginFight(calibration)
+    else if (pipeline) beginCalibration()
+    else showStart()
+  }
+
+  /** Round-end coach. A remote coach can replace the local card here later. */
+  function showCoach(result: RoundResult): void {
+    hud.setCoachCard(null)
+    hud.setCoachCard(buildLocalCoachCard(result, engine.getRoundLog()))
+  }
+
+  engine.onRoundEnd((result) => {
+    setState('ended')
+    hud.showRoundEnd(result, again, () => ctx.exit())
+    showCoach(result)
   })
-  requestAnimationFrame(loop)
-}
 
-function resize(): void {
-  scene.resize(innerWidth, innerHeight)
-}
-window.addEventListener('resize', resize)
-resize()
-
-window.addEventListener('keydown', (e) => {
-  if (e.repeat) return
-  if (e.code === 'KeyD') {
-    if (state === 'start' || state === 'error' || state === 'calibrating' || state === 'loading') {
-      startKeyboard()
-    } else {
-      hud.setKeyboardMode(keyboard.toggle())
-    }
-  } else if (e.code === 'Backquote') {
-    hud.toggleDebug()
-  } else if (e.code === 'KeyR' && state === 'ended') {
-    again()
+  function startDemo(): void {
+    // A camera still loading would pull the game back into calibration when it arrives.
+    if (state === 'loading') stopCamera()
+    engine.abortRound()
+    const demo = createDemoRound()
+    emitDemoTelemetry(telemetry, demo, hud.playerName)
+    hud.showRoundEnd(demo.result, again, () => ctx.exit())
+    hud.setCoachCard(demo.card)
+    setState('ended')
   }
-})
 
-window.addEventListener('pagehide', () => {
-  pipeline?.stop()
-  keyboard.dispose()
-  engine.dispose()
-  scene.dispose()
-})
+  function onFrame(frame: PoseFrame | null): void {
+    frames++
+    overlay.draw(frame, state === 'fighting' && engine.debug.guard === 1)
+    if (state === 'calibrating' && calibrator) {
+      const p = calibrator.push(frame, aspect)
+      hud.showCalibration(p.progress, p.status)
+      if (p.status === 'done' && p.calibration) {
+        calibrator = null
+        bodyTracker = createBodyTracker(p.calibration, BOXING_FILTER)
+        beginFight(p.calibration)
+      }
+    } else if ((state === 'fighting' || state === 'ended') && bodyTracker) {
+      engine.onPoseFrame(bodyTracker.push(frame))
+    }
+  }
 
-setState('start')
-hud.showStart(() => void startCamera(), startKeyboard)
-requestAnimationFrame(loop)
+  async function startCamera(): Promise<void> {
+    if (disposed || pipeline || state === 'loading') return
+    const token = ++cameraToken
+    setState('loading')
+    hud.setCameraActive(true)
+    hud.showLoading('Starting camera and pose tracker')
+    try {
+      const p = await startPosePipeline(video)
+      if (disposed || ctx.signal.aborted || token !== cameraToken) {
+        p.stop()
+        return
+      }
+      pipeline = p
+      overlay.resize(p.videoWidth, p.videoHeight)
+      document.body.dataset.delegate = p.delegate
+      aspect = p.videoWidth / p.videoHeight
+      stopFrames = p.subscribe(onFrame)
+      beginCalibration()
+    } catch (err) {
+      if (disposed || ctx.signal.aborted || token !== cameraToken) return
+      console.error('Kinetic Ring: startup failed', err)
+      showError(err instanceof StartupError ? err.kind : 'tracker-failed')
+    }
+  }
+
+  // The camera died on its own (unplugged, track ended): never leave the player stuck.
+  const stopEnded = onPipelineEnded((reason) => {
+    if (!pipeline) return
+    console.warn('Kinetic Ring: camera ended', reason)
+    stopCamera()
+    hud.setCameraActive(false)
+    if (state === 'ended') return
+    if (state === 'fighting' && keyboard.enabled) {
+      engine.onPoseFrame(null)
+      return
+    }
+    engine.abortRound()
+    showError('camera-other')
+  })
+
+  function startKeyboard(): void {
+    stopCamera()
+    keyboard.setEnabled(true)
+    hud.setKeyboardMode(true)
+    hud.setCameraActive(false)
+    beginFight(defaultCalibration(16 / 9))
+  }
+
+  // ---------- page listeners (all removed in dispose) ----------
+  const unlockAudio = (): void => sfx.unlock()
+
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
+    if (e.code === 'KeyD') {
+      if (state === 'fighting' || state === 'ended') hud.setKeyboardMode(keyboard.toggle())
+      else startKeyboard()
+    } else if (e.code === 'Backquote') {
+      hud.toggleDebug()
+    } else if (e.code === 'KeyR' && state === 'ended') {
+      again()
+    } else if (e.code === 'KeyM') {
+      startDemo()
+    }
+  }
+
+  function onMotionEvent(e: Event): void {
+    eventCount++
+    const detail: unknown = e instanceof CustomEvent ? e.detail : null
+    if (typeof detail === 'object' && detail !== null && 'event_type' in detail && detail.event_type === 'PUNCH') {
+      punchCount++
+    }
+    document.body.dataset.events = String(eventCount)
+    document.body.dataset.punches = String(punchCount)
+  }
+
+  function onResize(): void {
+    scene.resize(innerWidth, innerHeight)
+  }
+
+  window.addEventListener('pointerdown', unlockAudio, true)
+  window.addEventListener('keydown', unlockAudio, true)
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('motion-event', onMotionEvent)
+  window.addEventListener('resize', onResize)
+  onResize()
+
+  // ---------- one animation loop per session ----------
+  let last = performance.now()
+  let fps = 0
+  let statAcc = 0
+  let statFrames = 0
+  let debugAcc = 0
+  function loop(now: number): void {
+    if (disposed) return
+    raf = requestAnimationFrame(loop)
+    const dt = Math.min(Math.max(now - last, 0), MAX_DT_MS)
+    last = now
+    if (keyboard.enabled) engine.onActions(keyboard.poll())
+    engine.update(dt)
+    scene.render()
+
+    statFrames++
+    statAcc += dt
+    if (statAcc >= 1000) {
+      fps = Math.round((statFrames * 1000) / statAcc)
+      statAcc = 0
+      statFrames = 0
+      document.body.dataset.frames = String(frames)
+    }
+    debugAcc += dt
+    if (debugAcc >= DEBUG_INTERVAL_MS) {
+      debugAcc = 0
+      hud.setDebug({
+        ...engine.debug,
+        fps,
+        inferenceMs: pipeline ? Math.round(pipeline.inferenceMs * 10) / 10 : 0,
+        delegate: pipeline ? pipeline.delegate : 'none',
+        quality: scene.quality,
+      })
+    }
+  }
+
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    cancelAnimationFrame(raf)
+    stopCamera()
+    stopEnded()
+    window.removeEventListener('pointerdown', unlockAudio, true)
+    window.removeEventListener('keydown', unlockAudio, true)
+    window.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('motion-event', onMotionEvent)
+    window.removeEventListener('resize', onResize)
+    keyboard.dispose()
+    engine.dispose()
+    scene.dispose()
+    sfx.dispose()
+    hud.dispose()
+    arena.remove()
+    overlay.draw(null, false)
+    document.body.dataset.state = 'home'
+  }
+  ctx.signal.addEventListener('abort', dispose, { once: true })
+
+  document.body.dataset.events = '0'
+  document.body.dataset.punches = '0'
+  document.body.dataset.frames = '0'
+  showStart()
+  raf = requestAnimationFrame(loop)
+  return { dispose }
+}
+
+const goalkeeper = (ctx: GameContext): Promise<GameSession> =>
+  import('./sports/goalkeeper/index.ts').then((m) => m.startGoalkeeper(ctx))
+
+mountShell({ launchers: { boxing: startBoxing, goalkeeper } })
+
+// Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
+if (!document.head.querySelector('link[rel="preconnect"][href="https://cdn.jsdelivr.net"]')) {
+  const link = document.createElement('link')
+  link.rel = 'preconnect'
+  link.href = 'https://cdn.jsdelivr.net'
+  link.crossOrigin = ''
+  document.head.append(link)
+}
+const prefetch = (): void => {
+  import('./pose/pipeline.ts').then((m) => m.prefetchPoseAssets()).catch(() => {})
+}
+if (typeof requestIdleCallback === 'function') requestIdleCallback(prefetch, { timeout: 3000 })
+else setTimeout(prefetch, 1500)

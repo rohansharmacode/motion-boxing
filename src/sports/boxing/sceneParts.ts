@@ -41,11 +41,38 @@ export const COLORS = {
   counter: 0xffc83a,
 } as const
 
-/** Drone layout in metres. The chest centre floats at (0, y, z); the head sits headY above it. */
-export const DRONE = { y: 1.0, z: -2.6, headY: 0.52, headRadius: 0.2, chestRadius: 0.26 } as const
+/**
+ * Drone layout in metres. The chest centre floats at (0, y, z); the head sits headY above it.
+ * pod*, orbZ and ring* are the rest offsets the scene animates from; restY is the chest height lying on the floor.
+ */
+export const DRONE = {
+  y: 1.0,
+  z: -2.1,
+  headY: 0.52,
+  headRadius: 0.2,
+  chestRadius: 0.26,
+  podX: 0.5,
+  podY: 0.04,
+  podZ: 0.02,
+  orbZ: 0.24,
+  ringY: 0.22,
+  ringZ: 0.1,
+  restY: 0.27,
+} as const
 
 /** Resting opacity of the faint holo spheres that mark the hit zones. */
 export const HALO_OPACITY = 0.07
+
+/** A colour pushed above 1 so it crosses the bloom threshold. On low quality it just clips. */
+export const hdr = (hex: number, k: number): Color => new Color(hex).multiplyScalar(k)
+
+/** Neon colours the scene animates from. Copy them, never mutate them. */
+export const NEON = {
+  accent: hdr(COLORS.drone, 2.2),
+  core: hdr(COLORS.droneCore, 1.5),
+  telegraph: hdr(COLORS.telegraph, 3),
+  white: hdr(0xffffff, 1.8),
+} as const
 
 function radialTexture(stops: ReadonlyArray<readonly [number, string]>): CanvasTexture {
   const size = 128
@@ -74,7 +101,7 @@ export const createGlowTexture = (): CanvasTexture =>
 /** Clear centre, solid edges. Tinted red for the took-a-hit vignette. */
 export const createVignetteTexture = (): CanvasTexture =>
   radialTexture([
-    [0.45, 'rgba(255,255,255,0)'],
+    [0.55, 'rgba(255,255,255,0)'],
     [1, 'rgba(255,255,255,1)'],
   ])
 
@@ -108,14 +135,12 @@ export function buildArena(): Group {
   grid.material.opacity = 0.75
   arena.add(floor, grid)
 
-  // Ropes on three sides (the fourth is behind the camera). The top rope is brighter.
+  // Neon ropes on three sides (the fourth is behind the camera), brighter toward the top.
   const { halfWidth: hw, near, far } = RING
-  const ropeMat = new MeshBasicMaterial({ color: 0x34467a })
-  const topRopeMat = new MeshBasicMaterial({ color: 0x6a82cc })
   const sideGeo = new BoxGeometry(0.03, 0.03, near - far)
   const backGeo = new BoxGeometry(hw * 2, 0.03, 0.03)
   RING.ropes.forEach((y, i) => {
-    const mat = i === RING.ropes.length - 1 ? topRopeMat : ropeMat
+    const mat = new MeshBasicMaterial({ color: hdr(0x6f88f0, [1, 1.5, 2.4][i]) })
     for (const x of [-hw, hw]) {
       const rope = new Mesh(sideGeo, mat)
       rope.position.set(x, y, (near + far) / 2)
@@ -136,7 +161,7 @@ export function buildArena(): Group {
   ] as const) {
     const post = new Mesh(postGeo, postMat)
     post.position.set(x, 0.725, far)
-    const pad = new Mesh(padGeo, new MeshBasicMaterial({ color: new Color(color).multiplyScalar(0.7) }))
+    const pad = new Mesh(padGeo, new MeshBasicMaterial({ color: hdr(color, 1.9) }))
     pad.position.set(x, 0.85, far)
     arena.add(post, pad)
   }
@@ -195,7 +220,9 @@ export function buildGlove(hand: Hand): GloveParts {
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   })
-  const trim = new MeshBasicMaterial({ color: trimColor })
+  // Neon trim: the facet lines and cuff band carry the bloom glow.
+  const neonTrim = trimColor.clone().multiplyScalar(1.3)
+  const trim = new MeshBasicMaterial({ color: neonTrim })
   const glow = new MeshBasicMaterial({
     color,
     transparent: true,
@@ -210,7 +237,7 @@ export function buildGlove(hand: Hand): GloveParts {
   fist.scale.set(1, 0.88, 1.15)
   const facets = new LineSegments(
     new EdgesGeometry(fistGeo, 1),
-    new LineBasicMaterial({ color: trimColor, transparent: true, opacity: 0.5 }),
+    new LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.6 }),
   )
   facets.scale.copy(fist.scale)
 
@@ -235,7 +262,7 @@ export function buildGlove(hand: Hand): GloveParts {
 
   const model = new Group()
   model.add(fist, facets, thumb, cuff, band, halo)
-  model.scale.setScalar(0.9)
+  model.scale.setScalar(0.68)
   const group = new Group()
   group.add(model)
   return { group, shell, glow }
@@ -263,9 +290,13 @@ export interface DroneParts {
   body: Group
   head: DroneHitPart
   chest: DroneHitPart
-  /** Neon edge lines on the armour. */
+  /** Neon edge lines on the armour, and the solid neon trim (neck ring, pod tips). */
   accent: LineBasicMaterial
+  accentSolid: MeshBasicMaterial
+  /** Chest reactor orb: pulls back into the hull while a straight attack charges. */
+  orb: Mesh
   neckRing: Mesh
+  /** [left, right]. */
   pods: Group[]
   thruster: Mesh<ConeGeometry, MeshBasicMaterial>
   /** Lives in the scene, not in root, so it stays on the floor. */
@@ -281,8 +312,8 @@ export function buildDrone(glowMap: Texture): DroneParts {
   root.position.set(0, DRONE.y, DRONE.z)
   const body = new Group()
   root.add(body)
-  const accent = new LineBasicMaterial({ color: COLORS.drone, transparent: true, opacity: 0.9 })
-  const accentSolid = new MeshBasicMaterial({ color: COLORS.drone })
+  const accent = new LineBasicMaterial({ color: NEON.accent, transparent: true, opacity: 0.9 })
+  const accentSolid = new MeshBasicMaterial({ color: NEON.accent })
 
   // Chest: faceted core with a reactor orb and a holo hit sphere.
   const chestShell = armour()
@@ -291,9 +322,9 @@ export function buildDrone(glowMap: Texture): DroneParts {
   core.scale.set(1.15, 1.2, 0.85)
   const coreEdges = new LineSegments(new EdgesGeometry(coreGeo), accent)
   coreEdges.scale.copy(core.scale)
-  const orbMat = new MeshBasicMaterial({ color: COLORS.droneCore })
+  const orbMat = new MeshBasicMaterial({ color: NEON.core })
   const orb = new Mesh(new IcosahedronGeometry(0.09, 1), orbMat)
-  orb.position.z = 0.24
+  orb.position.z = DRONE.orbZ
   const chestHalo = additive(COLORS.drone, HALO_OPACITY)
   const chestCenter = new Vector3(0, 0, 0.12)
   const chestSphere = new Mesh(new SphereGeometry(DRONE.chestRadius, 20, 14), chestHalo)
@@ -315,7 +346,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   helmet.scale.set(1.2, 0.95, 1)
   const helmetEdges = new LineSegments(new EdgesGeometry(headGeo), accent)
   helmetEdges.scale.copy(helmet.scale)
-  const visorMat = new MeshBasicMaterial({ color: COLORS.droneCore })
+  const visorMat = new MeshBasicMaterial({ color: NEON.core })
   const visorGeo = new TorusGeometry(0.19, 0.022, 4, 20, 2)
   visorGeo.rotateZ(Math.PI / 2 - 1) // centre the 2 rad arc on +y
   visorGeo.rotateX(Math.PI / 2) // then +y becomes +z (facing the player)
@@ -337,7 +368,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const strutGeo = new BoxGeometry(0.12, 0.03, 0.05)
   const pods = [-1, 1].map((side) => {
     const pod = new Group()
-    pod.position.set(side * 0.5, 0.04, 0.02)
+    pod.position.set(side * DRONE.podX, DRONE.podY, DRONE.podZ)
     const hull = new Mesh(podGeo, podShell)
     hull.rotation.x = Math.PI / 2
     const tip = new Mesh(tipGeo, accentSolid)
@@ -352,7 +383,9 @@ export function buildDrone(glowMap: Texture): DroneParts {
   // Ion thruster under the core.
   const nozzle = new Mesh(new CylinderGeometry(0.07, 0.1, 0.07, 8), podShell)
   nozzle.position.y = -0.3
-  const thruster = new Mesh(new ConeGeometry(0.09, 0.32, 10, 1, true), additive(0x7f6bff, 0.45))
+  const thrusterMat = additive(0x7f6bff, 0.45)
+  thrusterMat.color.multiplyScalar(2)
+  const thruster = new Mesh(new ConeGeometry(0.09, 0.32, 10, 1, true), thrusterMat)
   thruster.rotation.x = Math.PI
   thruster.position.y = -0.48
   body.add(nozzle, thruster)
@@ -372,9 +405,10 @@ export function buildDrone(glowMap: Texture): DroneParts {
   floorGlow.position.set(0, 0.01, DRONE.z)
 
   const telegraph = new Mesh(new TorusGeometry(0.8, 0.03, 8, 72), additive(COLORS.telegraph, 0))
+  telegraph.material.color.copy(NEON.telegraph)
   const telegraphGuide = new Mesh(new TorusGeometry(0.8, 0.008, 6, 72), additive(COLORS.telegraph, 0))
   for (const ring of [telegraph, telegraphGuide]) {
-    ring.position.set(0, 0.22, 0.1)
+    ring.position.set(0, DRONE.ringY, DRONE.ringZ)
     ring.visible = false
     root.add(ring)
   }
@@ -385,6 +419,8 @@ export function buildDrone(glowMap: Texture): DroneParts {
     head: { center: headCenter, radius: DRONE.headRadius, shell: headShell, halo: headHalo, core: visorMat },
     chest: { center: chestCenter, radius: DRONE.chestRadius, shell: chestShell, halo: chestHalo, core: orbMat },
     accent,
+    accentSolid,
+    orb,
     neckRing,
     pods,
     thruster,
@@ -398,6 +434,8 @@ export function buildDrone(glowMap: Texture): DroneParts {
 
 export interface Sparks {
   readonly points: Points
+  /** Scales every burst count (low quality uses fewer sparks). */
+  density: number
   /** Spray n sparks from origin. dir biases the spray, speed in m/s, life in seconds. */
   burst(origin: Vector3, n: number, color: Color, speed: number, dir: Vector3, life: number): void
   update(dt: number): void
@@ -420,6 +458,7 @@ export function createSparks(max: number, size: number, map: Texture): Sparks {
   const material = new PointsMaterial({
     size,
     map,
+    color: hdr(0xffffff, 1.4), // bright sparks bloom
     vertexColors: true,
     transparent: true,
     depthWrite: false,
@@ -432,8 +471,10 @@ export function createSparks(max: number, size: number, map: Texture): Sparks {
 
   return {
     points,
+    density: 1,
     burst(origin, n, color, speed, dir, lifeS) {
-      for (let i = 0; i < n; i++) {
+      const count = Math.max(1, Math.round(n * this.density))
+      for (let i = 0; i < count; i++) {
         const k = next
         const j = k * 3
         next = (next + 1) % max

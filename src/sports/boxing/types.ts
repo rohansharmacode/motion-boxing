@@ -4,6 +4,50 @@ import type { BodyFrame, Calibration, CalibrationStatus, Hand, StartupErrorKind 
 export type PunchKind = 'jab' | 'cross' | 'hook' | 'uppercut'
 export type SlipKind = 'left' | 'right' | 'duck'
 
+/**
+ * Drone attack patterns. Every attack has a 600 ms telegraph; blocking cuts damage by 80 percent.
+ * straight: fast jab at the head. A slip (left or right) or a duck dodges it.
+ * hook: wide swing from the side. Only a duck dodges it.
+ * slam: overhead smash. Only a slip (left or right) dodges it.
+ */
+export type AttackPattern = 'straight' | 'hook' | 'slam'
+
+export type QualityLevel = 'high' | 'low'
+
+/** Per-round log for the coach. Times are round ms. */
+export interface RoundLog {
+  roundMs: number
+  punches: Array<{ kind: PunchKind; hand: Hand; t: number; speed: number; landed: boolean; counter: boolean; combo: number }>
+  defences: Array<{ pattern: AttackPattern; t: number; outcome: 'blocked' | 'dodged' | 'hit'; reactionMs: number | null }>
+  /** Total ms with the guard up while fighting. */
+  guardMs: number
+}
+
+/** Post-match coach card (research doc section 5). */
+export interface CoachCard {
+  /** Original play-style badge, for example "PRESSURE ARTIST". */
+  badge: string
+  headline: string
+  tips: [string, string, string]
+  drill: string
+  source: 'cortex' | 'local' | 'demo'
+}
+
+export interface BoxingSfx {
+  /** Call from a user gesture so audio can start. Safe to call many times. */
+  unlock(): void
+  punch(kind: PunchKind, landed: boolean, counter: boolean): void
+  combo(count: number): void
+  telegraph(pattern: AttackPattern): void
+  block(): void
+  dodge(): void
+  playerHit(): void
+  bell(): void
+  ko(win: boolean): void
+  setMuted(muted: boolean): void
+  dispose(): void
+}
+
 export interface Punch {
   kind: PunchKind
   hand: Hand
@@ -55,6 +99,8 @@ export interface RoundResult {
   bestSpeed: number
   /** landed / total * 100, 0 when no punches. */
   accuracyPct: number
+  /** Longest chain of landed punches. */
+  maxCombo: number
 }
 
 export type HitTarget = 'head' | 'chest'
@@ -78,9 +124,9 @@ export interface BoxingScene {
   /** Lean or drop the camera a little so slips and ducks feel physical. */
   setSlip(slip: SlipKind | null): void
   /** Start the red ring charge on the drone for ms milliseconds. */
-  droneTelegraph(ms: number): void
+  droneTelegraph(ms: number, pattern: AttackPattern): void
   /** The drone strikes toward the camera. */
-  droneStrike(): void
+  droneStrike(pattern: AttackPattern): void
   droneHit(result: HitResult, damage: number, counter: boolean): void
   /** The player was hit. blocked = sparks on the gloves instead of a red flash. */
   playerHit(blocked: boolean): void
@@ -92,6 +138,11 @@ export interface BoxingScene {
   /** Advance animations by real elapsed time. */
   update(dtMs: number): void
   render(): void
+  /** 1 = normal, 0.25 = slow motion (KO). Camera shake stays real time. */
+  setTimeScale(scale: number): void
+  /** high = bloom, pixel ratio up to 2; low = no bloom, pixel ratio 1. The scene also drops to low by itself when frames are slow. */
+  readonly quality: QualityLevel
+  setQuality(level: QualityLevel): void
   dispose(): void
 }
 
@@ -111,12 +162,23 @@ export interface BoxingHud {
   /** Short callout such as BLOCKED, SLIPPED, COUNTER, HIT. */
   callout(text: string, tone: 'good' | 'bad' | 'info'): void
   setGuard(on: boolean): void
-  /** Edge warning while the drone charges an attack. */
-  setTelegraph(on: boolean): void
+  /** Edge warning plus the defence hint for that pattern while the drone charges an attack. null hides. */
+  setTelegraph(pattern: AttackPattern | null): void
   setKeyboardMode(on: boolean): void
-  showRoundEnd(result: RoundResult, onAgain: () => void): void
+  /** Ids #again-btn and #home-btn. onHome null hides Home. */
+  showRoundEnd(result: RoundResult, onAgain: () => void, onHome: (() => void) | null): void
   setDebug(values: Record<string, number | string>): void
   toggleDebug(): void
+  /** count >= 2 shows the combo meter, below 2 hides it. */
+  setCombo(count: number): void
+  /** Round-end coach card: null shows a "coach is reviewing your round" state. */
+  setCoachCard(card: CoachCard | null): void
+  /** false hides the webcam preview box (keyboard-only play). */
+  setCameraActive(on: boolean): void
+  /** Name typed on the start screen (persisted in localStorage "motion-sports.player-name"), "" if none. */
+  readonly playerName: string
+  /** Remove everything the HUD added to the page and all its listeners. */
+  dispose(): void
 }
 
 /** event_type values used by boxing (MOTION_EVENTS table, research doc section 5). */
@@ -193,4 +255,8 @@ export interface BoxingEngine extends SportEngine<BoxingScene> {
   onRoundEnd(cb: (result: RoundResult) => void): void
   /** Latest detector debug values plus engine values. */
   readonly debug: Record<string, number | string>
+  /** Log of the last (or current) round for the coach. */
+  getRoundLog(): RoundLog
+  /** Stop the current round at once with no result, no callbacks and no telemetry (demo mode). */
+  abortRound(): void
 }
