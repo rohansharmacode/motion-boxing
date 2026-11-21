@@ -5,6 +5,7 @@ import { startPosePipeline } from '../../pose/pipeline.ts'
 import type { PosePipeline } from '../../pose/pipeline.ts'
 import { createCalibrator } from '../../pose/calibration.ts'
 import { createBodyTracker } from '../../pose/body.ts'
+import { createTrackingHint } from '../../pose/trackingHint.ts'
 import type { BodyTracker } from '../../pose/body.ts'
 import { StartupError } from '../../pose/types.ts'
 import type { StartupErrorKind } from '../../pose/types.ts'
@@ -62,6 +63,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   ui.className = 'gk-ui'
   root.append(stage, ui)
   ctx.host.append(root)
+  const trackingHint = createTrackingHint(ui)
 
   uiSfx ??= createSfx() // shell sfx has no dispose: share one AudioContext across launches
   const sfx = createKeeperSfx()
@@ -171,6 +173,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     hud.setTelegraph(false)
     sfx.setTension(0)
     sfx.fullTime(result.saves > result.goals)
+    trackingHint.setActive(false)
     hud.showEnd(result, () => startShootout())
   })
 
@@ -185,11 +188,13 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     sfx.startCrowd()
     hud.setScoreboard([], KICKS_PER_SHOOTOUT)
     hud.showPlay()
+    trackingHint.setActive(tracker !== null && !input.mouseOn)
     engine.startShootout()
   }
 
   // ---------- camera path (shared PosePipeline) ----------
   function stopCamera(): void {
+    trackingHint.setActive(false)
     unsubscribe?.()
     unsubscribe = null
     // The pipeline is a singleton bound to the first caller's <video>. Stop it only if we started it;
@@ -230,6 +235,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
       unsubscribe = p.subscribe((frame) => {
         if (disposed) return
         if (tracker) {
+          trackingHint.push(frame)
           engine.onPoseFrame(tracker.push(frame))
           return
         }
@@ -328,6 +334,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     timers.clear()
     window.removeEventListener('keydown', onKey)
     window.removeEventListener('pagehide', onPageHide)
+    trackingHint.dispose()
     ctx.signal.removeEventListener('abort', dispose)
     ro.disconnect()
     stopCamera()

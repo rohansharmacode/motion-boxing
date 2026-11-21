@@ -69,11 +69,30 @@ export interface CoachCard {
   summary: string;
 }
 
+/** Cortex Search drills the coach card was grounded on (sql/PLUS_CONTRACT.md). */
+export interface CoachGrounding {
+  source: 'cortex_search' | 'mock' | 'fallback';
+  drills: { drill_id: string; title: string }[];
+}
+
+/** Optional extras of a coach card; only the front-end response shape exposes them. */
+export interface CoachMeta {
+  focus: string | null;
+  grounding: CoachGrounding;
+  /** True when the card came from AI_COMPLETE structured output. */
+  structured: boolean;
+  headline?: string | null;
+}
+
 /** What is stored in SESSIONS.ai_coach_json (the card plus provenance). */
 export interface StoredCoach extends CoachCard {
   fallback: boolean;
   model: string;
   generated_at: string;
+  focus?: string | null;
+  grounding?: CoachGrounding;
+  structured?: boolean;
+  headline?: string | null;
   /** What the front end reported at round end (final_score, result, avg_inference_fps, stats). */
   client?: Record<string, unknown>;
 }
@@ -144,4 +163,82 @@ export interface SessionEndResult {
   fallback: boolean;
   /** Cortex was slower than COACH_FAST_MS: `coach` is provisional; poll GET /api/session/:id/coach. */
   warming_up?: boolean;
+  /** Internal: merged into the front-end coach card, stripped from the original response shape. */
+  coach_meta?: CoachMeta;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Snowflake Plus endpoints (sql/PLUS_CONTRACT.md "New server endpoints")
+// ---------------------------------------------------------------------------------------------
+
+/** Style vector components, ALWAYS in this order. */
+export const STYLE_COMPONENTS = ['speed', 'reaction', 'accuracy', 'guard', 'symmetry', 'endurance'] as const;
+export type StyleComponent = (typeof STYLE_COMPONENTS)[number];
+export type StyleComponents = Record<StyleComponent, number>;
+
+export interface PlayerStyle {
+  player_id: string;
+  available: boolean;
+  /** 0..100 each; null when the player has no punches yet. */
+  components: StyleComponents | null;
+  pro_similarity_pct: number | null;
+  twin: { player_id: string; name: string; similarity_pct: number } | null;
+  scouting: { fighting_style: string; scouting_report: string; updated_at: string | null } | null;
+}
+
+export interface ProgressPoint {
+  session_index: number;
+  session_id: string;
+  score: number | null;
+  avg_speed: number | null;
+  accuracy_pct: number | null;
+}
+
+export interface PlayerProgress {
+  player_id: string;
+  available: boolean;
+  sessions: number;
+  best_score: number | null;
+  last_score: number | null;
+  speed_trend_mps_per_session: number | null;
+  score_trend_per_session: number | null;
+  accuracy_trend_pct_per_session: number | null;
+  reaction_trend_ms_per_session: number | null;
+  improving: boolean;
+  history: ProgressPoint[];
+}
+
+export const HIGHLIGHT_KINDS = ['speed_record', 'reaction_record', 'personal_best_speed', 'punch_milestone', 'suspicious_speed'] as const;
+export type HighlightKind = (typeof HIGHLIGHT_KINDS)[number];
+
+export interface Highlight {
+  highlight_id: string;
+  created_at: string;
+  kind: string;
+  player_id: string;
+  name: string;
+  session_id: string;
+  value: number | null;
+  unit: string;
+  message: string;
+}
+
+export interface HighlightsFeed {
+  available: boolean;
+  highlights: Highlight[];
+}
+
+export type ProbeStatus = 'up' | 'missing' | 'error' | 'mock' | 'unknown' | 'streamlit';
+export interface FeatureProbe {
+  status: ProbeStatus;
+  detail?: string;
+}
+
+/** Repo-side probes for GET /api/snowflake/status (Cortex state comes from the Cortex object). */
+export interface RepoFeatureProbes {
+  dynamic_tables: FeatureProbe;
+  cortex_search: FeatureProbe;
+  streams_tasks: FeatureProbe;
+  vectors: FeatureProbe;
+  player_form_last_refresh?: string | null;
 }

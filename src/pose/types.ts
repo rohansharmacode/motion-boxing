@@ -52,9 +52,20 @@ export interface Calibration {
   torsoCenter: { x: number; y: number }
   /** N0 = P0, aspect-corrected image units. */
   neutralNose: { x: number; y: number }
+  /**
+   * Lead side read from the hold stance: orthodox leads with the left hand, southpaw with the right.
+   * Missing means unknown (keyboard play), treated as orthodox.
+   */
+  stance?: Stance
 }
 
-export type CalibrationStatus = 'no-pose' | 'shoulders-hidden' | 'holding' | 'done'
+export type Stance = 'orthodox' | 'southpaw'
+
+/**
+ * no-pose: nobody in view. shoulders-hidden: shoulders not both visible. too-close: the player fills the frame,
+ * so punches and reaches would leave it. hands-hidden: shoulders fine but a fist is out of view (raise both hands).
+ */
+export type CalibrationStatus = 'no-pose' | 'shoulders-hidden' | 'too-close' | 'hands-hidden' | 'holding' | 'done'
 
 /** Smoothed, calibrated body for game logic (built by src/pose/body.ts). */
 export interface BodyFrame {

@@ -9,9 +9,11 @@ import { GOAL_HALF_WIDTH, GOAL_HEIGHT } from './physics.ts'
 /** Gloves and torso live on the goal plane. */
 export const KEEPER_Z = 0
 
-const REACH_X_MIN = -1.4
-const REACH_X_MAX = 1.4
-const REACH_Y_TOP = -1.1 // body y at the top of the goal
+// Reach box in body space. Kept a little inside a full arm span so a comfortable reach (not a full lunge)
+// covers the corners; players at a laptop rarely have room to dive.
+const REACH_X_MIN = -1.25
+const REACH_X_MAX = 1.25
+const REACH_Y_TOP = -1.0 // body y at the top of the goal
 const REACH_Y_BOTTOM = 0.5 // body y at the lowest reach
 const WORLD_Y_TOP = GOAL_HEIGHT
 const WORLD_Y_BOTTOM = 0.2

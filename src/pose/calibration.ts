@@ -1,7 +1,7 @@
 // 2 s hold-stance gate (research doc, Shared Camera Calibration).
 // Averages shoulder width S, torso centre C and neutral nose N0 over frames with both shoulders visible.
 import { LM } from './types.ts'
-import type { Calibration, CalibrationStatus, PoseFrame } from './types.ts'
+import type { Calibration, CalibrationStatus, PoseFrame, Stance } from './types.ts'
 
 export interface CalibrationProgress {
   status: CalibrationStatus
@@ -23,8 +23,19 @@ const MIN_VISIBILITY = 0.5
 const MAX_GAP_MS = 500
 /** Smallest believable 2D shoulder width (aspect-corrected image units). Narrower means side-on or a bad fit. */
 const MIN_SHOULDER_2D = 0.03
+/** Widest shoulder line that still leaves room for the arms (aspect-corrected units, 1 = frame height). */
+const MAX_SHOULDER_2D = 0.5
+/** Wrist visibility needed to count a fist as in view. */
+const MIN_WRIST_VISIBILITY = 0.4
+/** Fists this close to the frame edge are about to leave it. */
+const EDGE_MARGIN = 0.02
+/** Lead-minus-rear forward offset (m) needed to call a southpaw stance; anything less stays orthodox. */
+const SOUTHPAW_MIN_M = 0.04
 /** Floor for the world shoulder width, metres. */
 const MIN_SHOULDER_WORLD = 0.1
+
+/** Positive offset: the right side is forward, so the right hand leads (southpaw). */
+export const stanceOf = (rightForward: number): Stance => (rightForward > SOUTHPAW_MIN_M ? 'southpaw' : 'orthodox')
 
 const safeAspect = (aspect: number): number => (Number.isFinite(aspect) && aspect > 0 ? aspect : 4 / 3)
 
@@ -40,11 +51,13 @@ export function defaultCalibration(aspect: number): Calibration {
   }
 }
 
-export function createCalibrator(options?: { holdMs?: number; minFrames?: number }): Calibrator {
-  const holdMs = options?.holdMs ?? 2000
-  const minFrames = options?.minFrames ?? 15
+export function createCalibrator(options?: { holdMs?: number; minFrames?: number; requireHands?: boolean }): Calibrator {
+  // Short hold: players lose patience past a second, and the averages settle within about 10 frames.
+  const holdMs = options?.holdMs ?? 1200
+  const minFrames = options?.minFrames ?? 10
+  const requireHands = options?.requireHands ?? true
 
-  let sum = { s: 0, sw: 0, cx: 0, cy: 0, nx: 0, ny: 0 }
+  let sum = { s: 0, sw: 0, cx: 0, cy: 0, nx: 0, ny: 0, lead: 0 }
   let count = 0
   let validMs = 0
   /** t of the last valid frame, null before the first one. */
@@ -54,7 +67,7 @@ export function createCalibrator(options?: { holdMs?: number; minFrames?: number
   let result: Calibration | null = null
 
   const clear = (): void => {
-    sum = { s: 0, sw: 0, cx: 0, cy: 0, nx: 0, ny: 0 }
+    sum = { s: 0, sw: 0, cx: 0, cy: 0, nx: 0, ny: 0, lead: 0 }
     count = 0
     validMs = 0
     lastValidT = null
@@ -90,6 +103,27 @@ export function createCalibrator(options?: { holdMs?: number; minFrames?: number
         prevValid = false
         return report('shoulders-hidden')
       }
+      if (s > MAX_SHOULDER_2D) {
+        prevValid = false
+        return report('too-close')
+      }
+      if (requireHands) {
+        const inView = (i: number): boolean => {
+          const w = frame.image[i]
+          return (
+            w !== undefined &&
+            w.visibility >= MIN_WRIST_VISIBILITY &&
+            w.x > EDGE_MARGIN &&
+            w.x < 1 - EDGE_MARGIN &&
+            w.y > EDGE_MARGIN &&
+            w.y < 1 - EDGE_MARGIN
+          )
+        }
+        if (!inView(LM.L_WRIST) || !inView(LM.R_WRIST)) {
+          prevValid = false
+          return report('hands-hidden')
+        }
+      }
 
       if (prevValid && lastValidT !== null) validMs += frame.t - lastValidT
       lastValidT = frame.t
@@ -101,6 +135,12 @@ export function createCalibrator(options?: { holdMs?: number; minFrames?: number
       sum.cy += (l.y + r.y) / 2
       sum.nx += nose.x * a
       sum.ny += nose.y
+      // Stance: how much further forward (smaller z) the right side is than the left, shoulders plus fists.
+      const lwr = frame.world[LM.L_WRIST]
+      const rwr = frame.world[LM.R_WRIST]
+      const fists = lwr && rwr && lwr.visibility >= MIN_WRIST_VISIBILITY && rwr.visibility >= MIN_WRIST_VISIBILITY ? lwr.z - rwr.z : 0
+      const lead = lw.z - rw.z + fists
+      if (Number.isFinite(lead)) sum.lead += lead
 
       if (validMs < holdMs || count < minFrames) return report('holding')
       result = {
@@ -109,6 +149,7 @@ export function createCalibrator(options?: { holdMs?: number; minFrames?: number
         shoulderWidthWorld: Math.max(MIN_SHOULDER_WORLD, sum.sw / count),
         torsoCenter: { x: sum.cx / count, y: sum.cy / count },
         neutralNose: { x: sum.nx / count, y: sum.ny / count },
+        stance: stanceOf(sum.lead / count),
       }
       return { status: 'done', progress: 1, calibration: result }
     },

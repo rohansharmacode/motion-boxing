@@ -16,5 +16,5 @@ export async function createBackends(config: AppConfig, log: Logger): Promise<{ 
   // Separate pool under a SELECT-only role, used only by POST /api/ask.
   const readOnly = await createSnowflakeExecutor({ ...sf, poolMax: 2 }, sf.readOnlyRole);
   const repo = new SnowflakeRepo(main, log, readOnly, { askQueryTimeoutMs: config.ask.queryTimeoutMs });
-  return { repo, cortex: new SnowflakeCortex(main, config.cortexModel) };
+  return { repo, cortex: new SnowflakeCortex(main, config.cortexModel, { structured: config.cortexStructured }) };
 }

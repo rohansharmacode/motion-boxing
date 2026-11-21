@@ -19,7 +19,7 @@
 body #stage {
   inset: auto 16px 16px auto;
   z-index: 1;
-  width: clamp(160px, 22vw, 240px);
+  width: clamp(180px, 26vw, 320px);
   height: auto;
   aspect-ratio: 4 / 3;
   border: 1px solid var(--surface-border);

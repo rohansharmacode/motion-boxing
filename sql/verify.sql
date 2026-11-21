@@ -161,7 +161,7 @@ SELECT * FROM V_GLOBAL_STATS;              -- one row, totals >= fixture
 --        ai_coach_json = PARSE_JSON('{"tips":["a","b","c"],"drill":"d","badge":"b","summary":"s"}')
 --  WHERE session_id = 'verify-session-1';
 -- -- Cortex access (use the same model the server uses):
--- SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large2', 'Reply with the single word OK.') AS cortex_reply;
+-- SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large3', 'Reply with the single word OK.') AS cortex_reply;
 -- -- Must FAIL (least privilege): app role cannot drop or create objects.
 -- DROP TABLE PLAYERS;
 -- USE ROLE ACCOUNTADMIN;
