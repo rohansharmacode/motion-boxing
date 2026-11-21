@@ -28,3 +28,11 @@ dist-ssr
 .env.*
 !.env.example
 server/.data/
+
+# Motion recordings: landmark JSON only (recordings/*.json.gz). Never raw video, never keys.
+recordings/**/*.webm
+recordings/**/*.mp4
+recordings/**/*.mov
+recordings/**/*.mkv
+*.p8
+*.pem
