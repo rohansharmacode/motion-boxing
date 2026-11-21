@@ -381,3 +381,118 @@
 }
 @keyframes mh-hp-low { 50% { background: #ffffff; } }
 @keyframes mh-hp-hit { 30% { filter: brightness(1.8); } }
+
+/* ---------- neon: full arcade frame (bigger type, filled top and bottom bands) ---------- */
+:root[data-theme='neon'] {
+  --mh-num-size: 64px;
+  --nf-top: 118px;
+  --nf-bottom: 132px;
+}
+/* Top and bottom bands: dark synthwave panels with a neon edge line, so no empty strips. */
+:root:not(#_)[data-theme='neon'] .kr-bhud::before,
+:root:not(#_)[data-theme='neon'] .kr-bhud::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+:root:not(#_)[data-theme='neon'] .kr-bhud::before {
+  top: 0;
+  height: var(--nf-top);
+  background: linear-gradient(180deg, rgba(11, 4, 32, 0.94), rgba(20, 8, 46, 0.86));
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, #00e5ff, #7b2ff7 50%, #ff2e88) 1;
+}
+:root:not(#_)[data-theme='neon'] .kr-bhud::after {
+  bottom: 0;
+  height: var(--nf-bottom);
+  background: linear-gradient(0deg, rgba(11, 4, 32, 0.94), rgba(20, 8, 46, 0.86));
+  border-top: 2px solid transparent;
+  border-image: linear-gradient(90deg, #00e5ff, #7b2ff7 50%, #ff2e88) 1;
+}
+:root:not(#_)[data-theme='neon'] .kr-bhud-shaker { position: absolute; inset: 0; z-index: 1; }
+
+/* Top: big names, thick bars, framed timer in the middle. */
+:root:not(#_)[data-theme='neon'] .kr-hud-top { top: 14px; left: 28px; right: 28px; gap: 24px; align-items: center; }
+:root:not(#_)[data-theme='neon'] .kr-fighter-name { font-size: 32px; }
+:root:not(#_)[data-theme='neon'] .kr-hp-num { font-size: 24px; }
+:root:not(#_)[data-theme='neon'] .kr-hp { width: 38vw; height: 28px; border-width: 3px; transform: skewX(-10deg); }
+:root:not(#_)[data-theme='neon'] .kr-right .kr-hp { transform: skewX(10deg); }
+:root:not(#_)[data-theme='neon'] .kr-timer {
+  min-width: 112px;
+  padding: 6px 18px 2px;
+  border: 3px solid #00e5ff;
+  border-radius: 0;
+  background: #0b0420;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.45);
+  transform: skewX(-10deg);
+}
+:root:not(#_)[data-theme='neon'] .kr-timer-value { font-size: var(--mh-num-size); line-height: 1; transform: skewX(10deg); }
+:root:not(#_)[data-theme='neon'] .kr-timer.kr-urgent { border-color: #ff2e88; box-shadow: 0 0 14px rgba(255, 46, 136, 0.5); background: #0b0420; }
+
+/* Bottom: webcam left, then combo, guard and punch speed across the strip. */
+:root:not(#_)[data-theme='neon'] body:is([data-state='fighting'], [data-state='tutorial'], [data-state='ended']) #stage {
+  width: 200px;
+  left: 20px;
+  bottom: 14px;
+  border: 3px solid #00e5ff;
+  border-radius: 6px;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.4);
+  z-index: 5;
+}
+:root:not(#_)[data-theme='neon'] .kr-hud-bottom {
+  display: flex;
+  inset: auto 28px 18px 248px;
+  width: auto;
+  height: auto;
+  gap: 28px;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+:root:not(#_)[data-theme='neon'] body.bx-no-cam .kr-hud-bottom { left: 28px; }
+:root:not(#_)[data-theme='neon'] .kr-combo { display: flex; margin-right: auto; }
+:root:not(#_)[data-theme='neon'] .kr-combo-num { font: 400 84px/0.9 'Bebas Neue', sans-serif; color: #ffb000; text-shadow: 3px 3px 0 #ff2e88; }
+:root:not(#_)[data-theme='neon'] .kr-combo-label { font: 400 20px/1 'Bebas Neue', sans-serif; letter-spacing: 0.3em; color: #f5f3ff; }
+:root:not(#_)[data-theme='neon'] .kr-guard {
+  display: block;
+  width: 260px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+:root:not(#_)[data-theme='neon'] .kr-speed {
+  position: static;
+  display: block;
+  width: 220px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+:root:not(#_)[data-theme='neon'] :is(.kr-speed-head, .kr-speed-bar) { display: flex; }
+:root:not(#_)[data-theme='neon'] .kr-speed-bar, :root:not(#_)[data-theme='neon'] .kr-guard-bar { display: block; height: 14px; background: #14082e; border: 3px solid #f5f3ff; border-radius: 0; transform: skewX(-10deg); }
+:root:not(#_)[data-theme='neon'] .kr-guard-bar > div { background: #00e5ff; border-radius: 0; }
+:root:not(#_)[data-theme='neon'] .kr-guard-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+:root:not(#_)[data-theme='neon'] .kr-guard-head > :last-child { color: #f5f3ff; font: 400 24px/1 'Bebas Neue', sans-serif; }
+:root:not(#_)[data-theme='neon'] .kr-speed-value { margin: 4px 0 6px; font: 400 40px/1 'Bebas Neue', sans-serif; color: #f5f3ff; text-shadow: none; }
+:root:not(#_)[data-theme='neon'] .kr-speed-value small { font-size: 18px; }
+:root:not(#_)[data-theme='neon'] :is(.kr-speed-label, .kr-guard-head) {
+  font: 400 20px/1 'Bebas Neue', sans-serif;
+  letter-spacing: 0.18em;
+  color: #00e5ff;
+  text-transform: uppercase;
+}
+:root:not(#_)[data-theme='neon'] .kr-speed-type { font: 400 20px/1 'Bebas Neue', sans-serif; }
+
+/* Bigger callouts and pop words. */
+:root:not(#_)[data-theme='neon'] .kr-telegraph { font-size: 22px; }
+:root:not(#_)[data-theme='neon'] .kr-hud-banner { top: 128px; }
+:root:not(#_)[data-theme='neon'] .kr-hud-banner span { font: 400 72px/1 'Bebas Neue', sans-serif; letter-spacing: 0.06em; padding: 4px 28px; text-shadow: 4px 4px 0 #0b0420; }
+:root:not(#_)[data-theme='neon'] .kr-popx { font-size: 72px; text-shadow: 4px 4px 0 #0b0420; }
+:root:not(#_)[data-theme='neon'] .kr-popx-hit { font-size: 84px; }
+:root:not(#_)[data-theme='neon'] .kr-popx-ko { font-size: 120px; }
+:root:not(#_)[data-theme='neon'] .kr-pops { padding-bottom: calc(var(--nf-bottom) + 6vh); }
+:root:not(#_)[data-theme='neon'] .bx-tut { bottom: calc(var(--nf-bottom) + 12px); }
+:root:not(#_)[data-theme='neon'] .bx-tut-title { font-size: 22px; }
+:root:not(#_)[data-theme='neon'] .bx-tut-hint { font-size: 17px; }
