@@ -10,6 +10,7 @@ import { StartupError } from '../../pose/types.ts'
 import type { StartupErrorKind } from '../../pose/types.ts'
 import type { GameContext, GameSession } from '../../shell/types.ts'
 import { createSfx } from '../../shell/sfx.ts'
+import type { Sfx } from '../../shell/sfx.ts'
 import { createKeeperScene } from './scene.ts'
 import { createKeeperEngine } from './engine.ts'
 import { createKeeperTelemetry } from './telemetry.ts'
@@ -32,6 +33,8 @@ const CAMERA_COPY: Record<StartupErrorKind, string> = {
   'camera-other': 'The camera could not start.',
   'tracker-failed': 'The pose tracker failed to load. Check your connection and retry.',
 }
+
+let uiSfx: Sfx | null = null
 
 export interface GoalkeeperOptions {
   /** Skip the start screen: 'mouse' or 'camera'. */
@@ -60,18 +63,18 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   root.append(stage, ui)
   ctx.host.append(root)
 
-  const uiSfx = createSfx()
+  uiSfx ??= createSfx() // shell sfx has no dispose: share one AudioContext across launches
   const sfx = createKeeperSfx()
   const scene = createKeeperScene()
   stage.append(scene.canvas, video)
   const hud = createKeeperHud(ui, {
     cornerHome: !embedded,
     onHome: () => {
-      uiSfx.back()
+      uiSfx?.back()
       ctx.exit()
     },
     onButton: () => {
-      uiSfx.select()
+      uiSfx?.select()
       sfx.startCrowd()
     },
   })
@@ -81,6 +84,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   let disposed = false
   let initialized = false
   let pipeline: PosePipeline | null = null
+  let ownsPipeline = false
   let unsubscribe: (() => void) | null = null
   let tracker: BodyTracker | null = null
   let starting = false
@@ -188,8 +192,12 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   function stopCamera(): void {
     unsubscribe?.()
     unsubscribe = null
-    pipeline?.stop()
+    // The pipeline is a singleton bound to the first caller's <video>. Stop it only if we started it;
+    // if another sport still holds it, leave its camera running.
+    if (pipeline && ownsPipeline) pipeline.stop()
     pipeline = null
+    ownsPipeline = false
+    if (video.srcObject) video.srcObject = null
     tracker = null
     video.classList.remove('gk-live')
   }
@@ -208,6 +216,12 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
         return
       }
       pipeline = p
+      ownsPipeline = p.video === video
+      if (!ownsPipeline && p.video.srcObject instanceof MediaStream) {
+        // Borrowed pipeline: mirror its stream into our preview.
+        video.srcObject = p.video.srcObject
+        void video.play().catch(() => {})
+      }
       video.classList.add('gk-live')
       const calibrator = createCalibrator()
       const aspect = p.videoWidth > 0 && p.videoHeight > 0 ? p.videoWidth / p.videoHeight : 4 / 3

@@ -1347,6 +1347,10 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       mats.forEach((m) => m.dispose())
       textures.forEach((t) => t.dispose())
       renderer.dispose()
+      // dispose() keeps the GL context alive; without this each shell launch leaks one and the browser
+      // starts killing contexts ("Too many active WebGL contexts") after ~16 launches.
+      renderer.forceContextLoss()
+      if (!canvas) cv.remove()
     },
   }
 
