@@ -70,7 +70,7 @@ const HEAVY_HITSTOP_MS = 130
 const COUNTER_HITSTOP_MS = 200
 const PLAYER_HITSTOP_MS = 70
 /** The finishing blow holds longest, so the head pop reads. */
-const KO_HITSTOP_MS = 170
+const KO_HITSTOP_MS = 260
 /** One beat of the 3-2-1 countdown, ms. */
 const COUNTDOWN_BEAT_MS = 800
 const TICK_MS = 200
