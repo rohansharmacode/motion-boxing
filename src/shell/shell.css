@@ -694,3 +694,119 @@
 .shell-ticker .kr-hl { max-width: min(720px, 92vw); }
 .shell:has(> .shell-ticker) { grid-template-rows: auto auto 1fr auto auto; }
 @media (max-width: 760px), (max-height: 520px) { .shell:has(> .shell-ticker) { grid-template-rows: auto auto auto auto auto; } }
+
+/* ==========================================================================
+   Arcade cabinet finish (GDD S1). Same layout as the original home; only the
+   finish changes: opaque void backdrop, no soft blobs or glass, sharp 3px neon
+   borders, hard 6px shadows, amber corner brackets on hover, "> START" prompts.
+   ========================================================================== */
+.shell:not(.shell--channels) { --shell-radius: 0px; }
+.shell:not(.shell--channels) .shell-bg { background: #070a17; }
+.shell:not(.shell--channels) .shell-orb { display: none; }
+.shell:not(.shell--channels) .shell-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, rgba(242, 247, 255, 0.04) 0 2px, transparent 2px 4px);
+  pointer-events: none;
+}
+
+.shell:not(.shell--channels) .shell-tile {
+  border: 3px solid #2e3e6e;
+  border-radius: 0;
+  background: #0c1228;
+  box-shadow: 6px 6px 0 #03050d;
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), border-color 40ms, box-shadow 120ms;
+}
+.shell:not(.shell--channels) .shell-tile:is(:hover, :focus, :focus-visible) {
+  transform: translateY(-4px);
+  border-color: var(--a);
+  box-shadow: 10px 10px 0 #03050d;
+}
+.shell:not(.shell--channels) .shell-tile-glow,
+.shell:not(.shell--channels) .shell-tile-shine { display: none; }
+
+/* Corner target brackets (amber), snapping in on hover. */
+.shell:not(.shell--channels) .shell-tile::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  z-index: 3;
+  pointer-events: none;
+  --c: #ffd166;
+  background:
+    linear-gradient(var(--c) 0 0) top left / 14px 3px, linear-gradient(var(--c) 0 0) top left / 3px 14px,
+    linear-gradient(var(--c) 0 0) top right / 14px 3px, linear-gradient(var(--c) 0 0) top right / 3px 14px,
+    linear-gradient(var(--c) 0 0) bottom left / 14px 3px, linear-gradient(var(--c) 0 0) bottom left / 3px 14px,
+    linear-gradient(var(--c) 0 0) bottom right / 14px 3px, linear-gradient(var(--c) 0 0) bottom right / 3px 14px;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transform: scale(1.06);
+  transition: opacity 120ms, transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.shell:not(.shell--channels) .shell-tile:is(:hover, :focus)::before { opacity: 1; transform: none; }
+
+/* "> START" action prompt, bottom-right of every playable tile (replaces the spinning ring). */
+.shell:not(.shell--channels) .shell-tile::after,
+.shell:not(.shell--channels) .shell-tile--featured::after {
+  content: none;
+}
+.shell:not(.shell--channels) .shell-tile[data-ready='true']::after {
+  content: '> START';
+  position: absolute;
+  top: auto;
+  left: auto;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  width: auto;
+  aspect-ratio: auto;
+  translate: none;
+  padding: 6px 14px 4px;
+  border: 2px solid var(--a);
+  border-radius: 0;
+  background: #070a17;
+  mask: none;
+  -webkit-mask: none;
+  opacity: 1;
+  animation: none;
+  font: 400 clamp(16px, 1.3vw, 22px)/1 var(--font-display, 'Bebas Neue', sans-serif);
+  letter-spacing: 0.12em;
+  color: var(--a);
+  box-shadow: 4px 4px 0 #03050d;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.shell:not(.shell--channels) .shell-tile[data-ready='true']:is(:hover, :focus)::after { background: var(--a); color: #070a17; }
+
+.shell:not(.shell--channels) .shell-tile-icon {
+  border-radius: 0;
+  border: 2px solid var(--a);
+  background: #070a17;
+  box-shadow: 4px 4px 0 #03050d;
+}
+.shell:not(.shell--channels) .shell-tile-dwell { height: 4px; box-shadow: none; background: linear-gradient(90deg, #22e5ff, #b8ff00); }
+
+/* Header: rectangular status block, no pill. */
+.shell:not(.shell--channels) .shell-pill {
+  border-radius: 0;
+  background: #0c1228;
+  border: 2px solid #b8ff00;
+  box-shadow: 4px 4px 0 #03050d;
+  font: 400 15px/1 var(--font-display, 'Bebas Neue', sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.shell:not(.shell--channels) .shell-pill-dot { border-radius: 0; background: #b8ff00; box-shadow: none; }
+.shell:not(.shell--channels) .shell-greeting { color: #ffd166; }
+
+/* Footer: hard-edged keycaps. */
+.shell:not(.shell--channels) .shell-hints kbd {
+  border-radius: 0;
+  border: 2px solid #2e3e6e;
+  background: #0c1228;
+  box-shadow: 3px 3px 0 #03050d;
+  font: 400 14px/1.2 var(--font-display, 'Bebas Neue', sans-serif);
+  letter-spacing: 0.1em;
+  color: #22e5ff;
+}
+.shell:not(.shell--channels) .shell-tile--versus .shell-tile-icon { display: none; }
