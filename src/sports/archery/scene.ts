@@ -1717,7 +1717,6 @@ export function createArcheryScene(): ArcheryScene {
     },
   }
 
-  Object.defineProperty(api, '_dbg', { value: { scene, viewCam, renderer } }) // DEBUG-REMOVE
   api.resize(cv.clientWidth || 1280, cv.clientHeight || 720)
   api.reset()
   api.setBow(0, 'left', true)
