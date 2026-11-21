@@ -1,0 +1,26 @@
+# Keeps the free Render service awake for judging (it sleeps after ~15 min idle).
+# Pings the health check every 10 minutes. No secrets needed. Delete after judging.
+name: Keep site awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping health and home page
+        run: |
+          for url in https://motion-boxing.onrender.com/api/health https://motion-boxing.onrender.com/; do
+            for i in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 60 "$url" || echo 000)
+              echo "$url -> $code"
+              [ "$code" = "200" ] && break
+              sleep 10
+            done
+          done
