@@ -3,6 +3,7 @@
 // landmarks back as transferred Float32Arrays. Protocol types live in workerProtocol.ts.
 import { PoseLandmarker } from '@mediapipe/tasks-vision'
 import type { NormalizedLandmark, Landmark } from '@mediapipe/tasks-vision'
+import { createMediaPipeClock } from './frameClock.ts'
 import { LANDMARKS, STRIDE } from './workerProtocol.ts'
 import type { TrackerAttempt, WasmFiles, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
 
@@ -17,7 +18,7 @@ let landmarker: PoseLandmarker | null = null
 let current: TrackerAttempt | null = null
 let wasm: WasmFiles | null = null
 let options: { detection: number; presence: number; tracking: number } = { detection: 0.5, presence: 0.4, tracking: 0.4 }
-let lastT = -Infinity
+const mpClock = createMediaPipeClock()
 
 /** Vite serves workers as ES modules in dev and bundles them as classic scripts in build: MediaPipe needs to know which. */
 function isModuleWorker(): boolean {
@@ -77,9 +78,8 @@ function pack(points: Array<NormalizedLandmark | Landmark> | undefined): Float32
 async function frame(bitmap: ImageBitmap, t: number, captureT: number): Promise<void> {
   try {
     if (!landmarker || !current) throw new Error('Tracker not ready')
-    // MediaPipe needs strictly increasing timestamps.
-    const ts = t > lastT ? t : lastT + 1
-    lastT = ts
+    // MediaPipe needs strictly increasing whole-millisecond timestamps (see createMediaPipeClock).
+    const ts = mpClock.next(t)
     const start = performance.now()
     let result
     try {
