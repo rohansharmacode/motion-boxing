@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 128" width="1024" height="128" role="img" aria-label="Seamless scrolling neon LED arena board texture">
+  <defs>
+    <!-- 8x8 LED diode pitch grid -->
+    <pattern id="led-dots" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="#050814" fill-opacity="0.34" />
+      <circle cx="4" cy="4" r="2.2" fill="#FFFFFF" fill-opacity="0.06" />
+    </pattern>
+    <filter id="led-glow" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark LED Housing -->
+  <rect width="1024" height="128" fill="#050814" />
+
+  <!-- Continuous Top Cyan & Bottom Hot-Pink Neon Rails (Seamless across 0..1024) -->
+  <rect x="0" y="0" width="1024" height="10" fill="#0B132B" />
+  <rect x="0" y="8" width="1024" height="4" fill="#22E5FF" filter="url(#led-glow)" />
+  <rect x="0" y="118" width="1024" height="10" fill="#170A22" />
+  <rect x="0" y="116" width="1024" height="4" fill="#FF2E88" filter="url(#led-glow)" />
+
+  <!-- Subtle Horizontal Scan Band -->
+  <rect x="0" y="18" width="1024" height="92" fill="#0A1024" />
+  <line x1="0" y1="64" x2="1024" y2="64" stroke="#22E5FF" stroke-opacity="0.1" stroke-width="1" />
+
+  <!-- Repeating Marquee Copy (Evenly spaced across 1024px for seamless scrolling) -->
+  <g filter="url(#led-glow)" font-family="'Chakra Petch', 'Bebas Neue', 'Arial Black', sans-serif" font-size="52" font-weight="700" font-style="italic" letter-spacing="3">
+    <text x="28" y="83" fill="#22E5FF">KINETIC</text>
+    <polygon points="246,64 258,50 270,64 258,78" fill="#FF2E88" />
+
+    <text x="292" y="83" fill="#FF2E88">MOTION ARENA</text>
+    <polygon points="656,64 668,50 680,64 668,78" fill="#22E5FF" />
+
+    <text x="702" y="83" fill="#22E5FF">FIGHT</text>
+    <polygon points="862,64 874,50 886,64 874,78" fill="#FF2E88" />
+
+    <text x="904" y="83" fill="#FF2E88">K.O.</text>
+    <!-- Wrap-around diamond split across x=0 and x=1024 -->
+    <polygon points="1012,64 1024,50 1036,64 1024,78" fill="#22E5FF" />
+    <polygon points="-12,64 0,50 12,64 0,78" fill="#22E5FF" />
+  </g>
+
+  <!-- LED Pixel Matrix Overlay -->
+  <rect x="0" y="12" width="1024" height="104" fill="url(#led-dots)" />
+</svg>

@@ -35,7 +35,7 @@ const STORAGE_KEY = 'motion-sports.versus-server'
 const PING_MS = 2000
 const CONNECT_TIMEOUT_MS = 6000
 
-/** Relay address: ?relay=, then the one saved in the lobby, then VITE_VERSUS_URL, then VITE_API_URL, then this host on port 3001. */
+/** Relay address: ?relay=, then the one saved in the lobby, then VITE_VERSUS_URL, then VITE_API_URL, then this host (HTTPS) or this host on port 3001. */
 export function defaultRelayAddress(): string {
   const q = new URLSearchParams(location.search).get('relay')
   if (q) return q
@@ -46,7 +46,9 @@ export function defaultRelayAddress(): string {
     // Storage blocked: fall through.
   }
   const env = String(import.meta.env.VITE_VERSUS_URL ?? '').trim() || String(import.meta.env.VITE_API_URL ?? '').trim()
-  if (env) return env
+  if (env && env !== 'same-origin') return env
+  // Hosted (HTTPS) build: the relay is on the same host as the page.
+  if (env === 'same-origin' || location.protocol === 'https:') return location.host
   return `${location.hostname || 'localhost'}:3001`
 }
 

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 256" width="1024" height="256" role="img" aria-label="Seamless arena crowd silhouettes strip with neon glow sticks">
+  <defs>
+    <filter id="cr-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Transparent upper backdrop so strip layers cleanly over sky/stands -->
+  <!-- Back Crowd Tier (Deep Indigo-Navy, seamless at y=166 on both x=0 and x=1024) -->
+  <path
+    d="M0,166 C18,166 22,126 42,126 C60,126 64,158 84,158 C100,158 106,118 128,118 C148,118 152,156 172,156 C188,156 196,128 214,128 C234,128 240,160 262,160 C280,160 284,116 306,116 C326,116 334,154 356,154 C376,154 382,124 404,124 C422,124 428,160 450,160 C468,160 474,120 496,120 C518,120 524,158 546,158 C564,158 570,124 592,124 C612,124 618,160 640,160 C658,160 666,118 688,118 C708,118 716,156 736,156 C756,156 762,126 784,126 C804,126 810,160 832,160 C852,160 858,120 880,120 C902,120 908,156 930,156 C948,156 956,128 976,128 C996,128 1004,166 1024,166 L1024,256 L0,256 Z"
+    fill="#151E42"
+  />
+
+  <!-- Back Tier Glow Sticks -->
+  <g filter="url(#cr-glow)" stroke-width="4" stroke-linecap="round">
+    <line x1="112" y1="88" x2="120" y2="114" stroke="#22E5FF" />
+    <line x1="292" y1="82" x2="300" y2="110" stroke="#FF2E88" />
+    <line x1="482" y1="86" x2="492" y2="114" stroke="#22E5FF" />
+    <line x1="674" y1="84" x2="682" y2="112" stroke="#FF2E88" />
+    <line x1="866" y1="86" x2="876" y2="114" stroke="#22E5FF" />
+    <line x1="992" y1="92" x2="984" y2="120" stroke="#FF2E88" />
+  </g>
+
+  <!-- Mid Crowd Tier (Seamless at y=188 on both x=0 and x=1024) -->
+  <path
+    d="M0,188 C22,188 30,148 56,148 C82,148 88,184 114,184 C138,184 146,144 174,144 C200,144 206,184 232,184 C256,184 266,148 294,148 C320,148 328,184 354,184 C378,184 386,142 414,142 C442,142 448,184 476,184 C500,184 510,146 538,146 C566,146 572,186 600,186 C624,186 634,144 662,144 C688,144 696,184 724,184 C748,184 758,148 786,148 C814,148 820,186 848,186 C872,186 882,144 910,144 C938,144 944,184 972,184 C994,184 1004,188 1024,188 L1024,256 L0,256 Z"
+    fill="#0D132B"
+  />
+
+  <!-- Front Crowd Tier + Raised Cheering Silhouettes (Seamless at y=210 on both x=0 and x=1024) -->
+  <path
+    d="M0,210 C26,210 38,176 70,176 C98,176 110,206 142,206 C172,206 184,172 218,172 C250,172 262,208 296,208 C328,208 340,174 374,174 C406,174 418,208 452,208 C484,208 496,170 530,170 C564,170 576,208 610,208 C642,208 654,174 688,174 C720,174 734,208 768,208 C800,208 812,172 846,172 C880,172 892,206 926,206 C958,206 972,178 1000,192 C1012,198 1018,210 1024,210 L1024,256 L0,256 Z"
+    fill="#070B1A"
+  />
+
+  <!-- Foreground Neon Rim Glints & Cheering Light-Sticks -->
+  <g filter="url(#cr-glow)" stroke-linecap="round">
+    <line x1="60" y1="138" x2="72" y2="174" stroke="#FF2E88" stroke-width="5" />
+    <line x1="202" y1="132" x2="214" y2="170" stroke="#22E5FF" stroke-width="5" />
+    <line x1="234" y1="138" x2="226" y2="170" stroke="#FF2E88" stroke-width="4" />
+    <line x1="364" y1="134" x2="372" y2="172" stroke="#22E5FF" stroke-width="5" />
+    <line x1="518" y1="128" x2="528" y2="168" stroke="#FF2E88" stroke-width="5" />
+    <line x1="548" y1="134" x2="538" y2="168" stroke="#22E5FF" stroke-width="4" />
+    <line x1="678" y1="134" x2="686" y2="172" stroke="#22E5FF" stroke-width="5" />
+    <line x1="836" y1="132" x2="844" y2="170" stroke="#FF2E88" stroke-width="5" />
+    <line x1="940" y1="148" x2="932" y2="182" stroke="#22E5FF" stroke-width="4.5" />
+  </g>
+</svg>

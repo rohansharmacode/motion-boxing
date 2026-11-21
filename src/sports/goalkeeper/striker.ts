@@ -6,8 +6,8 @@ import type { KickPlan, StrikerTell, Vec3, Zone } from './types.ts'
 /** Waiting at the ball before the run-up. */
 export const IDLE_MS = 1400
 export const RUNUP_MS = 1000
-/** The doc's 0.5 s stance telegraph. */
-export const TELEGRAPH_MS = 500
+/** Readable 0.6 s wind-up: striker lean plus the ground arrow (was the doc's 0.5 s). */
+export const TELEGRAPH_MS = 600
 export const KICK_MS = 120
 /**
  * Nominal recover length (rest of the flight after the strike frame). The engine ends recover
@@ -57,20 +57,40 @@ function tellFor(zone: Zone, target: Vec3): StrikerTell {
   return { side, high: Math.floor(zone / 3) === 0 }
 }
 
+/** Difficulty scaling for planKick. All default to 1 (the original tuning). */
+export interface KickScale {
+  /** Ball speed multiplier: flight time is divided by it. */
+  speed?: number
+  /** Spin multiplier (curve and dip). */
+  curve?: number
+  /** 0..1, how far targets spread toward the posts and bar. */
+  spread?: number
+}
+
+/** Pull a goal-plane target toward the middle of the goal: spread 1 leaves it, 0 pulls it 60% in. */
+export function spreadTarget(target: Vec3, spread: number): void {
+  const k = 0.4 + 0.6 * Math.max(0, Math.min(1, spread))
+  target.x *= k
+  target.y = MID_Y + (target.y - MID_Y) * k
+}
+const MID_Y = 1.2
+
 /** Plan kick number `kick` (0-based). `previous` lists zones already used this shootout. */
-export function planKick(kick: number, rng: () => number, previous: readonly Zone[]): KickPlan {
+export function planKick(kick: number, rng: () => number, previous: readonly Zone[], scale: KickScale = {}): KickPlan {
   const zone = pickZone(kick, rng, previous)
   const target = zoneTarget(zone, rng)
+  spreadTarget(target, scale.spread ?? 1)
 
   // Sidespin about y: omega_y > 0 curves the ball toward +x for a ball moving +z (omega x v).
   const mag = 15 + rng() * 25
   let sign = rng() < 0.5 ? -1 : 1
   if (Math.abs(target.x) > 0.5 && rng() < 0.5) sign = target.x > 0 ? 1 : -1 // curl toward the target side
   // Small top/backspin about x.
-  const omega: Vec3 = { x: (rng() * 2 - 1) * 6, y: sign * mag, z: 0 }
+  const curve = scale.curve ?? 1
+  const omega: Vec3 = { x: (rng() * 2 - 1) * 6 * curve, y: sign * mag * curve, z: 0 }
 
   const k = Math.max(0, Math.min(4, kick))
-  const flightTime = 0.95 - (0.27 * k) / 4 + (rng() * 2 - 1) * 0.05
+  const flightTime = (0.95 - (0.27 * k) / 4 + (rng() * 2 - 1) * 0.05) / Math.max(0.3, scale.speed ?? 1)
 
   return { zone, target, omega, flightTime, tell: tellFor(zone, target) }
 }

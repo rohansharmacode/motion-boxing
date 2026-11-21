@@ -431,10 +431,10 @@ def _install(monkeypatch, session, analyst=None):
     monkeypatch.setitem(sys.modules, "snowflake", snowflake)
     monkeypatch.setitem(sys.modules, "snowflake.snowpark", snowpark)
     monkeypatch.setitem(sys.modules, "snowflake.snowpark.context", context)
+    mod = types.ModuleType("_snowflake")  # marks the run as Streamlit in Snowflake
     if analyst is not None:
-        mod = types.ModuleType("_snowflake")
         mod.send_snow_api_request = analyst
-        monkeypatch.setitem(sys.modules, "_snowflake", mod)
+    monkeypatch.setitem(sys.modules, "_snowflake", mod)
 
 
 def test_lab_page_snowflake_path(clean_env):
