@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" width="720" height="180" role="img" aria-label="KINETIC neon synthwave wordmark">
+  <defs>
+    <linearGradient id="lk-chrome" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="44%" stop-color="#22E5FF" />
+      <stop offset="52%" stop-color="#0B1638" />
+      <stop offset="62%" stop-color="#FF2E88" />
+      <stop offset="100%" stop-color="#FF9AD0" />
+    </linearGradient>
+    <linearGradient id="lk-bar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22E5FF" />
+      <stop offset="55%" stop-color="#F2F7FF" />
+      <stop offset="100%" stop-color="#FF2E88" />
+    </linearGradient>
+    <filter id="lk-glow" x="-15%" y="-25%" width="130%" height="150%">
+      <feGaussianBlur stdDeviation="4.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Pure Vector Slanted Retro-Arcade "KINETIC" Wordmark (Font-Independent) -->
+  <g transform="translate(26, 20)" filter="url(#lk-glow)">
+    <!-- Subtle Speed-Line Accents -->
+    <g stroke="#FF2E88" stroke-width="3.5" stroke-linecap="round" opacity="0.8">
+      <line x1="0" y1="34" x2="34" y2="34" />
+      <line x1="10" y1="54" x2="28" y2="54" stroke="#22E5FF" />
+      <line x1="636" y1="90" x2="668" y2="90" stroke="#22E5FF" />
+    </g>
+
+    <!-- Hot-Pink Neon Drop Extrusion Layer -->
+    <g transform="translate(5, 5)" fill="#FF2E88" fill-opacity="0.55">
+      <!-- K -->
+      <path d="M56,14 H80 L72,54 L108,14 H136 L94,60 L124,114 H96 L74,72 L68,78 L62,114 H38 Z" />
+      <!-- I -->
+      <path d="M150,14 H174 L156,114 H132 Z" />
+      <!-- N -->
+      <path d="M192,14 H216 L242,74 L252,14 H276 L258,114 H234 L208,54 L198,114 H174 Z" />
+      <!-- E -->
+      <path d="M294,14 H362 L358,34 H314 L310,54 H348 L344,74 H306 L302,94 H348 L344,114 H276 Z" />
+      <!-- T -->
+      <path d="M372,14 H448 L444,34 H418 L404,114 H380 L394,34 H368 Z" />
+      <!-- I -->
+      <path d="M460,14 H484 L466,114 H442 Z" />
+      <!-- C -->
+      <path d="M518,14 H580 L576,34 H526 L516,94 H566 L562,114 H500 C488,114 484,106 486,94 L496,34 C498,22 506,14 518,14 Z" />
+    </g>
+
+    <!-- Main Chrome-Cyan-Pink Synthwave Letterforms -->
+    <g fill="url(#lk-chrome)" stroke="#22E5FF" stroke-width="2.2" stroke-linejoin="round">
+      <!-- K -->
+      <path d="M56,14 H80 L72,54 L108,14 H136 L94,60 L124,114 H96 L74,72 L68,78 L62,114 H38 Z" />
+      <!-- I -->
+      <path d="M150,14 H174 L156,114 H132 Z" />
+      <!-- N -->
+      <path d="M192,14 H216 L242,74 L252,14 H276 L258,114 H234 L208,54 L198,114 H174 Z" />
+      <!-- E -->
+      <path d="M294,14 H362 L358,34 H314 L310,54 H348 L344,74 H306 L302,94 H348 L344,114 H276 Z" />
+      <!-- T -->
+      <path d="M372,14 H448 L444,34 H418 L404,114 H380 L394,34 H368 Z" />
+      <!-- I -->
+      <path d="M460,14 H484 L466,114 H442 Z" />
+      <!-- C -->
+      <path d="M518,14 H580 L576,34 H526 L516,94 H566 L562,114 H500 C488,114 484,106 486,94 L496,34 C498,22 506,14 518,14 Z" />
+    </g>
+
+    <!-- Laser Horizon Underline & Kinetic Spark -->
+    <polygon points="34,132 566,132 560,140 28,140" fill="url(#lk-bar)" />
+    <polygon points="588,124 596,136 588,148 580,136" fill="#FF2E88" />
+    <polygon points="614,126 620,136 614,146 608,136" fill="#22E5FF" />
+  </g>
+</svg>

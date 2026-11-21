@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img" aria-label="KINETIC 1920x1080 synthwave neon retro-arcade title screen background">
+  <defs>
+    <linearGradient id="ts-sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#050814" />
+      <stop offset="40%" stop-color="#0B112B" />
+      <stop offset="60%" stop-color="#271242" />
+      <stop offset="66%" stop-color="#FF2E88" stop-opacity="0.65" />
+      <stop offset="67%" stop-color="#080C1C" />
+      <stop offset="100%" stop-color="#050814" />
+    </linearGradient>
+    <linearGradient id="ts-sun" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFD059" />
+      <stop offset="46%" stop-color="#FF2E88" />
+      <stop offset="100%" stop-color="#7B1FA2" />
+    </linearGradient>
+    <radialGradient id="ts-sun-halo" cx="50%" cy="54%" r="36%">
+      <stop offset="0%" stop-color="#FF2E88" stop-opacity="0.4" />
+      <stop offset="55%" stop-color="#22E5FF" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#080C1C" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="ts-floor-fade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22E5FF" stop-opacity="0.85" />
+      <stop offset="35%" stop-color="#22E5FF" stop-opacity="0.32" />
+      <stop offset="100%" stop-color="#FF2E88" stop-opacity="0.5" />
+    </linearGradient>
+    <clipPath id="ts-sun-clip">
+      <circle cx="960" cy="548" r="244" />
+    </clipPath>
+    <filter id="ts-neon" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="7" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+    <pattern id="ts-scan" width="8" height="6" patternUnits="userSpaceOnUse">
+      <rect width="8" height="2" fill="#FFFFFF" fill-opacity="0.025" />
+    </pattern>
+  </defs>
+
+  <!-- Deep Synthwave Sky -->
+  <rect width="1920" height="1080" fill="url(#ts-sky)" />
+  <rect width="1920" height="1080" fill="url(#ts-sun-halo)" />
+
+  <!-- Subtle Starfield (Upper Sky Safe Zone for Title Logo) -->
+  <g fill="#F2F7FF" opacity="0.65">
+    <circle cx="140" cy="96" r="2.2" /><circle cx="290" cy="184" r="1.6" /><circle cx="468" cy="112" r="2.4" />
+    <circle cx="624" cy="76" r="1.5" /><circle cx="1280" cy="84" r="2" /><circle cx="1442" cy="148" r="2.2" />
+    <circle cx="1630" cy="92" r="1.8" /><circle cx="1796" cy="172" r="2.5" /><circle cx="182" cy="296" r="1.8" />
+    <circle cx="1744" cy="312" r="2" /><circle cx="1110" cy="136" r="1.6" /><circle cx="812" cy="142" r="1.5" />
+  </g>
+
+  <!-- Sweeping Arena Spotlight Beams -->
+  <polygon points="180,712 460,0 640,0 260,712" fill="#22E5FF" fill-opacity="0.06" />
+  <polygon points="1740,712 1460,0 1280,0 1660,712" fill="#FF2E88" fill-opacity="0.07" />
+  <polygon points="340,712 800,0 910,0 410,712" fill="#22E5FF" fill-opacity="0.04" />
+  <polygon points="1580,712 1120,0 1010,0 1510,712" fill="#FF2E88" fill-opacity="0.04" />
+
+  <!-- Iconic Sliced Synthwave Sun -->
+  <g clip-path="url(#ts-sun-clip)">
+    <circle cx="960" cy="548" r="244" fill="url(#ts-sun)" />
+    <rect x="700" y="564" width="520" height="8" fill="#1F1038" />
+    <rect x="700" y="590" width="520" height="12" fill="#1A0F32" />
+    <rect x="700" y="620" width="520" height="18" fill="#140D2A" />
+    <rect x="700" y="656" width="520" height="24" fill="#0E0C22" />
+    <rect x="700" y="694" width="520" height="32" fill="#080C1C" />
+  </g>
+
+  <!-- Distant Wireframe Mountain Ridges Flanking Sun -->
+  <g fill="#0A1026" stroke="#FF2E88" stroke-opacity="0.45" stroke-width="2">
+    <polygon points="0,712 190,548 390,640 570,518 760,712" />
+    <polygon points="1920,712 1730,542 1520,636 1350,516 1160,712" />
+  </g>
+
+  <!-- Neon Retro City Skyline Silhouette Along Horizon -->
+  <path
+    d="M0,712 L0,618 L66,618 L66,548 L142,548 L142,638 L196,638 L196,522 L286,522 L286,626 L348,626 L348,572 L428,572 L428,654 L518,654 L518,590 L612,590 L612,676 L1308,676 L1308,588 L1404,588 L1404,650 L1488,650 L1488,568 L1568,568 L1568,624 L1634,624 L1634,518 L1724,518 L1724,634 L1782,634 L1782,554 L1862,554 L1862,616 L1920,616 L1920,712 Z"
+    fill="#070B1A"
+  />
+  <!-- Glowing Skyline Accent Windows -->
+  <g fill="#22E5FF" fill-opacity="0.72">
+    <rect x="82" y="568" width="22" height="6" /><rect x="112" y="568" width="16" height="6" />
+    <rect x="82" y="588" width="44" height="5" /><rect x="214" y="544" width="48" height="6" />
+    <rect x="214" y="566" width="22" height="6" /><rect x="244" y="588" width="22" height="6" />
+    <rect x="1652" y="540" width="50" height="6" /><rect x="1652" y="562" width="24" height="6" />
+    <rect x="1798" y="574" width="44" height="6" />
+  </g>
+  <g fill="#FF2E88" fill-opacity="0.76">
+    <rect x="364" y="592" width="44" height="5" /><rect x="534" y="610" width="52" height="5" />
+    <rect x="1324" y="608" width="54" height="5" /><rect x="1504" y="590" width="46" height="5" />
+  </g>
+
+  <!-- Perspective Synthwave Laser Grid Floor -->
+  <rect x="0" y="712" width="1920" height="368" fill="#070B1A" />
+  <!-- Glowing Horizon Line -->
+  <line x1="0" y1="712" x2="1920" y2="712" stroke="#FF2E88" stroke-width="5" filter="url(#ts-neon)" />
+  <line x1="0" y1="712" x2="1920" y2="712" stroke="#F2F7FF" stroke-width="1.5" />
+
+  <!-- Horizontal Perspective Grid Lines -->
+  <g stroke="url(#ts-floor-fade)" stroke-width="2">
+    <line x1="0" y1="734" x2="1920" y2="734" />
+    <line x1="0" y1="762" x2="1920" y2="762" />
+    <line x1="0" y1="798" x2="1920" y2="798" />
+    <line x1="0" y1="844" x2="1920" y2="844" />
+    <line x1="0" y1="902" x2="1920" y2="902" />
+    <line x1="0" y1="974" x2="1920" y2="974" />
+    <line x1="0" y1="1060" x2="1920" y2="1060" />
+  </g>
+  <!-- Radial Vanishing Grid Lines (Vanishing Point 960, 712) -->
+  <g stroke="#22E5FF" stroke-opacity="0.34" stroke-width="2">
+    <line x1="960" y1="712" x2="960" y2="1080" />
+    <line x1="880" y1="712" x2="720" y2="1080" /><line x1="1040" y1="712" x2="1200" y2="1080" />
+    <line x1="800" y1="712" x2="460" y2="1080" /><line x1="1120" y1="712" x2="1460" y2="1080" />
+    <line x1="720" y1="712" x2="160" y2="1080" /><line x1="1200" y1="712" x2="1760" y2="1080" />
+    <line x1="640" y1="712" x2="-180" y2="1080" /><line x1="1280" y1="712" x2="2100" y2="1080" />
+    <line x1="540" y1="712" x2="-540" y2="1080" /><line x1="1380" y1="712" x2="2460" y2="1080" />
+  </g>
+
+  <!-- Glowing Center Arena Ring Projection on Floor -->
+  <g filter="url(#ts-neon)">
+    <ellipse cx="960" cy="884" rx="440" ry="76" fill="none" stroke="#22E5FF" stroke-width="4" stroke-opacity="0.72" />
+    <ellipse cx="960" cy="884" rx="310" ry="52" fill="none" stroke="#FF2E88" stroke-width="3" stroke-opacity="0.78" stroke-dasharray="28 16" />
+  </g>
+
+  <!-- Subtle Arcade Corner Framing Brackets -->
+  <g stroke="#22E5FF" stroke-opacity="0.42" stroke-width="3" fill="none">
+    <path d="M 48 112 L 48 48 L 112 48" />
+    <path d="M 1872 112 L 1872 48 L 1808 48" stroke="#FF2E88" />
+    <path d="M 48 968 L 48 1032 L 112 1032" stroke="#FF2E88" />
+    <path d="M 1872 968 L 1872 1032 L 1808 1032" />
+  </g>
+
+  <!-- Subtle CRT Scanlines Overlay -->
+  <rect width="1920" height="1080" fill="url(#ts-scan)" />
+</svg>
