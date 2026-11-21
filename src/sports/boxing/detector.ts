@@ -85,6 +85,13 @@ export interface BoxingDetectorConfig {
   uppercutMaxStartBelow: number
   /** ms. ...within this window (the start of the motion). */
   uppercutStartWindowMs: number
+  /**
+   * SW/s. Uppercut: forward wrist speed must be above this. A fist pulled back to the chin after a straight also
+   * rises in 2D (it re-arms on the way back); it moves backward, a real uppercut does not.
+   */
+  uppercutMinFwd: number
+  /** deg/s. No uppercut while the elbow has opened faster than this since re-arming (within straightDthetaWindowMs): a straight at the webcam also rises in 2D, but its elbow snaps open. */
+  uppercutMaxDtheta: number
   /** Ratio. No uppercut while the other wrist rises faster than this times this wrist's upward speed (both hands coming up to guard). */
   uppercutMaxOtherRise: number
   /** Ratio. Uppercut: upward speed must exceed this times the lateral and forward speed. */
@@ -152,6 +159,8 @@ export const DEFAULT_BOXING_CONFIG: BoxingDetectorConfig = {
   uppercutMaxStartBelow: 0.9,
   uppercutStartWindowMs: 300,
   uppercutMaxOtherRise: 0.5,
+  uppercutMinFwd: -0.5,
+  uppercutMaxDtheta: 60,
   dominanceRatio: 1,
   guardMaxNoseDist: 0.55,
   guardMaxTheta: 145,
@@ -571,7 +580,9 @@ export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {})
       !startWin.some((p) => p.below > cfg.uppercutMaxStartBelow) &&
       up > r * Math.abs(m.vx) &&
       up > r * m.fwd &&
-      otherRise <= cfg.uppercutMaxOtherRise * up
+      otherRise <= cfg.uppercutMaxOtherRise * up &&
+      m.fwd > cfg.uppercutMinFwd &&
+      !extendedSince(cfg.uppercutMaxDtheta)
     // yaw grows as the right shoulder comes forward and side is +1 for the right hand,
     // so rotation > 0 means this hand's shoulder drove forward from the player's own stance.
     const rotation = h.side * (yaw - (stance.v ?? yaw))
