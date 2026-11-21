@@ -16,7 +16,7 @@ const channels: { id: Channel | 'leaderboard'; label: string; sub: string }[] = 
   { id: 'boxing', label: 'Boxing', sub: 'Kinetic Sports' },
   { id: 'keeper', label: 'Reflex Keeper', sub: 'Kinetic Sports' },
   { id: 'bow', label: 'Aero Bow', sub: 'Coming soon' },
-  { id: 'player', label: 'Fighter Channel', sub: 'Your player' },
+  { id: 'player', label: 'Mii Channel', sub: 'Your fighter' },
   { id: 'leaderboard', label: 'Leaderboard', sub: 'Kinetic rankings' },
 ];
 
@@ -34,34 +34,34 @@ export function StartScreen({ defaultName = '', mockData = true, onStart, onLead
   const playable = selected === 'boxing' || selected === 'disc' || selected === 'keeper';
   const upcoming = selected === 'bow';
 
+  const h = now.getHours(), h12 = h % 12 || 12, mm = String(now.getMinutes()).padStart(2, '0');
   return (
     <main className="wii-menu">
-      <header className="wii-header">
-        <div className="wii-brand">Kinetic <span>Ring</span><small>SPORTS CHANNELS</small></div>
-        <div className="wii-player"><span className="wii-player-dot" />{name.trim() || 'Guest'}<span className="wii-player-number">1</span></div>
-      </header>
-
       <section className="wii-channel-area" aria-label="Game channels">
         <div className="wii-channel-grid">
           {channels.map((channel) => (
-            <Button variant="wii" key={channel.id} className={`wii-channel wii-channel-${channel.id}`} onClick={() => channel.id === 'leaderboard' ? onLeaderboard() : setSelected(channel.id)} aria-label={channel.label}>
-              <div className="wii-channel-content">
-                <div className="wii-channel-picture"><ChannelArt kind={channel.id} /></div>
-                <div className="wii-channel-caption"><strong>{channel.label}</strong><small>{channel.sub}</small></div>
-              </div>
-            </Button>
+            <div className="wii-slot" key={channel.id}>
+              <Button variant="wii" className={`wii-channel wii-channel-${channel.id}`} onClick={() => channel.id === 'leaderboard' ? onLeaderboard() : setSelected(channel.id)} aria-label={channel.label}>
+                <ChannelArt kind={channel.id} />
+              </Button>
+              <span className="wii-label" aria-hidden="true">{channel.label}</span>
+            </div>
           ))}
-          {Array.from({ length: 6 }, (_, i) => <div className="wii-empty-channel" aria-hidden="true" key={i}><span>Wii</span></div>)}
+          {Array.from({ length: 6 }, (_, i) => <div className="wii-empty-channel" aria-hidden="true" key={i} />)}
         </div>
       </section>
 
       <footer className="wii-footer">
-        <div className="wii-footer-inner">
-          <Button variant="wii" className="wii-round-button wii-system-button" aria-label="Fighter profile" title="Fighter profile" onClick={() => setSelected('player')}>Wii</Button>
-          <div className="wii-date"><time className="wii-time" dateTime={now.toISOString()}>{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</time><span>{now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span></div>
-          <Button variant="wii" className="wii-round-button" aria-label="Open leaderboard" title="Leaderboard" onClick={onLeaderboard}><svg viewBox="0 0 40 32" aria-hidden="true"><rect x="3" y="5" width="34" height="24" rx="3" /><path d="m4 7 16 12L36 7" /></svg></Button>
-        </div>
-        <div className="wii-status"><span>KINETIC RING · WII EDITION</span><span>{mockData ? 'Demo session' : 'Ready to play'}</span></div>
+        <svg className="wii-footer-shape" viewBox="0 0 1000 190" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="wiifoot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e9ebed" /><stop offset="1" stopColor="#d9dcdf" /></linearGradient></defs>
+          <path d="M0 10H170C250 10 260 104 340 104H660C740 104 750 10 830 10H1000V190H0Z" fill="url(#wiifoot)" />
+          <path d="M0 10H170C250 10 260 104 340 104H660C740 104 750 10 830 10H1000" fill="none" stroke="#29b6e9" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div className="wii-clock"><time dateTime={now.toISOString()}><b>{h12}<i>:</i>{mm}</b></time><small>{h < 12 ? 'AM' : 'PM'}</small></div>
+        <div className="wii-date">{now.toLocaleDateString('en-US', { weekday: 'short' })} {now.getMonth() + 1}/{now.getDate()}</div>
+        <Button variant="wii" className="wii-round-button wii-system-button" aria-label={`Mii profile: ${name.trim() || 'Guest'}`} title="Mii profile" onClick={() => setSelected('player')}>Wii</Button>
+        <div className="wii-sd" aria-hidden="true">SD</div>
+        <Button variant="wii" className="wii-round-button wii-mail-button" aria-label="Open leaderboard" title="Leaderboard" onClick={onLeaderboard}><svg viewBox="0 0 40 30" aria-hidden="true"><path d="M2 4q0-3 3-3h30q3 0 3 3v22q0 3-3 3H5q-3 0-3-3Zm2 1 16 12L36 5" stroke="#fff" strokeWidth="2" /></svg><span>{mockData ? 1 : ''}</span></Button>
       </footer>
 
       <dialog ref={dialog} className="wii-dialog" onCancel={() => setSelected(null)} onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }} onClose={() => setSelected(null)}>

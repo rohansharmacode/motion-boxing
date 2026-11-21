@@ -1,11 +1,48 @@
-/** Original channel illustrations, kept local so the menu works offline. */
-export function ChannelArt({ kind }: { kind: 'disc' | 'boxing' | 'keeper' | 'bow' | 'player' | 'leaderboard' }) {
-  return <svg viewBox="0 0 300 140" className={`wii-art wii-art-${kind}`} aria-hidden="true">
-    {kind === 'disc' && <><circle className="disc-shadow" cx="150" cy="75" r="58"/><circle className="disc-body" cx="150" cy="68" r="57"/><path className="disc-shine" d="M111 28 180 110M99 50l79 56M137 13l34 104"/><circle className="disc-hole" cx="150" cy="68" r="14"/><circle className="disc-center" cx="150" cy="68" r="6"/></>}
-    {kind === 'boxing' && <><path className="sport-burst" d="m150 18 13 31 34-12-17 30 30 19-37 3 1 33-24-23-23 23 1-33-37-3 30-19-17-30 34 12Z"/><g className="glove glove-left" transform="rotate(-18 116 78)"><path d="M84 85V52q0-22 25-22h14q20 0 20 23v16q15-8 20 4t-9 29l-13 10H91Z"/><path className="glove-cuff" d="M86 99h57v23H86Z"/><path className="art-highlight" d="M96 58q-2-17 15-17"/></g><g className="glove glove-right" transform="translate(300 0) scale(-1 1) rotate(-18 116 78)"><path d="M84 85V52q0-22 25-22h14q20 0 20 23v16q15-8 20 4t-9 29l-13 10H91Z"/><path className="glove-cuff" d="M86 99h57v23H86Z"/><path className="art-highlight" d="M96 58q-2-17 15-17"/></g></>}
-    {kind === 'keeper' && <><path className="goal-net" d="M47 123V23h206v100M47 47h206M47 72h206M47 97h206M73 23v100M99 23v100M125 23v100M151 23v100M177 23v100M203 23v100M229 23v100"/><circle className="football" cx="151" cy="76" r="42"/><path className="football-patch" d="m151 56 19 14-7 22h-25l-7-22ZM116 53l16-13 5 16-14 13ZM175 41l14 14-11 13-14-13ZM128 99l10 16 23 1 6-17M112 80l13 15-10 9M182 79l-7 16 11 9"/></>}
-    {kind === 'bow' && <><circle className="target-outer" cx="169" cy="70" r="56"/><circle className="target-blue" cx="169" cy="70" r="43"/><circle className="target-red" cx="169" cy="70" r="30"/><circle className="target-yellow" cx="169" cy="70" r="16"/><path className="arrow-shaft" d="m81 112 88-42"/><path className="arrow-feather" d="m78 111-18-3 14-7 11 5-1 16 10-15M163 69l6 1-3 7"/></>}
-    {kind === 'player' && <><path className="mii-shirt" d="M98 140v-19q0-39 52-39t52 39v19"/><ellipse className="mii-face" cx="150" cy="58" rx="34" ry="40"/><path className="mii-hair" d="M116 56q-12-44 28-47 41-5 43 41l-17-18-17 8-11-14-23 29Z"/><path className="mii-eyes" d="M133 57v5m34-5v5M144 77q7 5 14-1"/><path className="mii-collar" d="m132 98 18 13 18-13"/></>}
-    {kind === 'leaderboard' && <><path className="podium-third" d="M209 140V97h55v43"/><path className="podium-second" d="M36 140V83h55v57"/><path className="podium-first" d="M99 140V62h102v78"/><path className="trophy" d="M127 14h46v28q0 24-23 24t-23-24Zm0 7h-19v18q0 19 25 19m40-37h19v18q0 19-25 19M150 66v15m-19 5h38"/><text x="150" y="122" textAnchor="middle" className="podium-number">1</text><text x="64" y="124" textAnchor="middle" className="podium-small">2</text><text x="236" y="128" textAnchor="middle" className="podium-small">3</text></>}
+import { Mii, MII_CAST } from './Mii';
+
+export type ChannelKind = 'disc' | 'boxing' | 'keeper' | 'bow' | 'player' | 'leaderboard';
+const C = MII_CAST;
+const Glove = ({ x, y, c, r = 0 }: { x: number; y: number; c: string; r?: number }) => (
+  <g transform={`translate(${x} ${y}) rotate(${r})`}><path fill={c} stroke="#00000022" strokeWidth="2" d="M-14 8v-14q0-12 14-12t14 12v14q0 8-14 8t-14-8Z" /><rect x="-12" y="14" width="24" height="9" rx="3" fill="#fff" /><path d="M-8 -8q2-5 8-5" stroke="#fff" strokeWidth="3" fill="none" opacity=".6" strokeLinecap="round" /></g>
+);
+
+/** Original Wii-style channel pictures, drawn locally with Mii-like characters. */
+export function ChannelArt({ kind }: { kind: ChannelKind }) {
+  return <svg viewBox="0 0 300 170" preserveAspectRatio="xMidYMid slice" className={`wii-art wii-art-${kind}`} aria-hidden="true">
+    {kind === 'disc' && <g transform="translate(150 85)"><circle r="62" fill="#e4e7ea" /><circle r="60" fill="url(#discg)" stroke="#cfd4d8" strokeWidth="2" /><circle r="16" fill="#d5d9dd" /><circle r="7" fill="#fff" /><defs><radialGradient id="discg"><stop offset=".3" stopColor="#ffffff" /><stop offset="1" stopColor="#eef1f3" /></radialGradient></defs><path d="M-40 -30A50 50 0 0 1 20 -48" stroke="#fff" strokeWidth="10" fill="none" opacity=".9" /></g>}
+    {kind === 'player' && <g>
+      <rect width="300" height="170" fill="#f4e9da" />
+      {Array.from({ length: 18 }, (_, i) => { const col = i % 6, row = Math.floor(i / 6); return <Mii key={i} look={C[(i * 5 + row) % C.length]} x={25 + col * 50 + (row % 2) * 12} y={30 + row * 56} s={0.72} body={false} />; })}
+    </g>}
+    {kind === 'boxing' && <g>
+      <rect width="300" height="170" fill="#bfe6f7" /><rect y="118" width="300" height="52" fill="#e9eef2" />
+      <g stroke="#e14b45" strokeWidth="4"><path d="M0 70h300" /><path d="M0 92h300" stroke="#fff" /><path d="M0 114h300" stroke="#2ea8e0" /></g>
+      <Mii look={{ ...C[0], brows: 'angry' }} x={100} y={72} s={1.05} />
+      <Glove x={58} y={88} c="#e14b45" r={-20} /><Glove x={140} y={80} c="#e14b45" r={15} />
+      <Mii look={{ ...C[7], mouth: 'o' }} x={215} y={78} s={0.95} />
+      <Glove x={180} y={92} c="#2ea8e0" r={-12} /><Glove x={252} y={96} c="#2ea8e0" r={20} />
+      <path d="M160 40l8-14 4 14 12-8-6 13" fill="none" stroke="#f3b33d" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    </g>}
+    {kind === 'keeper' && <g>
+      <rect width="300" height="170" fill="#c9ecb4" /><rect y="128" width="300" height="42" fill="#8ccf6a" />
+      <path d="M40 132V26h220v106" fill="none" stroke="#fff" strokeWidth="7" strokeLinejoin="round" />
+      <g stroke="#ffffff" strokeWidth="1.4" opacity=".7">{Array.from({ length: 10 }, (_, i) => <path key={i} d={`M${60 + i * 20} 30v100`} />)}{Array.from({ length: 5 }, (_, i) => <path key={'h' + i} d={`M44 ${46 + i * 20}h212`} />)}</g>
+      <g transform="rotate(-24 150 90)"><Mii look={C[2]} x={150} y={78} s={0.95} /><Glove x={104} y={70} c="#7bc043" r={-30} /><Glove x={196} y={66} c="#7bc043" r={30} /></g>
+      <g transform="translate(232 54)"><circle r="17" fill="#fff" stroke="#333" strokeWidth="2" /><path d="M0 -7l7 5-3 8h-8l-3-8Z" fill="#333" /></g>
+    </g>}
+    {kind === 'bow' && <g>
+      <rect width="300" height="170" fill="#fdeec0" /><rect y="130" width="300" height="40" fill="#b9dc8a" />
+      <g transform="translate(232 82)"><circle r="44" fill="#fff" stroke="#ddd" strokeWidth="2" /><circle r="34" fill="#2ea8e0" /><circle r="23" fill="#e14b45" /><circle r="12" fill="#f3d46c" /></g>
+      <Mii look={{ ...C[3], mouth: 'flat' }} x={86} y={80} s={1} />
+      <path d="M128 40q26 45 0 90" fill="none" stroke="#9c4a2b" strokeWidth="5" strokeLinecap="round" /><path d="M128 40v90" stroke="#555" strokeWidth="1.5" />
+      <path d="M128 85h88" stroke="#555" strokeWidth="3.5" strokeLinecap="round" /><path d="M216 85l-9-6v12Z" fill="#555" />
+    </g>}
+    {kind === 'leaderboard' && <g>
+      <rect width="300" height="170" fill="#fff6d8" />
+      <rect x="112" y="98" width="76" height="72" fill="#f3b33d" /><rect x="34" y="118" width="76" height="52" fill="#c7cdd2" /><rect x="190" y="130" width="76" height="40" fill="#d79a5b" />
+      <text x="150" y="146" textAnchor="middle" fontSize="34" fontWeight="700" fill="#fff" fontFamily="Arial">1</text><text x="72" y="156" textAnchor="middle" fontSize="24" fontWeight="700" fill="#fff" fontFamily="Arial">2</text><text x="228" y="162" textAnchor="middle" fontSize="20" fontWeight="700" fill="#fff" fontFamily="Arial">3</text>
+      <Mii look={{ ...C[1], mouth: 'grin', brows: 'up' }} x={150} y={44} s={0.78} />
+      <Mii look={C[4]} x={72} y={64} s={0.72} /><Mii look={C[5]} x={228} y={78} s={0.68} />
+    </g>}
   </svg>;
 }
