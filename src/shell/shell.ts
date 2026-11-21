@@ -182,7 +182,7 @@ function playArt(tile: HTMLElement, on: boolean): void {
 }
 
 function bestLine(id: TileId, r: ReturnType<ReturnType<typeof createRecords>['get']>): string {
-  if (id === 'leaderboard' || id === 'customise') return ''
+  if (id === 'leaderboard' || id === 'customise' || id === 'versus') return ''
   if (r.rounds === 0) return 'No rounds yet'
   const parts = [`${r.rounds} round${r.rounds === 1 ? '' : 's'}`]
   if (r.wins > 0) parts.push(`${r.wins} KO${r.wins === 1 ? '' : 's'}`)
@@ -247,7 +247,7 @@ const SLOTS = 12
 export function mountShell(options: ShellOptions): Shell {
   // Every theme uses the channel grid; the neon tile art is animated SVG, so it is shown as stills.
   /** Channel-grid layout (all themes). The old hero dashboard is kept behind this flag. */
-  const channels = true as boolean
+  const channels = false as boolean
   const neon = !isBright()
   const root = options.root ?? document.body
   const sfx = mutable(createSfx())
