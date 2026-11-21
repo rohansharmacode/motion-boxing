@@ -2,7 +2,7 @@
 // handshake. Each laptop runs its own engine; the drone stands in for the other player.
 // Your punch telegraphs on their screen, they block or slip it, and their laptop reports back.
 import './lobby.css'
-import type { BoxingEngine } from '../types.ts'
+import type { BoxingEngine, OpponentPuppet } from '../types.ts'
 import { connectVersus, defaultRelayAddress, relayUrl, saveRelayAddress } from './client.ts'
 import type { GameMsg, RelayError, VersusClient } from './client.ts'
 import { sanitizeLook } from '../../../custom/look.ts'
@@ -19,6 +19,10 @@ export interface VersusDeps {
   playerLook?(): RobotLook
   /** Dress the opponent in the friend's robot look (null = back to the drone). */
   setOpponentLook?(look: RobotLook | null): void
+  /** This player's gloves and lean, relayed so the friend's opponent robot moves like them. */
+  getPuppet?(): OpponentPuppet
+  /** Drive the opponent robot from the friend's relayed gloves and lean (null = bot animation). */
+  setOpponentPuppet?(p: OpponentPuppet | null): void
   /** Paired: start the chosen input. Calibration then calls ready() instead of starting a round. */
   onChoose(input: VersusInput): void
   /** Leave the online match (opponent left, connection lost, or the player cancelled mid-match). */
@@ -77,6 +81,13 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
   let busy = false
   let bannerTimer = 0
   let disposed = false
+  /** Pose relay to the friend, about 15 times a second while connected. */
+  let poseTimer = 0
+  const POSE_MS = 66
+  const num3 = (v: unknown): [number, number, number] | null =>
+    Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 5)
+      ? [v[0], v[1], v[2]]
+      : null
 
   function show(html: string): void {
     panel.innerHTML = html
@@ -210,6 +221,13 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
       case 'defence':
         engine.punchResolved(msg)
         break
+      case 'pose': {
+        const l = num3(msg.l)
+        const r = num3(msg.r)
+        const lean = num3(msg.lean)
+        if (l && r && lean) deps.setOpponentPuppet?.({ left: l, right: r, lean })
+        break
+      }
     }
   }
 
@@ -221,6 +239,9 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
     localReady = false
     peerReady = false
     engine.setVersus(null)
+    window.clearInterval(poseTimer)
+    poseTimer = 0
+    deps.setOpponentPuppet?.(null)
     renderBanner(null)
     c?.close()
   }
@@ -272,6 +293,12 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
         sendPunch: (p) => c.send({ k: 'punch', ...p }),
         sendDefence: (d) => c.send({ k: 'defence', ...d }),
       })
+      // Our gloves and lean go to the friend so their opponent robot is us, not an animated bot.
+      window.clearInterval(poseTimer)
+      poseTimer = window.setInterval(() => {
+        const p = inMatch && peerName ? deps.getPuppet?.() : undefined
+        if (p) c.send({ k: 'pose', l: p.left, r: p.right, lean: p.lean })
+      }, POSE_MS)
       if (peerName) {
         c.send(hello())
         paired()
@@ -341,7 +368,9 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
 
   return {
     get active() {
-      return client !== null && inMatch
+      // Paired counts too: a player who starts from the normal camera or keyboard buttons (or by hand
+      // dwell) while in a room with a friend is still fighting the friend, never the bot.
+      return client !== null && (inMatch || peerName !== null)
     },
     setEntryVisible(on) {
       entryWanted = on
@@ -353,6 +382,8 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
         renderBanner('Waiting for your friend to join')
         return
       }
+      inMatch = true
+      hidePanel()
       localReady = true
       renderBanner(`Waiting for ${esc(peerName)} to get ready`)
       client.send({ k: 'ready' })
