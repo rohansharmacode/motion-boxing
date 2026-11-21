@@ -1,0 +1,248 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 860" width="1440" height="860" role="img" aria-label="Kinetic Ring Opponent Visor-Drone Concept Sheet">
+  <defs>
+    <linearGradient id="dc-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070913" />
+      <stop offset="100%" stop-color="#0E1328" />
+    </linearGradient>
+    <pattern id="dc-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#00F0FF" stroke-opacity="0.06" stroke-width="1" />
+    </pattern>
+    <radialGradient id="dc-floor-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#A47BFF" stop-opacity="0.55" />
+      <stop offset="100%" stop-color="#A47BFF" stop-opacity="0" />
+    </radialGradient>
+    <filter id="dc-neon" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Sheet Background -->
+  <rect width="1440" height="860" fill="url(#dc-bg)" />
+  <rect width="1440" height="860" fill="url(#dc-grid)" />
+
+  <!-- Top Header Strip -->
+  <g transform="translate(40, 28)">
+    <text x="0" y="20" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="3">KINETIC LAB // OPPONENT DESIGN SPEC</text>
+    <text x="0" y="58" fill="#F4F7FF" font-family="'Chakra Petch', sans-serif" font-size="38" font-weight="700" font-style="italic">SPARRING VISOR-DRONE — HEX SERIES</text>
+    <rect x="970" y="10" width="390" height="42" rx="21" fill="rgba(164,123,255,0.14)" stroke="#A47BFF" stroke-opacity="0.6" />
+    <text x="1165" y="36" text-anchor="middle" fill="#E2D4FF" font-family="'JetBrains Mono', monospace" font-size="12.5" font-weight="700">SYNCED TO src/sports/boxing/sceneParts.ts</text>
+    <line x1="0" y1="74" x2="1360" y2="74" stroke="rgba(182,194,226,0.18)" />
+  </g>
+
+  <!-- ======================================================================
+       LEFT PANEL: FRONT ORTHOGRAPHIC VIEW + HIT SPHERES
+       ====================================================================== -->
+  <g transform="translate(40, 124)">
+    <rect width="470" height="696" rx="18" fill="rgba(12,16,34,0.82)" stroke="rgba(0,240,255,0.3)" />
+    <text x="24" y="34" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="2">01 · FRONT VIEW (ORTHOGRAPHIC)</text>
+    <text x="24" y="54" fill="#7987AD" font-family="'Space Grotesk', sans-serif" font-size="12">Facing +Z toward player camera · Anchor y = 1.00m, z = -2.60m</text>
+
+    <!-- Elevation guide lines -->
+    <g stroke="#7987AD" stroke-opacity="0.28" stroke-width="1" stroke-dasharray="5 5">
+      <line x1="36" y1="216" x2="434" y2="216" />
+      <line x1="36" y1="362" x2="434" y2="362" />
+      <line x1="235" y1="100" x2="235" y2="620" />
+    </g>
+
+    <!-- Floor hover glow -->
+    <ellipse cx="235" cy="598" rx="120" ry="22" fill="url(#dc-floor-glow)" />
+    <ellipse cx="235" cy="598" rx="84" ry="12" fill="none" stroke="#A47BFF" stroke-opacity="0.4" stroke-dasharray="8 6" />
+
+    <!-- Telegraph Charge Ring -->
+    <circle cx="235" cy="340" r="144" fill="none" stroke="#FF2A3D" stroke-opacity="0.55" stroke-width="2.5" stroke-dasharray="14 10" />
+    <text x="386" y="256" fill="#FF2A3D" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700">TELEGRAPH</text>
+    <text x="386" y="270" fill="#FF2A3D" font-family="'JetBrains Mono', monospace" font-size="10.5">RING</text>
+
+    <!-- Drone Front Silhouette (HEX-7) -->
+    <g filter="url(#dc-neon)">
+      <!-- Twin Side Pods (x = +/-0.50m) -->
+      <line x1="126" y1="352" x2="164" y2="352" stroke="#1D2132" stroke-width="14" />
+      <line x1="306" y1="352" x2="344" y2="352" stroke="#1D2132" stroke-width="14" />
+      <rect x="92" y="320" width="38" height="64" rx="18" fill="#1D2132" stroke="#A47BFF" stroke-width="2.5" />
+      <circle cx="111" cy="352" r="11" fill="#0B1024" stroke="#A47BFF" stroke-width="3" />
+      <rect x="340" y="320" width="38" height="64" rx="18" fill="#1D2132" stroke="#A47BFF" stroke-width="2.5" />
+      <circle cx="359" cy="352" r="11" fill="#0B1024" stroke="#A47BFF" stroke-width="3" />
+
+      <!-- Faceted Icosahedron Chest -->
+      <polygon points="172,296 298,296 322,362 280,434 190,434 148,362" fill="#1D2132" stroke="#A47BFF" stroke-width="3" stroke-linejoin="round" />
+      <polyline points="172,296 235,362 298,296" fill="none" stroke="#A47BFF" stroke-opacity="0.45" stroke-width="1.5" />
+      <polyline points="148,362 235,362 322,362" fill="none" stroke="#A47BFF" stroke-opacity="0.45" stroke-width="1.5" />
+      <polyline points="190,434 235,362 280,434" fill="none" stroke="#A47BFF" stroke-opacity="0.45" stroke-width="1.5" />
+      <!-- Chest Reactor Orb -->
+      <polygon points="235,334 260,362 235,390 210,362" fill="#E2D4FF" stroke="#FFFFFF" stroke-width="2" />
+
+      <!-- Ion Thruster Cone -->
+      <polygon points="210,438 260,438 235,512" fill="#00F0FF" fill-opacity="0.65" />
+      <polygon points="220,438 250,438 235,484" fill="#FFFFFF" fill-opacity="0.8" />
+
+      <!-- Floating Torus Neck Ring (y = +0.335m) -->
+      <ellipse cx="235" cy="272" rx="34" ry="8" fill="none" stroke="#A47BFF" stroke-width="5" />
+
+      <!-- Faceted Dodecahedron Helmet (y = +0.52m) -->
+      <rect x="229" y="142" width="12" height="28" rx="3" fill="#1D2132" stroke="#A47BFF" stroke-width="2" />
+      <polygon points="184,172 286,172 304,212 280,254 190,254 166,212" fill="#1D2132" stroke="#A47BFF" stroke-width="3" stroke-linejoin="round" />
+      <!-- Curved Arc Visor -->
+      <path d="M 184 208 Q 235 228 286 208" fill="none" stroke="#E2D4FF" stroke-width="13" stroke-linecap="round" />
+      <path d="M 192 208 Q 235 224 278 208" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" />
+    </g>
+
+    <!-- HIT-SPHERE OVERLAYS (Front) -->
+    <!-- Head Hit Sphere: r=0.20m -> ~64px -->
+    <circle cx="235" cy="216" r="64" fill="rgba(200,255,0,0.12)" stroke="#C8FF00" stroke-width="2.5" stroke-dasharray="8 6" />
+    <!-- Chest Hit Sphere: r=0.26m -> ~84px -->
+    <circle cx="235" cy="362" r="84" fill="rgba(0,240,255,0.11)" stroke="#00F0FF" stroke-width="2.5" stroke-dasharray="8 6" />
+
+    <!-- Dimension & Hit-Zone Callouts -->
+    <g font-family="'JetBrains Mono', monospace" font-size="11">
+      <line x1="298" y1="184" x2="348" y2="146" stroke="#C8FF00" stroke-width="1.5" />
+      <text x="352" y="142" fill="#C8FF00" font-weight="700">HEAD HIT SPHERE</text>
+      <text x="352" y="157" fill="#B6C2E2">r = 0.20 m</text>
+      <text x="352" y="171" fill="#7987AD">(0, +0.52, +0.04)</text>
+
+      <line x1="312" y1="406" x2="348" y2="452" stroke="#00F0FF" stroke-width="1.5" />
+      <text x="348" y="468" fill="#00F0FF" font-weight="700">CHEST HIT SPHERE</text>
+      <text x="348" y="483" fill="#B6C2E2">r = 0.26 m</text>
+      <text x="348" y="497" fill="#7987AD">(0, 0.00, +0.12)</text>
+
+      <text x="20" y="212" fill="#7987AD">+0.52m</text>
+      <text x="20" y="358" fill="#7987AD"> 0.00m</text>
+      <text x="24" y="664" fill="#B6C2E2">POD SPAN: +/-0.50m   ·   CREST FIN: +0.69m</text>
+    </g>
+  </g>
+
+  <!-- ======================================================================
+       MIDDLE PANEL: SIDE ORTHOGRAPHIC VIEW (Z-DEPTH HIT SPHERES)
+       ====================================================================== -->
+  <g transform="translate(534, 124)">
+    <rect width="360" height="696" rx="18" fill="rgba(12,16,34,0.82)" stroke="rgba(0,240,255,0.3)" />
+    <text x="24" y="34" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="2">02 · SIDE VIEW (+Z RIGHT)</text>
+    <text x="24" y="54" fill="#7987AD" font-family="'Space Grotesk', sans-serif" font-size="12">Shows forward hit-sphere bias toward player</text>
+
+    <!-- Axes -->
+    <g stroke="#7987AD" stroke-opacity="0.28" stroke-width="1" stroke-dasharray="5 5">
+      <line x1="170" y1="100" x2="170" y2="620" />
+      <line x1="32" y1="216" x2="328" y2="216" />
+      <line x1="32" y1="362" x2="328" y2="362" />
+    </g>
+    <text x="278" y="114" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">+Z PLAYER -></text>
+
+    <!-- Floor glow -->
+    <ellipse cx="170" cy="598" rx="88" ry="18" fill="url(#dc-floor-glow)" />
+
+    <!-- Side Silhouette -->
+    <g filter="url(#dc-neon)">
+      <!-- Chest profile -->
+      <polygon points="122,296 206,296 232,362 204,434 128,434 108,362" fill="#1D2132" stroke="#A47BFF" stroke-width="3" stroke-linejoin="round" />
+      <!-- Forward Reactor Orb (z = +0.24m) -->
+      <polygon points="222,340 248,362 222,384 208,362" fill="#E2D4FF" stroke="#FFFFFF" stroke-width="2" />
+      <!-- Side Pod profile -->
+      <rect x="140" y="340" width="76" height="32" rx="16" fill="#151B2E" stroke="#A47BFF" stroke-width="2.5" />
+      <rect x="206" y="344" width="12" height="24" rx="4" fill="#A47BFF" />
+      <!-- Ion Thruster -->
+      <polygon points="148,438 192,438 170,512" fill="#00F0FF" fill-opacity="0.65" />
+      <!-- Neck ring -->
+      <rect x="142" y="266" width="56" height="10" rx="5" fill="#A47BFF" />
+      <!-- Helmet + Crest Fin -->
+      <polygon points="132,146 184,154 184,172 142,172" fill="#1D2132" stroke="#A47BFF" stroke-width="2" />
+      <polygon points="126,174 206,174 224,212 202,252 132,252 114,212" fill="#1D2132" stroke="#A47BFF" stroke-width="3" stroke-linejoin="round" />
+      <!-- Forward Visor Arc -->
+      <path d="M 184 204 L 228 212 L 184 222" fill="none" stroke="#E2D4FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+
+    <!-- Forward-Biased Hit Spheres -->
+    <!-- Head offset +0.04m (~+14px) -->
+    <circle cx="184" cy="216" r="64" fill="rgba(200,255,0,0.12)" stroke="#C8FF00" stroke-width="2.5" stroke-dasharray="8 6" />
+    <!-- Chest offset +0.12m (~+38px) -->
+    <circle cx="208" cy="362" r="84" fill="rgba(0,240,255,0.11)" stroke="#00F0FF" stroke-width="2.5" stroke-dasharray="8 6" />
+
+    <!-- Offset Arrows -->
+    <g font-family="'JetBrains Mono', monospace" font-size="11">
+      <line x1="170" y1="216" x2="184" y2="216" stroke="#C8FF00" stroke-width="3" />
+      <text x="190" y="140" fill="#C8FF00" font-weight="700">z = +0.04 m</text>
+      <line x1="170" y1="362" x2="208" y2="362" stroke="#00F0FF" stroke-width="3" />
+      <text x="218" y="476" fill="#00F0FF" font-weight="700">z = +0.12 m</text>
+      <text x="218" y="492" fill="#7987AD">Reactor +0.24 m</text>
+      <text x="24" y="646" fill="#B6C2E2">Forward Z bias rewards clean</text>
+      <text x="24" y="664" fill="#B6C2E2">jabs without webcam depth clipping.</text>
+    </g>
+  </g>
+
+  <!-- ======================================================================
+       RIGHT PANEL: 3 DIFFICULTY COLOUR VARIANTS (EASY / MEDIUM / HARD)
+       ====================================================================== -->
+  <g transform="translate(918, 124)">
+    <rect width="482" height="696" rx="18" fill="rgba(12,16,34,0.82)" stroke="rgba(0,240,255,0.3)" />
+    <text x="24" y="34" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="2">03 · DIFFICULTY VARIANTS</text>
+    <text x="24" y="54" fill="#7987AD" font-family="'Space Grotesk', sans-serif" font-size="12">Swap Three.js accent, visor core, and telegraph cadence per tier</text>
+
+    <!-- VARIANT 1: EASY (HEX-3 SPARK) -->
+    <g transform="translate(24, 78)">
+      <rect width="434" height="184" rx="14" fill="rgba(0,240,255,0.07)" stroke="#00F0FF" stroke-opacity="0.55" />
+      <!-- Mini Drone Icon -->
+      <g transform="translate(76, 92)">
+        <polygon points="-28,-12 28,-12 36,12 22,42 -22,42 -36,12" fill="#162338" stroke="#00F0FF" stroke-width="2.5" />
+        <polygon points="0,2 12,16 0,30 -12,16" fill="#C8FF00" />
+        <polygon points="-22,-46 22,-46 30,-28 20,-18 -20,-18 -30,-28" fill="#162338" stroke="#00F0FF" stroke-width="2.5" />
+        <path d="M -20 -30 Q 0 -22 20 -30" fill="none" stroke="#C8FF00" stroke-width="6" stroke-linecap="round" />
+      </g>
+      <text x="148" y="36" fill="#00F0FF" font-family="'Chakra Petch', sans-serif" font-size="22" font-weight="700" font-style="italic">EASY — HEX-3 "SPARK"</text>
+      <text x="148" y="58" fill="#B6C2E2" font-family="'Space Grotesk', sans-serif" font-size="12.5">80 HP · Slow 800ms telegraph · Wide openings</text>
+      <!-- Swatches -->
+      <g transform="translate(148, 76)" font-family="'JetBrains Mono', monospace" font-size="11">
+        <rect x="0" y="0" width="24" height="24" rx="6" fill="#00F0FF" />
+        <text x="32" y="16" fill="#F4F7FF">Accent 0x00F0FF</text>
+        <rect x="0" y="32" width="24" height="24" rx="6" fill="#C8FF00" />
+        <text x="32" y="48" fill="#F4F7FF">Core   0xC8FF00</text>
+        <rect x="0" y="64" width="24" height="24" rx="6" fill="#162338" stroke="#7987AD" />
+        <text x="32" y="80" fill="#B6C2E2">Hull   0x162338</text>
+      </g>
+    </g>
+
+    <!-- VARIANT 2: MEDIUM (HEX-7 PULSE — DEFAULT) -->
+    <g transform="translate(24, 282)">
+      <rect width="434" height="184" rx="14" fill="rgba(164,123,255,0.1)" stroke="#A47BFF" stroke-width="1.8" />
+      <rect x="322" y="14" width="96" height="22" rx="11" fill="#A47BFF" />
+      <text x="370" y="29" text-anchor="middle" fill="#070913" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700">DEFAULT M1</text>
+      <!-- Mini Drone Icon -->
+      <g transform="translate(76, 92)">
+        <polygon points="-28,-12 28,-12 36,12 22,42 -22,42 -36,12" fill="#1D2132" stroke="#A47BFF" stroke-width="2.5" />
+        <polygon points="0,2 12,16 0,30 -12,16" fill="#E2D4FF" />
+        <polygon points="-22,-46 22,-46 30,-28 20,-18 -20,-18 -30,-28" fill="#1D2132" stroke="#A47BFF" stroke-width="2.5" />
+        <path d="M -20 -30 Q 0 -22 20 -30" fill="none" stroke="#E2D4FF" stroke-width="6" stroke-linecap="round" />
+      </g>
+      <text x="148" y="36" fill="#A47BFF" font-family="'Chakra Petch', sans-serif" font-size="22" font-weight="700" font-style="italic">MEDIUM — HEX-7 "PULSE"</text>
+      <text x="148" y="58" fill="#B6C2E2" font-family="'Space Grotesk', sans-serif" font-size="12.5">100 HP · 600ms telegraph · Balanced strafe</text>
+      <g transform="translate(148, 76)" font-family="'JetBrains Mono', monospace" font-size="11">
+        <rect x="0" y="0" width="24" height="24" rx="6" fill="#A47BFF" />
+        <text x="32" y="16" fill="#F4F7FF">Accent 0xA47BFF</text>
+        <rect x="0" y="32" width="24" height="24" rx="6" fill="#E2D4FF" />
+        <text x="32" y="48" fill="#F4F7FF">Core   0xE2D4FF</text>
+        <rect x="0" y="64" width="24" height="24" rx="6" fill="#1D2132" stroke="#7987AD" />
+        <text x="32" y="80" fill="#B6C2E2">Hull   0x1D2132</text>
+      </g>
+    </g>
+
+    <!-- VARIANT 3: HARD (HEX-9 APEX) -->
+    <g transform="translate(24, 486)">
+      <rect width="434" height="184" rx="14" fill="rgba(255,42,133,0.1)" stroke="#FF2A85" stroke-opacity="0.7" />
+      <!-- Mini Drone Icon -->
+      <g transform="translate(76, 92)">
+        <polygon points="-28,-12 28,-12 36,12 22,42 -22,42 -36,12" fill="#261224" stroke="#FF2A85" stroke-width="2.5" />
+        <polygon points="0,2 12,16 0,30 -12,16" fill="#FFB800" />
+        <polygon points="-22,-46 22,-46 30,-28 20,-18 -20,-18 -30,-28" fill="#261224" stroke="#FF2A85" stroke-width="2.5" />
+        <path d="M -20 -30 Q 0 -22 20 -30" fill="none" stroke="#FFB800" stroke-width="6" stroke-linecap="round" />
+      </g>
+      <text x="148" y="36" fill="#FF2A85" font-family="'Chakra Petch', sans-serif" font-size="22" font-weight="700" font-style="italic">HARD — HEX-9 "APEX"</text>
+      <text x="148" y="58" fill="#B6C2E2" font-family="'Space Grotesk', sans-serif" font-size="12.5">140 HP · 420ms telegraph · Feint + double lunge</text>
+      <g transform="translate(148, 76)" font-family="'JetBrains Mono', monospace" font-size="11">
+        <rect x="0" y="0" width="24" height="24" rx="6" fill="#FF2A85" />
+        <text x="32" y="16" fill="#F4F7FF">Accent 0xFF2A85</text>
+        <rect x="0" y="32" width="24" height="24" rx="6" fill="#FFB800" />
+        <text x="32" y="48" fill="#F4F7FF">Core   0xFFB800</text>
+        <rect x="0" y="64" width="24" height="24" rx="6" fill="#261224" stroke="#FF2A3D" />
+        <text x="32" y="80" fill="#FF8AA0">Telegr 0xFF2A3D</text>
+      </g>
+    </g>
+  </g>
+</svg>
