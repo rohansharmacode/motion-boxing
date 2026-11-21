@@ -50,3 +50,29 @@ export function createFrameClock(): FrameClock {
     },
   }
 }
+
+/**
+ * Timestamps for MediaPipe's detectForVideo. MediaPipe works in whole milliseconds and its graph fails for good
+ * ("Packet timestamp mismatch", then Aborted() on every later frame) if one is not strictly greater than the last.
+ * FrameClock stamps can be only 0.001 ms apart (a repeated camera frame), so they are not safe to pass directly:
+ * this floors to whole ms and bumps by 1 ms when needed. Use it only for MediaPipe; keep FrameClock's t for game logic.
+ */
+export interface MediaPipeClock {
+  next(t: number): number
+  reset(): void
+}
+
+export function createMediaPipeClock(): MediaPipeClock {
+  let last = -Infinity
+  return {
+    next(t) {
+      const ms = Number.isFinite(t) ? Math.floor(t) : last + 1
+      const out = ms > last ? ms : last + 1
+      last = out
+      return out
+    },
+    reset() {
+      last = -Infinity
+    },
+  }
+}
