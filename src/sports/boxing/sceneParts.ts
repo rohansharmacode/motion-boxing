@@ -201,9 +201,9 @@ const RING = { halfWidth: 2.3, near: 0.9, far: -5.3, ropes: [0.45, 0.85, 1.25] }
 export function buildArena(): Group {
   const arena = new Group()
 
-  const floor = new Mesh(new PlaneGeometry(40, 40), new MeshStandardMaterial({ color: 0x0a0c13, roughness: 0.95 }))
+  const floor = new Mesh(new PlaneGeometry(40, 40), new MeshStandardMaterial({ color: 0x05070e, roughness: 0.35, metalness: 0.6 }))
   floor.rotation.x = -Math.PI / 2
-  const grid = new GridHelper(40, 80, 0x3a4f8f, 0x1c2540)
+  const grid = new GridHelper(40, 80, 0x38c8ff, 0x1a3a66) // brighter light-grid floor
   grid.position.y = 0.003
   grid.material.transparent = true
   grid.material.opacity = 0.75

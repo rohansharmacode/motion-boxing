@@ -1,7 +1,7 @@
 // Scoring logic of the detector replay tool (tools/replay/score.ts) and the recording format.
 import { describe, expect, test } from 'vitest'
-import { RECORDING_VERSION, packPose, parseRecording, recordingFileName, unpackPose, type Recording, type RecordingSegment } from '../../src/dev/recordingFormat.ts'
-import { emptyScores, formatScores, replayTake, scoreTake, type DetectedEvent, type TakeEvents } from '../../tools/replay/score.ts'
+import { GAMES, RECORDING_VERSION, gameOf, packPose, parseRecording, recordingFileName, unpackPose, type Recording, type RecordingSegment } from '../../src/dev/recordingFormat.ts'
+import { autoTuneBoxing, emptyScores, formatScores, objective, replayTake, scoreTake, type DetectedEvent, type TakeEvents } from '../../tools/replay/score.ts'
 
 const rec = (segments: RecordingSegment[]): Recording => ({
   version: RECORDING_VERSION, person: 'test', distanceM: 1.5, lighting: 'room', note: '', recordedAt: '2026-11-21T10:00:00.000Z',
@@ -81,5 +81,38 @@ describe('recording format', () => {
     const t = replayTake({ ...rec([]), frames: [null, null, null] })
     expect(t.calibration).toBeNull()
     expect(t.events).toEqual([])
+  })
+})
+
+describe('games and training', () => {
+  test('gameOf uses the game field, else infers it from the labels', () => {
+    expect(gameOf({ game: 'bowling', segments: [] })).toBe('bowling')
+    expect(gameOf({ segments: [{ label: 'idle', startT: 0, endT: 1, reps: 0, marks: [] }, { label: 'archery-draw', startT: 0, endT: 1, reps: 1, marks: [] }] })).toBe('archery')
+    expect(gameOf({ segments: [{ label: 'idle', startT: 0, endT: 1, reps: 0, marks: [] }] })).toBeNull()
+    expect(recordingFileName({ game: 'archery', person: 'Bo', recordedAt: '2026-11-21T10:00:00.000Z', segments: [] })).toBe('archery_bo_empty_2026-11-21T10-00-00.json')
+  })
+
+  test('scoring with a game type filter ignores other games\' detections', () => {
+    const r = rec([{ label: 'idle', startT: 0, endT: 60_000, reps: 0, marks: [] }])
+    const s = scoreTake(r, take([ev(1000, 'archery-draw'), ev(2000, 'hook')]), emptyScores(), GAMES.boxing.labels)
+    expect(s.confusion.get('idle')!.get('hook')).toBe(1)
+    expect(s.confusion.get('idle')!.has('archery-draw')).toBe(false)
+  })
+
+  test('objective: mean F1 over scored motions minus an idle penalty', () => {
+    const r = rec([{ label: 'hook', startT: 0, endT: 5000, reps: 2, marks: [] }, { label: 'idle', startT: 6000, endT: 66_000, reps: 0, marks: [] }])
+    const perfect = scoreTake(r, take([ev(1000, 'hook'), ev(2000, 'hook')]))
+    expect(objective(perfect, GAMES.boxing.labels)).toBeCloseTo(1, 5)
+    const noisy = scoreTake(r, take([ev(1000, 'hook'), ev(2000, 'hook'), ev(30_000, 'hook')]))
+    expect(objective(noisy, GAMES.boxing.labels)).toBeLessThan(1)
+  })
+
+  test('auto-tune keeps the config when nothing improves (no pose in the take)', async () => {
+    const r = { ...rec([{ label: 'jab-L', startT: 0, endT: 100, reps: 3, marks: [] }]), frames: [null, null] }
+    const steps: string[] = []
+    const res = await autoTuneBoxing([r], GAMES.boxing.labels, {}, 1, (s) => { steps.push(s.key) })
+    expect(res.config).toEqual({})
+    expect(res.after).toBe(res.before)
+    expect(steps.length).toBeGreaterThan(10)
   })
 })

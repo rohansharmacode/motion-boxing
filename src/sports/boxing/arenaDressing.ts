@@ -22,6 +22,8 @@ import {
   PointsMaterial,
   RepeatWrapping,
   IcosahedronGeometry,
+  RingGeometry,
+  TorusGeometry,
   SRGBColorSpace,
 } from 'three'
 import type { Texture } from 'three'
@@ -306,9 +308,94 @@ export function buildArenaDressing(): ArenaDressing {
   }
   group.add(towers)
 
+
+  // ---------- light grid (original Tron-style dressing) ----------
+  // Light cycles: glowing heads with long fading trails racing laps of the floor around the ring.
+  const LANE = { x: 3.85, zNear: 0.9, zFar: -7.2 }
+  const lapLen = 2 * (LANE.x * 2) + 2 * (LANE.zNear - LANE.zFar)
+  const lapPoint = (d: number, out: { x: number; z: number; dir: number }): void => {
+    const w = LANE.x * 2
+    const h = LANE.zNear - LANE.zFar
+    d = ((d % lapLen) + lapLen) % lapLen
+    if (d < w) Object.assign(out, { x: -LANE.x + d, z: LANE.zNear, dir: 0 })
+    else if (d < w + h) Object.assign(out, { x: LANE.x, z: LANE.zNear - (d - w), dir: 1 })
+    else if (d < 2 * w + h) Object.assign(out, { x: LANE.x - (d - w - h), z: LANE.zFar, dir: 2 })
+    else Object.assign(out, { x: -LANE.x, z: LANE.zFar + (d - 2 * w - h), dir: 3 })
+  }
+  const TRAIL_SEGS = 14
+  const cycles = [
+    { color: CYAN, speed: 3.4, offset: 0 },
+    { color: PINK, speed: 3.0, offset: lapLen * 0.5 },
+    { color: 0xffb433, speed: 2.6, offset: lapLen * 0.25 },
+  ].map((c) => {
+    const headMat = new MeshBasicMaterial({ color: glow(c.color, 1.6), toneMapped: false })
+    const head = new Mesh(new BoxGeometry(0.16, 0.09, 0.16), headMat)
+    const trailMat = new MeshBasicMaterial({ color: glow(c.color, 1.2), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false })
+    const trail = new InstancedMesh(new BoxGeometry(0.045, 0.14, 0.045), trailMat, TRAIL_SEGS)
+    trail.frustumCulled = false
+    group.add(head, trail)
+    return { ...c, head, trail }
+  })
+  const lp = { x: 0, z: 0, dir: 0 }
+
+  // Pulse rings: thin glowing circles that ripple out across the floor from under the ring.
+  const pulseGeo = new RingGeometry(0.97, 1, 96)
+  const pulses = [0, 1, 2].map((i) => {
+    const mat = new MeshBasicMaterial({ color: glow(i === 1 ? PINK : CYAN, 1.2), transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false })
+    const m = new Mesh(pulseGeo, mat)
+    m.rotation.x = -Math.PI / 2
+    m.position.set(0, 0.012, -2.1)
+    group.add(m)
+    return { m, mat, phase: i / 3 }
+  })
+
+  // Overhead halo: two counter-rotating neon rings above the ring.
+  const halos = [
+    { r: 2.6, color: CYAN, y: 5.2, speed: 0.25 },
+    { r: 2.1, color: PINK, y: 5.5, speed: -0.35 },
+  ].map((h) => {
+    const m = new Mesh(new TorusGeometry(h.r, 0.025, 6, 128), new MeshBasicMaterial({ color: glow(h.color, 1.5), toneMapped: false }))
+    m.rotation.x = Math.PI / 2
+    m.position.set(0, h.y, -2.1)
+    group.add(m)
+    return { m, ...h }
+  })
+
+  // Light pillars at the stand corners: thin glowing columns with a travelling bright band.
+  const pillarMat = new MeshBasicMaterial({ color: glow(CYAN, 0.9), toneMapped: false })
+  const bandMat = new MeshBasicMaterial({ color: glow(0xffffff, 1.4), toneMapped: false })
+  const bands: Mesh[] = []
+  for (const [x, z] of [[-4.3, 1.2], [4.3, 1.2], [-4.3, -7.6], [4.3, -7.6]] as const) {
+    const pillar = new Mesh(new CylinderGeometry(0.035, 0.035, 6, 8), pillarMat)
+    pillar.position.set(x, 3, z)
+    const band = new Mesh(new CylinderGeometry(0.06, 0.06, 0.35, 8), bandMat)
+    band.position.set(x, 0, z)
+    group.add(pillar, band)
+    bands.push(band)
+  }
   return {
     group,
     update(t) {
+      for (const c of cycles) {
+        lapPoint(t * c.speed + c.offset, lp)
+        c.head.position.set(lp.x, 0.05, lp.z)
+        for (let i = 0; i < TRAIL_SEGS; i++) {
+          lapPoint(t * c.speed + c.offset - (i + 1) * 0.11, lp)
+          dummy.position.set(lp.x, 0.07, lp.z)
+          dummy.rotation.set(0, 0, 0)
+          dummy.scale.set(1, 1 - i / TRAIL_SEGS, 1)
+          dummy.updateMatrix()
+          c.trail.setMatrixAt(i, dummy.matrix)
+        }
+        c.trail.instanceMatrix.needsUpdate = true
+      }
+      for (const p of pulses) {
+        const k = (t * 0.22 + p.phase) % 1
+        p.m.scale.setScalar(2.4 + k * 4.2)
+        p.mat.opacity = (1 - k) * 0.55
+      }
+      for (const h of halos) h.m.rotation.z = t * h.speed
+      for (const [i, b] of bands.entries()) b.position.y = 0.2 + ((t * 1.3 + i * 0.25) % 1) * 5.6
       for (const [i, mat] of boardMats.entries()) {
         if (mat.map) mat.map.offset.x = (t * 0.06 * (i === 0 ? 1 : -1)) % 1
       }

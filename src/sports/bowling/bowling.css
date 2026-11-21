@@ -83,27 +83,6 @@
 .bw-total { border-color: var(--bw-pink); }
 .bw-total .bw-ft { font-size: 32px; line-height: 50px; color: var(--bw-cyan); }
 
-/* ---------- power meter ---------- */
-.bw-power {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  width: 18px;
-  height: 160px;
-  border: 2px solid var(--bw-cyan);
-  border-radius: 9px;
-  background: rgba(7, 10, 23, 0.7);
-  overflow: hidden;
-}
-.bw-power-fill {
-  position: absolute;
-  inset: 0;
-  transform-origin: bottom;
-  transform: scaleY(0);
-  background: linear-gradient(to top, var(--bw-cyan), var(--bw-pink));
-}
-.bw-power.bw-hot { box-shadow: 0 0 12px rgba(255, 46, 136, 0.8); border-color: var(--bw-pink); }
-
 .bw-hint {
   position: absolute;
   bottom: 22px;
@@ -189,3 +168,49 @@
   .bw-title { display: none; }
   .bw-frame { min-width: 50px; }
 }
+
+/* ---------- GDD 4.7: marks, pin leave, swing state, speed ---------- */
+.bw-rolls span.bw-x { color: var(--bw-pink); }
+.bw-rolls span.bw-sp { color: #ffd166; }
+.bw-callout.bw-amber {
+  color: #ffd166;
+  text-shadow: 0 0 16px rgba(255, 209, 102, 0.8), 4px 4px 0 var(--bw-pink);
+}
+.bw-callout.bw-bad { color: #ff2442; text-shadow: 0 0 12px rgba(255, 36, 66, 0.7); }
+.bw-left {
+  position: absolute;
+  left: 18px;
+  bottom: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.bw-root:has(.bw-cam.bw-live) .bw-left { bottom: calc(24px + 150px * 0.75); }
+.bw-pins { position: relative; width: 120px; height: 72px; }
+.bw-pins i {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: 0 0 0 -7px;
+  border-radius: 50%;
+  background: #f2f7ff;
+  box-shadow: 0 0 0 2px var(--bw-pink);
+}
+.bw-pins i.bw-down { background: #1a2342; box-shadow: 0 0 0 1px #2e3e6e; }
+.bw-state {
+  font-family: var(--bw-display);
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(12, 18, 40, 0.9);
+  border: 2px solid var(--bw-cyan);
+  color: var(--bw-cyan);
+  width: max-content;
+}
+.bw-state[data-state='armed'] { color: #b8ff00; border-color: #b8ff00; }
+.bw-state[data-state='rolling'] { color: #ffd166; border-color: #ffd166; }
+.bw-speed { font-family: var(--bw-display); font-size: 20px; letter-spacing: 0.06em; color: var(--bw-cyan); }
+.bw-speed:empty { display: none; }
+.bw-frame { min-width: 58px; }

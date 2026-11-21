@@ -28,6 +28,7 @@ import {
   stepLane,
 } from './game.ts'
 import type { Ball, Frames } from './game.ts'
+import { buildNeonArena } from '../shared/neonArena.ts'
 import './bowling.css'
 
 const CYAN = 0x22e5ff
@@ -37,24 +38,29 @@ const STEP = 1 / 240
 const LANE_START = 1.2
 const LANE_END = -20.2
 
-/** Throw speed range, m/s (power 0 to 1). */
-const MIN_SPEED = 6
-const MAX_SPEED = 11
-/** Body-space wrist speed (shoulder widths per second) for power 0 and 1. */
-const SWING_MIN = 2.2
-const SWING_MAX = 9
-/** Wrist must hang below this (body units, y down from shoulder centre) to arm a swing. */
-const ARM_Y = 0.9
-/** Release when the armed wrist rises above this while moving up fast. */
-const RELEASE_Y = 0.35
+// Desk-safe pendulum swing (GDD 4.2). Body units are shoulder widths (SW), y down.
+/** Wrist this far below the shoulder line, held still, arms the swing. */
+const ARM_BELOW_SW = 0.35
+/** Arming hold: wrist slower than this (SW/s) for ARM_HOLD_MS. */
+const ARM_STILL_SW = 1.0
+const ARM_HOLD_MS = 100
+/** Release: upward speed above this (SW/s) while crossing this line below the shoulders. */
+const RELEASE_VY_SW = 1.8
+const RELEASE_BELOW_SW = 0.15
+/** Ball speed from peak swing speed, m/s. */
+const speedFromSwing = (peak: number): number => Math.max(5.2, Math.min(10.2, 4.8 + peak * 1.45))
+/** Release angle clamp, degrees. */
+const MAX_ANGLE = 8
+/** Approach width the torso can slide the ball across, m. */
+const ALIGN_HALF = 0.45
 
 let uiSfx: Sfx | null = null
 
 interface Throw {
-  /** 0 to 1. */
-  power: number
-  /** -1 left to 1 right. */
-  aim: number
+  /** m/s down the lane. */
+  speed: number
+  /** Degrees, + to the right. */
+  angle: number
 }
 
 export async function startBowling(ctx: GameContext): Promise<GameSession> {
@@ -71,7 +77,11 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
       <div class="bw-title">NEON LANES</div>
       <div class="bw-board"></div>
     </div>
-    <div class="bw-power"><div class="bw-power-fill"></div></div>
+    <div class="bw-left">
+      <div class="bw-pins"></div>
+      <div class="bw-state">ALIGN</div>
+      <div class="bw-speed"></div>
+    </div>
     <div class="bw-hint"></div>
     <div class="bw-callout"></div>
     <div class="bw-card"></div>`
@@ -81,8 +91,9 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   const video = q<HTMLVideoElement>('.bw-cam')
   video.muted = true
   const boardEl = q<HTMLDivElement>('.bw-board')
-  const powerEl = q<HTMLDivElement>('.bw-power')
-  const powerFill = q<HTMLDivElement>('.bw-power-fill')
+  const pinsEl = q<HTMLDivElement>('.bw-pins')
+  const stateEl = q<HTMLDivElement>('.bw-state')
+  const speedEl = q<HTMLDivElement>('.bw-speed')
   const hintEl = q<HTMLDivElement>('.bw-hint')
   const calloutEl = q<HTMLDivElement>('.bw-callout')
   const cardEl = q<HTMLDivElement>('.bw-card')
@@ -163,6 +174,21 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     b.position.set(0, y, wallZ + 0.05)
     scene.add(b)
   }
+  // Hall: neon-grid walls, racing light pulses, arches, crowd, back display.
+  const arena = buildNeonArena({ width: 7.4, length: 27, centerZ: -9, height: 4.2, crowd: 180, arches: 7, title: 'NEON LANES', floorY: -0.09 })
+  scene.add(arena.group)
+  // Two cosmetic neighbour lanes with their own pins.
+  for (const x of [-2.15, 2.15]) {
+    const nl = lane.clone()
+    nl.position.x = x
+    scene.add(nl)
+    for (const s of [-1, 1]) {
+      const r = new THREE.Mesh(railGeo, s < 0 ? cyanMat : pinkMat)
+      r.position.set(x + s * LANE_HALF, 0.005, laneMid)
+      scene.add(r)
+    }
+  }
+
   // Pins: lathe profile, white body with a pink neck band.
   const pinPts = [
     [0, 0], [0.03, 0], [0.05, 0.05], [0.06, 0.13], [0.055, 0.2], [0.03, 0.26], [0.022, 0.29], [0.028, 0.33], [0.032, 0.36], [0.02, 0.38], [0, 0.385],
@@ -172,6 +198,10 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   const bandGeo = track(new THREE.CylinderGeometry(0.024, 0.026, 0.02, 14, 1, true))
   const bandMat = track(new THREE.MeshBasicMaterial({ color: PINK, side: THREE.DoubleSide }))
   const pins = makePins()
+  // Pin-leave diagram, back row on top like the deck seen from the approach.
+  pinsEl.innerHTML = pins
+    .map((p, i) => `<i data-pin="${i + 1}" style="left:${50 + (p.home.x / 0.305) * 24}%;top:${(3 - Math.round((HEAD_PIN_Z - p.home.z) / 0.264)) * 26}%"></i>`)
+    .join('')
   const pinMeshes = pins.map(() => {
     const g = new THREE.Group()
     g.add(new THREE.Mesh(pinGeo, pinMat))
@@ -191,6 +221,12 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   const ring = new THREE.Mesh(track(new THREE.TorusGeometry(BALL_R * 1.01, 0.008, 6, 32)), cyanMat)
   ballMesh.add(ring)
   ballGroup.add(ballMesh)
+  const ballMat = ballMesh.material as THREE.MeshStandardMaterial
+  /** Armed swing: the ball glows cyan. */
+  const ballGlow = (on: boolean): void => {
+    ballMat.emissive.setHex(on ? CYAN : 0x0a3a66)
+    ballMat.emissiveIntensity = on ? 0.8 : 1
+  }
   scene.add(ballGroup)
   // Aim guide: a dotted line ahead of the ball.
   const guideGeo = track(new THREE.BufferGeometry())
@@ -199,7 +235,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   scene.add(guide)
 
   // ---------- state ----------
-  const ball: Ball = { x: 0, z: 0.4, vx: 0, vz: 0, hook: 0, gutter: false, rolling: false }
+  const ball: Ball = { x: 0, z: -0.5, vx: 0, vz: 0, hook: 0, gutter: false, rolling: false }
   let frames: Frames = []
   let rackBalls = 0
   let rackStanding = 10
@@ -207,7 +243,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   let settleT = 0
   let startX = 0
   let aimKey = 0
-  let livePower = 0
+  let strikeRun = 0
   let disposed = false
   let pipeline: PosePipeline | null = null
   let ownsPipeline = false
@@ -275,13 +311,24 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     for (let f = 0; f < FRAMES; f++) {
       const marks = frameMarks(frames[f], f === FRAMES - 1)
       const slots = f === FRAMES - 1 ? 3 : 2
-      const cells = Array.from({ length: slots }, (_, i) => `<span>${marks[i] ?? ''}</span>`).join('')
+      const cells = Array.from({ length: slots }, (_, i) => {
+        const m = marks[i] ?? ''
+        return `<span class="${m === 'X' ? 'bw-x' : m === '/' ? 'bw-sp' : ''}">${m}</span>`
+      }).join('')
       const cur = phase !== 'over' && f === Math.min(currentFrame(), FRAMES - 1) ? ' bw-cur' : ''
       html += `<div class="bw-frame${cur}"><div class="bw-fn">${f + 1}</div><div class="bw-rolls">${cells}</div><div class="bw-ft">${totals[f] ?? ''}</div></div>`
     }
     const total = [...totals].reverse().find((t) => t !== null) ?? 0
     html += `<div class="bw-frame bw-total"><div class="bw-fn">TOTAL</div><div class="bw-ft">${total}</div></div>`
     boardEl.innerHTML = html
+  }
+  /** Pin-leave diagram: standing pins lit, downed pins dark. */
+  function renderPins(): void {
+    // pins[] order is rows front to back: 1 | 2 3 | 4 5 6 | 7 8 9 10
+    pins.forEach((p, i) => {
+      const el = pinsEl.querySelector(`[data-pin="${i + 1}"]`) as HTMLElement | null
+      if (el) el.classList.toggle('bw-down', !p.live || p.down)
+    })
   }
   function currentFrame(): number {
     const last = frames.length - 1
@@ -291,7 +338,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     return done ? last + 1 : last
   }
   let calloutTimer = 0
-  function callout(text: string, tone: 'big' | 'info' | 'bad' = 'big'): void {
+  function callout(text: string, tone: 'big' | 'info' | 'bad' | 'amber' = 'big'): void {
     calloutEl.textContent = text
     calloutEl.className = `bw-callout bw-${tone}`
     void calloutEl.offsetWidth
@@ -303,7 +350,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     hintEl.textContent =
       phase === 'ready'
         ? mode === 'camera'
-          ? 'Let your arm hang, then swing it forward and up to bowl. Step left or right to line up.'
+          ? 'Hold your hand at waist height until the ball glows, then swing up in front of your chest. Lean left or right to line up.'
           : 'Drag up on the lane and let go. Or ← → to aim and Space to bowl.'
         : ''
   }
@@ -337,20 +384,25 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   }
   function readyBall(): void {
     ball.x = startX
-    ball.z = 0.4
+    ball.z = -0.5
     ball.vx = ball.vz = ball.hook = 0
     ball.gutter = false
     ball.rolling = false
     phase = 'ready'
+    setState('ALIGN')
+    renderPins()
     hint()
   }
   function bowl(t: Throw): void {
     if (phase !== 'ready') return
-    const p = Math.max(0, Math.min(1, t.power))
-    const aim = Math.max(-1, Math.min(1, t.aim))
-    ball.vz = -(MIN_SPEED + (MAX_SPEED - MIN_SPEED) * p)
-    ball.vx = aim * 0.45
-    ball.hook = -aim * 0.18 // gentle curve back toward the pocket
+    const speed = Math.max(5.2, Math.min(10.2, t.speed))
+    const ang = (Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, t.angle)) * Math.PI) / 180
+    const p = (speed - 5.2) / 5
+    ball.vz = -speed * Math.cos(ang)
+    ball.vx = speed * Math.sin(ang) * 0.55
+    ball.hook = -Math.sin(ang) * 0.5 // dry back end pulls it back toward the pocket
+    speedEl.textContent = `${Math.round(speed * 3.6)} KM/H · ${Math.abs(t.angle) < 1 ? 'STRAIGHT' : `${t.angle < 0 ? 'L' : 'R'} ${Math.abs(Math.round(t.angle))}°`}`
+    setState('ROLLING')
     ball.rolling = true
     phase = 'rolling'
     settleT = 0
@@ -362,16 +414,24 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     const knocked = pins.filter((p) => p.live && p.down).length
     const res = recordRoll(frames, knocked, rackBalls, rackStanding, ball.gutter)
     renderBoard()
-    if (res.kind === 'strike') {
+    renderPins()
+    strikeRun = res.kind === 'strike' ? strikeRun + 1 : 0
+    if (res.kind === 'strike' && strikeRun >= 3) {
+      callout(`TURKEY! ${strikeRun}X`, 'amber')
+      arena.pulse(0xffd166)
+      blip([659, 831, 988, 1319, 988, 1319], 0.1)
+    } else if (res.kind === 'strike') {
       callout('STRIKE!')
-      blip([523, 659, 784, 1047])
+      arena.pulse(0xff2e88)
+      blip([659, 831, 988, 1319], 0.12)
     } else if (res.kind === 'spare') {
-      callout('SPARE!')
+      callout('SPARE!', 'amber')
+      arena.pulse(0xffd166)
       blip([523, 784, 1047])
     } else if (res.kind === 'gutter') {
-      callout('GUTTER BALL', 'bad')
-      blip([196, 147], 0.14)
-    } else callout(knocked === 1 ? '1 PIN' : `${knocked} PINS`, 'info')
+      callout('GUTTER', 'bad')
+      blip([260, 130, 92], 0.14)
+    } else callout(`+${knocked} PIN${knocked === 1 ? '' : 'S'}`, 'info')
     phase = 'settle'
     later(1300, () => {
       if (res.gameOver) return gameOver()
@@ -396,7 +456,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     const totals = frameTotals(frames)
     const total = totals[FRAMES - 1] ?? 0
     const strikes = frames.flat().filter((v) => v === 10).length
-    const rating = total >= 60 ? 'LANE LEGEND' : total >= 35 ? 'HOT STREAK' : total >= 20 ? 'ROLLING' : 'WARM UP'
+    const rating = total >= 105 ? 'LASER TOUR MASTER' : total >= 80 ? 'SYNTH SPORT PRO' : total >= 55 ? 'NEON HOUSE CHAMP' : 'KEEP ROLLING'
     blip([392, 523, 659, 784, 1047], 0.12)
     showCard(
       `<div class="bw-kicker">GAME OVER</div><div class="bw-big">${total}</div><div class="bw-sub">${rating} · ${strikes} strike${strikes === 1 ? '' : 's'}</div>`,
@@ -408,48 +468,63 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   }
 
   // ---------- camera ----------
+  type WristState = { x: number; y: number; t: number; stillSince: number }
+  const wrists: Record<'left' | 'right', WristState | null> = { left: null, right: null }
   let armed: 'left' | 'right' | null = null
-  let lastWrist: { left: { x: number; y: number; t: number } | null; right: { x: number; y: number; t: number } | null } = { left: null, right: null }
   let peak = 0
-  let lateral = 0
   function onBody(b: BodyFrame): void {
-    const shoulderX = (b.body[LM.L_SHOULDER].x + b.body[LM.R_SHOULDER].x) / 2
-    if (phase === 'ready') startX = Math.max(-0.38, Math.min(0.38, shoulderX * 0.35))
+    const ls = b.body[LM.L_SHOULDER]
+    const rs = b.body[LM.R_SHOULDER]
+    const sY = (ls.y + rs.y) / 2
+    const cX = (ls.x + rs.x) / 2
+    // Align: torso slides the ball (+-0.65 SW -> +-0.45 m); locked once a swing is armed.
+    if (phase === 'ready' && !armed && ls.visibility > 0.5 && rs.visibility > 0.5)
+      startX = Math.max(-ALIGN_HALF, Math.min(ALIGN_HALF, (cX / 0.65) * ALIGN_HALF))
     for (const side of ['left', 'right'] as const) {
       const w = b.body[side === 'left' ? LM.L_WRIST : LM.R_WRIST]
-      const prev = lastWrist[side]
-      lastWrist[side] = { x: w.x, y: w.y, t: b.t }
-      if (w.visibility < 0.3 || !prev) continue
+      const prev = wrists[side]
+      if (w.visibility < 0.5) {
+        wrists[side] = null
+        if (armed === side) disarm()
+        continue
+      }
+      const st: WristState = { x: w.x, y: w.y, t: b.t, stillSince: prev?.stillSince ?? b.t }
+      wrists[side] = st
+      if (!prev) continue
       const dt = (b.t - prev.t) / 1000
       if (dt <= 0 || dt > 0.2) continue
       const vx = (w.x - prev.x) / dt
       const vy = (w.y - prev.y) / dt
+      if (Math.hypot(vx, vy) > ARM_STILL_SW) st.stillSince = b.t
       if (phase !== 'ready') {
-        armed = null
+        if (armed) disarm()
         continue
       }
-      if (!armed && w.y > ARM_Y) {
+      // Arm: wrist below the shoulder line (desk-safe, chest to waist) and held still briefly.
+      if (!armed && w.y > sY + ARM_BELOW_SW && b.t - st.stillSince >= ARM_HOLD_MS) {
         armed = side
         peak = 0
-        lateral = 0
+        setState('SWING ARMED')
+        blip([880], 0.04)
       }
       if (armed !== side) continue
-      if (w.y > ARM_Y + 0.2) {
-        peak = 0 // still hanging or in the back swing: restart the measure
-        lateral = 0
-      }
-      const up = -vy
-      if (up > 0) {
-        peak = Math.max(peak, up)
-        lateral = lateral * 0.6 + vx * 0.4
-      }
-      livePower = Math.max(0, Math.min(1, (peak - SWING_MIN) / (SWING_MAX - SWING_MIN)))
-      if (w.y < RELEASE_Y && peak > SWING_MIN) {
-        const aim = Math.max(-1, Math.min(1, lateral / Math.max(peak, 1) * 2.2))
+      if (-vy > peak) peak = -vy
+      if (vy < -RELEASE_VY_SW && w.y <= sY + RELEASE_BELOW_SW) {
+        const angle = (Math.atan2(vx, -vy) * 180) / Math.PI
         armed = null
-        bowl({ power: livePower, aim })
-      } else if (w.y < RELEASE_Y - 0.3) armed = null
+        bowl({ speed: speedFromSwing(peak), angle })
+      } else if (w.y < sY - 0.3) disarm() // hand came up without a real swing
     }
+  }
+  function disarm(): void {
+    armed = null
+    peak = 0
+    if (phase === 'ready') setState('ALIGN')
+  }
+  function setState(text: 'ALIGN' | 'SWING ARMED' | 'ROLLING'): void {
+    stateEl.textContent = text
+    stateEl.dataset.state = text === 'ALIGN' ? 'align' : text === 'SWING ARMED' ? 'armed' : 'rolling'
+    ballGlow(text === 'SWING ARMED')
   }
 
   function stopCamera(): void {
@@ -530,7 +605,8 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     const s0 = drag.samples[0]
     const dt = Math.max(1, e.timeStamp - s0.t) / 1000
     const h = canvas.clientHeight || 600
-    livePower = Math.max(0, Math.min(1, ((s0.y - e.clientY) / h / dt - 0.6) / 3))
+    void h
+    void dt
   }
   function onUp(e: PointerEvent): void {
     if (!drag) return
@@ -542,7 +618,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     const dy = Math.max(20, drag.y - e.clientY)
     drag = null
     if (vy < 0.4) return // a tap or a downward drag is not a throw
-    bowl({ power: Math.max(0, Math.min(1, (vy - 0.6) / 3)), aim: (dx / dy) * 1.6 })
+    bowl({ speed: 4.8 + vy * 1.6, angle: (Math.atan2(dx, dy) * 180) / Math.PI })
   }
   canvas.addEventListener('pointerdown', onDown)
   canvas.addEventListener('pointermove', onMove)
@@ -554,7 +630,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     else if (e.code === 'Space' && !e.repeat) {
       if (phase === 'ready') {
         e.preventDefault()
-        bowl({ power: 0.75, aim: aimKey + (Math.random() - 0.5) * 0.25 })
+        bowl({ speed: 8.6, angle: (Math.random() - 0.5) * 3 })
       }
     } else if (e.code === 'KeyR' && !e.repeat && phase !== 'menu' && phase !== 'calib') newGame()
   }
@@ -567,7 +643,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
     const h = Math.max(1, Math.round(r.height))
     renderer.setSize(w, h, false)
     camera.aspect = w / h
-    camera.fov = w / h < 1 ? 64 : 50
+    camera.fov = w / h < 1 ? 62 : 48
     camera.updateProjectionMatrix()
   }
   const ro = new ResizeObserver(resize)
@@ -578,7 +654,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   let raf = 0
   let last = performance.now()
   let acc = 0
-  const camPos = new THREE.Vector3(0, 1.45, 3.3)
+  const camPos = new THREE.Vector3(0, 1.38, 2.6)
   const camLook = new THREE.Vector3(0, 0.1, -10)
   const tmpPos = new THREE.Vector3()
   const tmpLook = new THREE.Vector3()
@@ -633,19 +709,28 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
       }
       pos.needsUpdate = true
     }
-    // power meter
-    if (phase !== 'ready') livePower *= 0.9
-    powerFill.style.transform = `scaleY(${livePower.toFixed(3)})`
-    powerEl.classList.toggle('bw-hot', livePower > 0.8)
     // camera follows the ball down the lane, then holds on the pins
-    const follow = phase === 'rolling' || phase === 'settle' ? Math.max(HEAD_PIN_Z + 4, ball.z + 3.3) : 3.3
-    tmpPos.set(ball.x * 0.4, follow > -5 ? 1.45 : 1.1, follow)
-    tmpLook.set(0, 0.1, phase === 'rolling' || phase === 'settle' ? HEAD_PIN_Z : -10)
-    const k = Math.min(1, dt * 3)
+    const chasing = phase === 'rolling' || phase === 'settle'
+    if (chasing) {
+      const z = Math.max(ball.z + 3.4, -12.6)
+      const t = Math.min(1, -z / 12.6)
+      tmpPos.set(ball.x * 0.55, 1.38 - 0.5 * t, z)
+      tmpLook.set(ball.x * 0.3, 0.3, HEAD_PIN_Z)
+    } else {
+      tmpPos.set(startX * 0.65, 1.38, 2.6)
+      tmpLook.set(startX * 0.35, 0.42, -14)
+    }
+    const fovWant = (camera.aspect < 1 ? 62 : 48) - (chasing ? 8 * Math.min(1, -ball.z / 12.6) : 0)
+    if (Math.abs(camera.fov - fovWant) > 0.05) {
+      camera.fov += (fovWant - camera.fov) * (1 - Math.exp(-6.5 * dt))
+      camera.updateProjectionMatrix()
+    }
+    const k = 1 - Math.exp(-6.5 * dt)
     camPos.lerp(tmpPos, k)
     camLook.lerp(tmpLook, k)
     camera.position.copy(camPos)
     camera.lookAt(camLook)
+    arena.update(now / 1000)
     renderer.render(scene, camera)
   }
   raf = requestAnimationFrame(frame)
@@ -653,7 +738,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   // ---------- start ----------
   renderBoard()
   showCard(
-    `<div class="bw-kicker">10 PINS · 3 FRAMES</div><div class="bw-big bw-logo">NEON LANES</div><div class="bw-sub">Swing your arm like an underarm bowl. Faster swing, faster ball.</div>`,
+    `<div class="bw-kicker">10 PINS · ${FRAMES} FRAMES</div><div class="bw-big bw-logo">NEON LANES</div><div class="bw-sub">Hold your hand at waist height, then swing it up in front of your chest. Desk-safe. Faster swing, faster ball.</div>`,
     [
       { label: 'Play with camera', cls: 'bw-primary', fn: () => void startCamera() },
       { label: 'Play with mouse', fn: startMouse },
@@ -663,6 +748,7 @@ export async function startBowling(ctx: GameContext): Promise<GameSession> {
   function dispose(): void {
     if (disposed) return
     disposed = true
+    arena.dispose()
     cancelAnimationFrame(raf)
     for (const id of timers) window.clearTimeout(id)
     window.clearTimeout(calloutTimer)

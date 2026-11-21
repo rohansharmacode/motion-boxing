@@ -5,11 +5,11 @@
 //   npm run replay -- --by person               # one table per person (or distance, lighting)
 //   npm run replay -- --boxing '{"cooldownMs":180,"hookMinSpeed":3}'   # try boxing config overrides
 //
-// Needs Node 22.18+ (runs the TypeScript directly). Recordings come from the ?record=1 recorder.
+// Needs Node 22.18+ (runs the TypeScript directly). Recordings come from the motion lab (/record.html).
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { parseRecording, type Recording } from '../src/dev/recordingFormat.ts'
+import { GAMES, gameOf, parseRecording, type GameId, type Recording } from '../src/dev/recordingFormat.ts'
 import { emptyScores, formatConfusion, formatScores, replayTake, scoreTake, type ReplayOptions, type Scores } from './replay/score.ts'
 
 const args = process.argv.slice(2)
@@ -43,12 +43,12 @@ function load(file: string): Recording {
 
 const files = listFiles(args)
 if (!files.length) {
-  console.log('No recordings found. Record some with the dev server and ?record=1 (see recordings/README.md).')
+  console.log('No recordings found. Record some at /record.html on the dev server (see recordings/README.md).')
   process.exit(0)
 }
 
-const groups = new Map<string, Scores>()
-const all = emptyScores()
+/** Scores are kept per game: a boxing take is only charged with boxing detections, and so on. */
+const perGame = new Map<GameId | 'unknown', { all: Scores; groups: Map<string, Scores> }>()
 console.log(`## Takes${opts.boxing ? ` (boxing overrides: ${JSON.stringify(opts.boxing)})` : ''}\n`)
 console.log('| File | Person | Dist | Light | Frames | Pose | fps | Inference ms | Calibrated | Events |')
 console.log('|---|---|---|---|---|---|---|---|---|---|')
@@ -58,13 +58,19 @@ for (const file of files) {
   const take = replayTake(rec, opts)
   const cal = take.calibratedAt !== null ? `after ${((take.calibratedAt - (rec.frames.find((f) => f)?.[0] ?? 0)) / 1000).toFixed(1)} s` : 'NEVER (start takes with a 2 s guard hold)'
   console.log(`| ${file.split('/').pop()} | ${rec.person} | ${rec.distanceM} m | ${rec.lighting} | ${take.frames} | ${take.poseFrames} | ${take.fps.toFixed(0)} | ${rec.inferenceMs} | ${cal} | ${take.events.length} |`)
-  scoreTake(rec, take, all)
+  const g = gameOf(rec) ?? 'unknown'
+  const types = g === 'unknown' ? undefined : GAMES[g].labels
+  const bucket = perGame.get(g) ?? perGame.set(g, { all: emptyScores(), groups: new Map() }).get(g)!
+  scoreTake(rec, take, bucket.all, types)
   if (by) {
     const key = by === 'distance' ? `${rec.distanceM} m` : by === 'person' ? rec.person : rec.lighting
-    scoreTake(rec, take, groups.get(key) ?? groups.set(key, emptyScores()).get(key)!)
+    scoreTake(rec, take, bucket.groups.get(key) ?? bucket.groups.set(key, emptyScores()).get(key)!, types)
   }
 }
 
-console.log(`\n## All takes\n\n${formatScores(all)}\n\n### What fired during each labelled set\n\n${formatConfusion(all)}`)
-for (const [key, s] of groups) console.log(`\n## ${by}: ${key}\n\n${formatScores(s)}`)
+for (const [g, { all, groups }] of perGame) {
+  const name = g === 'unknown' ? 'Unknown game' : GAMES[g].name
+  console.log(`\n## ${name}\n\n${formatScores(all)}\n\n### What fired during each labelled set\n\n${formatConfusion(all)}`)
+  for (const [key, s] of groups) console.log(`\n### ${name}, ${by}: ${key}\n\n${formatScores(s)}`)
+}
 console.log('\nTargets: each motion >= 90% detected, false triggers < 5% of reps, idle fires nothing. ⚠ = below target.')

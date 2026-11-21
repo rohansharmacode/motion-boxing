@@ -577,9 +577,5 @@ export function startPosePipeline(video: HTMLVideoElement): Promise<PosePipeline
     throw err instanceof StartupError ? err : new StartupError('camera-other', String(err))
   })
   current = starting
-  // Dev-only motion recorder for detector tuning (?record=1). Stripped from production builds.
-  if (import.meta.env.DEV && new URLSearchParams(location.search).has('record')) {
-    void starting.then((p) => import('../dev/recorder.ts').then((m) => m.attachRecorder(p))).catch(() => {})
-  }
   return starting
 }

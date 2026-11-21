@@ -101,6 +101,14 @@ function svg(viewBox: string, className: string, inner: string): SVGSVGElement {
 }
 
 /** Colour band for a ring score: 10 gold, 9-7 hot, 6-4 cool, 3-1 low, 0 miss. */
+const SHOT_WORD: Record<'gold' | 'hot' | 'cool' | 'low' | 'miss', string> = {
+  gold: 'BULLSEYE!',
+  hot: 'GREAT SHOT!',
+  cool: 'NICE SHOT!',
+  low: 'ON TARGET',
+  miss: 'MISS!',
+}
+
 function tier(score: number): 'gold' | 'hot' | 'cool' | 'low' | 'miss' {
   if (score >= 10) return 'gold'
   if (score >= 7) return 'hot'
@@ -493,15 +501,16 @@ export function createArcheryHud(root: HTMLElement, opts: ArcheryHudOptions = {}
     showShot(r: ShotResult) {
       const t = tier(r.score)
       const node = el('div', `ar-shot ar-shot--${t}`)
+      // Big arcade words, with the points underneath so the score is always clear.
       if (r.bullseye || r.score >= 10) {
-        node.append(el('span', 'ar-shot-burst'), el('span', 'ar-shot-main', 'BULLSEYE'))
+        node.append(el('span', 'ar-shot-burst'), el('span', 'ar-shot-main', 'BULLSEYE!'))
       } else if (r.score === 0) {
-        node.append(el('span', 'ar-shot-main', 'MISS'))
+        node.append(el('span', 'ar-shot-main', 'MISS!'))
       } else {
-        node.append(el('span', 'ar-shot-main', String(r.score)))
+        node.append(el('span', 'ar-shot-main', SHOT_WORD[t]))
       }
       const sub = r.score === 0 && r.hit === null ? 'Landed short' : `Stability ${Math.round(r.stability)}`
-      node.append(el('span', 'ar-shot-sub', r.score >= 10 ? `10 · ${sub}` : sub))
+      node.append(el('span', 'ar-shot-sub', r.score > 0 ? `+${r.score} · ${sub}` : sub))
       // One popup at a time: the newest replaces any still fading.
       shotLayer.replaceChildren(node)
       later(SHOT_MS, () => node.remove())
