@@ -527,3 +527,65 @@
 :root:not(#_)[data-theme='neon'] .kr-popx { font-size: clamp(44px, 3.3vw, 64px); text-shadow: 6px 6px 0 var(--bx-ink); }
 :root:not(#_)[data-theme='neon'] .kr-popx-hit { font-size: clamp(52px, 4vw, 76px); }
 :root:not(#_)[data-theme='neon'] .kr-popx-ko { font-size: clamp(80px, 5.8vw, 112px); color: #ff2e88; }
+
+/* ---------- neon: warnings are bare flashing arcade text, never boxes or pills ----------
+   Attack warning, tracking hints ("Too close, step back"), callout banners and the calibration
+   warning: bold Bebas with a hard shadow, flashing in briefly. */
+@keyframes bx-flash-in {
+  0% { opacity: 0; transform: scale(1.6); }
+  12% { opacity: 1; transform: scale(1); }
+  24%, 48% { opacity: 0.25; }
+  36%, 60%, 100% { opacity: 1; transform: scale(1); }
+}
+@keyframes bx-flicker { 50% { color: #ffffff; } }
+:root:not(#_)[data-theme='neon'] .kr-telegraph { top: calc(var(--bx-band) + 18px); background: none; box-shadow: none; }
+:root:not(#_)[data-theme='neon'] .kr-telegraph::after {
+  content: 'Incoming!';
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #ff2442;
+  font: 400 clamp(40px, 3.4vw, 64px)/1 'Bebas Neue', sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 5px 5px 0 #070a17;
+}
+:root:not(#_)[data-theme='neon'] .kr-telegraph.kr-on::after { animation: bx-flash-in 0.6s ease-out both, bx-flicker 0.24s steps(2) 0.6s infinite; }
+
+:root:not(#_)[data-theme='neon'] .pose-hint {
+  bottom: 24vh !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: #ffd166 !important;
+  font: 400 clamp(34px, 2.9vw, 56px)/1 'Bebas Neue', sans-serif !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 5px 5px 0 #070a17;
+  animation: bx-flicker 0.5s steps(2) infinite;
+}
+:root:not(#_)[data-theme='neon'] body[data-state='tutorial'] .pose-hint { bottom: 34vh !important; }
+
+:root:not(#_)[data-theme='neon'] .kr-hud-banner span {
+  background: none;
+  box-shadow: none;
+  color: #ff2e88;
+  text-shadow: 6px 6px 0 #070a17;
+  animation: bx-flash-in 0.9s ease-out both;
+}
+:root:not(#_)[data-theme='neon'] .kr-hud-banner span.kr-good { background: none; color: #22e5ff; }
+
+:root:not(#_)[data-theme='neon'] .kr-calib-warn {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: #ff2e88;
+  font: 400 clamp(34px, 3vw, 56px)/1 'Bebas Neue', sans-serif;
+  text-shadow: 5px 5px 0 #070a17;
+  transform: translateX(-50%);
+  animation: bx-flash-in 0.6s ease-out both, bx-flicker 0.5s steps(2) 0.6s infinite;
+}
+:root:not(#_)[data-theme='neon'] .kr-calib-warn > * { transform: none; }
+:root:not(#_)[data-theme='neon'] .kr-calib2[data-warning='too_dark'] .kr-calib-warn { background: none; box-shadow: none; color: #ffd166; }
