@@ -7,7 +7,7 @@ import type { Landmark as RawLandmark, NormalizedLandmark, PoseLandmarker } from
 import { StartupError } from './types.ts'
 import type { Joint, PoseFrame, StartupErrorKind } from './types.ts'
 import { LANDMARKS, STRIDE } from './workerProtocol.ts'
-import { createFrameClock } from './frameClock.ts'
+import { createFrameClock, createMediaPipeClock } from './frameClock.ts'
 import type { FrameMeta } from './frameClock.ts'
 import type { TrackerAttempt, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
 
@@ -394,11 +394,13 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
 
   /** Frames are stamped with the camera's capture time, so wrist speeds do not jitter with load. */
   const clock = createFrameClock()
+  /** Whole-ms, strictly increasing timestamps for detectForVideo on the main thread (FrameClock t is kept for game logic). */
+  const mpClock = createMediaPipeClock()
 
   const detectOnMain = (landmarker: PoseLandmarker, t: number): void => {
     const now = performance.now()
     try {
-      const result = landmarker.detectForVideo(video, t)
+      const result = landmarker.detectForVideo(video, mpClock.next(t))
       noteInference(performance.now() - now)
       const image = result.landmarks[0]
       const world = result.worldLandmarks[0]
