@@ -359,7 +359,18 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
   // Hosted mode: serve the built front end (../dist) from the same origin as the API and relay.
   const staticDir = process.env.STATIC_DIR?.trim();
   if (staticDir) {
-    app.use(express.static(path.resolve(staticDir), { maxAge: '1h', index: 'index.html' }));
+    // index.html must never be cached (it names the hashed chunks of the current deploy);
+    // hashed files under /assets never change, so cache them for a year.
+    app.use(
+      express.static(path.resolve(staticDir), {
+        index: 'index.html',
+        setHeaders(res, filePath) {
+          if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+          else if (/[\\/]assets[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          else res.setHeader('Cache-Control', 'public, max-age=3600');
+        },
+      }),
+    );
   }
 
   app.use(notFoundHandler);
