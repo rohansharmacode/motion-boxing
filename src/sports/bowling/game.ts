@@ -1,6 +1,6 @@
-// Neon Lanes bowling: pure rules (3-frame scoring) and a small 2D lane physics step. No DOM, no Three.js.
+// Neon Lanes bowling: pure rules (5-frame arcade scoring) and a small 2D lane physics step. No DOM, no Three.js.
 
-export const FRAMES = 3
+export const FRAMES = 5
 export const LANE_HALF = 0.53
 export const GUTTER_HALF = 0.72
 export const HEAD_PIN_Z = -18
