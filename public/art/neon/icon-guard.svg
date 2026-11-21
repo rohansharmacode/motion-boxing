@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Guard shield HUD icon">
+  <defs>
+    <linearGradient id="ig-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22E5FF" />
+      <stop offset="100%" stop-color="#FF2E88" />
+    </linearGradient>
+    <filter id="ig-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Faceted Synthwave Energy Shield (Transparent Background) -->
+  <g filter="url(#ig-glow)">
+    <path
+      d="M64,12 L108,28 L104,70 C101,92 84,108 64,116 C44,108 27,92 24,70 L20,28 Z"
+      fill="#080C1C"
+      fill-opacity="0.92"
+      stroke="url(#ig-rim)"
+      stroke-width="6.5"
+      stroke-linejoin="round"
+    />
+    <!-- Inner Shield Facet -->
+    <path
+      d="M64,24 L96,36 L93,68 C91,84 78,96 64,103 C50,96 37,84 35,68 L32,36 Z"
+      fill="#22E5FF"
+      fill-opacity="0.14"
+      stroke="#22E5FF"
+      stroke-opacity="0.6"
+      stroke-width="2"
+      stroke-linejoin="round"
+    />
+    <!-- Kinetic Guard Chevrons -->
+    <polyline points="44,58 64,42 84,58" fill="none" stroke="#22E5FF" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" />
+    <polyline points="48,78 64,64 80,78" fill="none" stroke="#FF2E88" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+    <polyline points="44,58 64,42 84,58" fill="none" stroke="#F2F7FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

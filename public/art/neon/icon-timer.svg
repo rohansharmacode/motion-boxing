@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Round timer HUD icon">
+  <defs>
+    <linearGradient id="it-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22E5FF" />
+      <stop offset="100%" stop-color="#FF2E88" />
+    </linearGradient>
+    <filter id="it-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#it-glow)">
+    <!-- Top Crown & Side Pushers -->
+    <rect x="52" y="10" width="24" height="9" rx="4" fill="#22E5FF" />
+    <line x1="64" y1="19" x2="64" y2="28" stroke="#22E5FF" stroke-width="5" />
+    <line x1="94" y1="26" x2="104" y2="36" stroke="#FF2E88" stroke-width="6" stroke-linecap="round" />
+
+    <!-- Outer Stopwatch Chassis -->
+    <circle cx="64" cy="70" r="44" fill="#080C1C" fill-opacity="0.92" stroke="url(#it-ring)" stroke-width="6" />
+
+    <!-- Active Countdown Sweep Arc (Cyan) + Final 10s Urgency Arc (Hot Pink) -->
+    <path d="M64,36 A34,34 0 1,1 32,82" fill="none" stroke="#22E5FF" stroke-width="4.5" stroke-linecap="round" />
+    <path d="M32,82 A34,34 0 0,1 64,36" fill="none" stroke="#FF2E88" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="7 6" />
+
+    <!-- Cardinal Dial Ticks -->
+    <g stroke="#F2F7FF" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round">
+      <line x1="64" y1="32" x2="64" y2="39" />
+      <line x1="64" y1="101" x2="64" y2="108" />
+      <line x1="26" y1="70" x2="33" y2="70" />
+      <line x1="95" y1="70" x2="102" y2="70" />
+    </g>
+
+    <!-- Sweeping Hand & Hub -->
+    <line x1="64" y1="70" x2="64" y2="46" stroke="#22E5FF" stroke-width="5.5" stroke-linecap="round" />
+    <line x1="64" y1="70" x2="84" y2="58" stroke="#FF2E88" stroke-width="5.5" stroke-linecap="round" />
+    <circle cx="64" cy="70" r="6.5" fill="#F2F7FF" stroke="#22E5FF" stroke-width="2.5" />
+  </g>
+</svg>
