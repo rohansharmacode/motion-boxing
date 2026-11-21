@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img" aria-label="Kinetic Ring 1920x1080 judges pitch slide background">
+  <defs>
+    <linearGradient id="sl-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#060812" />
+      <stop offset="55%" stop-color="#0B1024" />
+      <stop offset="100%" stop-color="#130D24" />
+    </linearGradient>
+    <radialGradient id="sl-glow-tl" cx="12%" cy="14%" r="42%">
+      <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#060812" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="sl-glow-br" cx="88%" cy="84%" r="44%">
+      <stop offset="0%" stop-color="#FF2A85" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#060812" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="sl-bar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="50%" stop-color="#C8FF00" />
+      <stop offset="100%" stop-color="#FF2A85" />
+    </linearGradient>
+    <pattern id="sl-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#00F0FF" stroke-opacity="0.045" stroke-width="1" />
+    </pattern>
+  </defs>
+
+  <!-- Clean High-Contrast Dark Canvas (Safe Zone for Slide Typography) -->
+  <rect width="1920" height="1080" fill="url(#sl-bg)" />
+  <rect width="1920" height="1080" fill="url(#sl-grid)" />
+  <rect width="1920" height="1080" fill="url(#sl-glow-tl)" />
+  <rect width="1920" height="1080" fill="url(#sl-glow-br)" />
+
+  <!-- Subtle Perspective Kinetic Floor Along Bottom Margin -->
+  <g stroke="#00F0FF" stroke-opacity="0.1" stroke-width="1.5">
+    <line x1="0" y1="900" x2="1920" y2="900" />
+    <line x1="0" y1="948" x2="1920" y2="948" />
+    <line x1="0" y1="1008" x2="1920" y2="1008" />
+    <line x1="360" y1="880" x2="80" y2="1080" />
+    <line x1="660" y1="880" x2="480" y2="1080" />
+    <line x1="960" y1="880" x2="960" y2="1080" />
+    <line x1="1260" y1="880" x2="1440" y2="1080" />
+    <line x1="1560" y1="880" x2="1840" y2="1080" />
+  </g>
+
+  <!-- Faint Right-Margin Octagonal Kinetic Ring Watermark -->
+  <g transform="translate(1520, 260)" opacity="0.14" fill="none">
+    <polygon points="160,0 380,0 540,160 540,380 380,540 160,540 0,380 0,160" stroke="#00F0FF" stroke-width="6" />
+    <polygon points="186,58 354,58 482,186 482,354 354,482 186,482 58,354 58,186" stroke="#FF2A85" stroke-width="3" stroke-dasharray="22 14" />
+    <polygon points="120,180 245,270 120,360 165,270" fill="#00F0FF" fill-opacity="0.35" />
+    <polygon points="420,180 295,270 420,360 375,270" fill="#FF2A85" fill-opacity="0.35" />
+  </g>
+
+  <!-- Framing Lab Corner Brackets -->
+  <g stroke="#00F0FF" stroke-opacity="0.45" stroke-width="3" fill="none">
+    <path d="M 48 112 L 48 48 L 112 48" />
+    <path d="M 1872 112 L 1872 48 L 1808 48" />
+    <path d="M 48 968 L 48 1032 L 112 1032" />
+    <path d="M 1872 968 L 1872 1032 L 1808 1032" />
+  </g>
+
+  <!-- Top Accent Rule -->
+  <rect x="76" y="48" width="1768" height="3" fill="url(#sl-bar)" fill-opacity="0.7" />
+
+  <!-- Subtle Header Brand Pill (Top-Left) -->
+  <g transform="translate(76, 72)">
+    <polygon points="11,1 25,1 35,11 35,25 25,35 11,35 1,25 1,11" fill="#0C1022" stroke="#00F0FF" stroke-width="2.2" />
+    <polygon points="9,11 17,18 9,25 12,18" fill="#00F0FF" />
+    <polygon points="27,11 19,18 27,25 24,18" fill="#FF2A85" />
+    <text x="48" y="25" fill="#F4F7FF" font-family="'Chakra Petch', sans-serif" font-size="22" font-weight="700" font-style="italic" letter-spacing="1.5">KINETIC <tspan fill="#C8FF00">RING</tspan></text>
+    <text x="234" y="24" fill="#7987AD" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="2.2">// RETRO REMIX 2026</text>
+  </g>
+
+  <!-- Subtle Footer Metadata Bar -->
+  <g transform="translate(76, 1002)" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700" letter-spacing="2">
+    <text x="0" y="18" fill="#7987AD">NO CONTROLLERS · WEBCAM ONLY · ON-DEVICE POSE TRACKING</text>
+    <text x="1768" y="18" text-anchor="end" fill="#00F0FF">KCL FIRSTYEARHACK · POWERED BY SNOWFLAKE CORTEX AI</text>
+  </g>
+</svg>
