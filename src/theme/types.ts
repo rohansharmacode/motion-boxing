@@ -4,4 +4,4 @@ export type ThemeId = 'bright' | 'neon'
 export const THEME_IDS: readonly ThemeId[] = ['bright', 'neon']
 
 /** Default theme when nothing is chosen. */
-export const DEFAULT_THEME: ThemeId = 'bright'
+export const DEFAULT_THEME: ThemeId = 'neon'
