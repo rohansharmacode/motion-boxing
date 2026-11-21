@@ -882,3 +882,31 @@
 @media (prefers-reduced-motion: reduce) {
   .shell:not(.shell--channels) .shell-tile-circuit::before { animation: none; display: none; }
 }
+
+/* Small tiles: the icon sits beside the title (never above it), so short tiles at
+   1366x768 can't push the title up under the icon. */
+.shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  column-gap: clamp(10px, 4cqw, 18px);
+  row-gap: 4px;
+}
+.shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) .shell-tile-icon {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  width: clamp(40px, min(28cqh, 16cqw), 72px);
+}
+.shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) .shell-tile-body { grid-column: 2; grid-row: 1; }
+.shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) .shell-tile-how { grid-column: 1 / -1; }
+.shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) .shell-tile-best { grid-column: 2; grid-row: 2; }
+/* Keep the tagline clear of the START prompt in the bottom-right corner (wraps instead). */
+.shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) .shell-tile-body { padding-right: clamp(84px, 24cqw, 150px); }
+/* Tiles with no icon (1v1, leaderboard): text takes the full width. */
+.shell:not(.shell--channels) :is(.shell-tile--versus, .shell-tile--leaderboard) :is(.shell-tile-body, .shell-tile-best) { grid-column: 1 / -1; }
+/* Short tiles (laptop screens): START moves to the top-right corner so the tagline and
+   record line get the full bottom row. */
+@media (max-width: 1600px), (max-height: 900px) {
+  .shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured)[data-ready='true']::after { top: 14px; bottom: auto; right: 14px; }
+  .shell:not(.shell--channels) .shell-tile:not(.shell-tile--featured) .shell-tile-body { padding-right: 0; }
+}
