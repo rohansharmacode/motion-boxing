@@ -1,0 +1,150 @@
+<!doctype html>
+<!--
+  DEV ONLY: visual preview of the Aero Bow scene (src/sports/archery/scene.ts).
+  Served by Vite at /tests/archery/scene-preview.html. Not part of the build.
+  Modes: ?shot (arrows stuck, reticle), ?wind (wind 2.5, drifting target), ?follow (follow cam mid-flight),
+  ?draw (bow at full draw), ?miss (ground/backstop misses),
+  ?impact (bullseye with the follow cam settling on the target). Add &hand=right for a right-hand bow.
+  window.__ready turns true once the frame is worth a screenshot.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Aero Bow scene preview (dev)</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0c1124; overflow: hidden; }
+      canvas { display: block; width: 100vw; height: 100vh; }
+      #tag { position: fixed; left: 10px; top: 8px; font: 12px monospace; color: #b6c2e2; opacity: 0.6; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="tag"></div>
+    <script type="module">
+      import { createArcheryScene } from '/src/sports/archery/scene.ts'
+      import { LAUNCH_POS, TARGET_CENTER, TARGET_Z } from '/src/sports/archery/types.ts'
+
+      const q = new URLSearchParams(location.search)
+      const mode = ['shot', 'wind', 'follow', 'draw', 'miss', 'impact'].find((m) => q.has(m)) ?? 'idle'
+      const hand = q.get('hand') === 'right' ? 'right' : 'left'
+      document.getElementById('tag').textContent = `scene-preview: ${mode} (${hand})`
+
+      const scene = createArcheryScene()
+      document.body.appendChild(scene.canvas)
+      const fit = () => scene.resize(window.innerWidth, window.innerHeight)
+      window.addEventListener('resize', fit)
+      fit()
+      window.__scene = scene
+      window.__ready = false
+
+      const stickAt = (x, y, score) => {
+        const p = { x: TARGET_CENTER.x + x, y: TARGET_CENTER.y + y, z: TARGET_Z }
+        scene.stickArrow(p, { x: -x * 0.02, y: -0.06, z: -1 }, score)
+      }
+
+      // simple ballistic arrow from LAUNCH_POS toward a target-plane point
+      const G = 9.81
+      const flight = { on: false, p: { ...LAUNCH_POS }, v: { x: 0, y: 0, z: 0 } }
+      const launch = (aimX, aimY, speed, wind) => {
+        const dz = TARGET_Z - LAUNCH_POS.z
+        const T = Math.abs(dz) / speed
+        flight.p = { ...LAUNCH_POS }
+        flight.v = {
+          x: (aimX - LAUNCH_POS.x) / T - 0.5 * wind * T,
+          y: (aimY - LAUNCH_POS.y + 0.5 * G * T * T) / T,
+          z: -speed,
+        }
+        flight.wind = wind
+        flight.on = true
+      }
+      const stepFlight = (dt) => {
+        if (!flight.on) return
+        flight.v.y -= G * dt
+        flight.v.x += (flight.wind || 0) * dt
+        flight.p.x += flight.v.x * dt
+        flight.p.y += flight.v.y * dt
+        flight.p.z += flight.v.z * dt
+        scene.setArrow(flight.p, flight.v, true)
+      }
+
+      let t = 0
+      let frozen = false
+      if (mode === 'idle') {
+        scene.setBow(0, hand, true)
+      } else if (mode === 'shot') {
+        stickAt(0.02, 0.03, 10)
+        stickAt(-0.17, 0.1, 8)
+        stickAt(0.25, -0.2, 7)
+        stickAt(0.1, 0.12, 9)
+        scene.setBow(0.25, hand, true)
+        scene.setReticle({ x: 0.08, y: TARGET_CENTER.y + 0.05 }, 0.75)
+      } else if (mode === 'wind') {
+        scene.setWind(2.5)
+        stickAt(0.12, -0.08, 9)
+        scene.setBow(0.6, hand, true)
+        scene.setReticle({ x: -0.45, y: TARGET_CENTER.y + 0.1 }, 0.25)
+      } else if (mode === 'follow') {
+        stickAt(-0.17, 0.1, 8)
+        stickAt(0.1, 0.12, 9)
+        scene.setBow(0, hand, false)
+        launch(0.05, TARGET_CENTER.y + 0.02, 38, 0)
+        scene.setFollowCam(true)
+      } else if (mode === 'impact') {
+        stickAt(-0.17, 0.1, 8)
+        scene.setBow(0, hand, false)
+        launch(0.01, TARGET_CENTER.y + 0.02, 40, 0)
+        scene.setFollowCam(true)
+      } else if (mode === 'draw') {
+        scene.setBow(1, hand, true)
+        scene.setReticle({ x: 0.03, y: TARGET_CENTER.y + 0.02 }, 0.95)
+      } else if (mode === 'miss') {
+        scene.missArrow({ x: 0.6, y: 0, z: -22 }, { x: 0, y: -0.3, z: -1 })
+        scene.missArrow({ x: -1.8, y: 1.9, z: TARGET_Z - 2.6 }, { x: -0.03, y: -0.05, z: -1 })
+        scene.setBow(0, hand, true)
+      }
+
+      let last = performance.now()
+      const loop = (now) => {
+        const dtMs = Math.min(50, now - last)
+        last = now
+        if (!frozen) {
+          t += dtMs
+          if (mode === 'wind') scene.setTarget({ x: Math.sin(t / 900) * 0.7, y: TARGET_CENTER.y + Math.sin(t / 1300) * 0.1 })
+          if (mode === 'impact') {
+            if (flight.on) {
+              stepFlight((dtMs / 1000) * 0.35)
+              if (flight.p.z <= TARGET_Z) {
+                flight.on = false
+                scene.setArrow(flight.p, flight.v, false)
+                scene.stickArrow({ ...flight.p, z: TARGET_Z }, flight.v, 10)
+                window.__hitAt = t
+              }
+            } else if (t - window.__hitAt > 700) {
+              window.__ready = true
+            }
+          }
+          if (mode === 'follow') {
+            // slow-mo like the bullseye replay
+            stepFlight((dtMs / 1000) * 0.35)
+            if (mode === 'follow' && flight.p.z < -15) {
+              frozen = true
+              window.__ready = true
+            }
+          }
+          if (mode === 'shot' && !window.__flashed && t > 1150) {
+            // fresh bullseye so the screenshot catches the flash
+            window.__flashed = true
+            stickAt(-0.04, -0.03, 10)
+          }
+          if (mode === 'draw') scene.setBow(Math.min(1, 0.6 + t / 1500), hand, true)
+          scene.update(mode === 'follow' || (mode === 'impact' && flight.on) ? dtMs * 0.35 : dtMs)
+          if (mode !== 'follow' && mode !== 'impact' && t > 1400) window.__ready = true
+        }
+        scene.render()
+        requestAnimationFrame(loop)
+      }
+      requestAnimationFrame(loop)
+    </script>
+  </body>
+</html>
