@@ -330,7 +330,7 @@ export function mountShell(options: ShellOptions): Shell {
       span('shell-tile-scrim'),
       span('shell-tile-glow'),
       span('shell-tile-shine'),
-      span('shell-tile-badge', ready ? 'Play' : 'Coming soon'),
+      ...(ready ? [] : [span('shell-tile-badge', 'Coming soon')]),
       icon,
       body,
       how,
