@@ -143,7 +143,8 @@ export class MemoryRepo implements Repo {
   }
 
   /** Mirrors V_LEADERBOARD: best single-session score per player, top N. */
-  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
+  async leaderboard(limit: number, sport: string = 'boxing'): Promise<LeaderboardRow[]> {
+    if (sport.toLowerCase() !== 'boxing') return this.sportLeaderboard(limit, sport.toLowerCase());
     const perSession = new Map<string, { player_id: string; score: number }>();
     const perPlayer = new Map<string, { fastest: number | null; bestRt: number | null }>();
     for (const e of this.events) {
@@ -178,6 +179,48 @@ export class MemoryRepo implements Repo {
         (a.player_id < b.player_id ? -1 : 1),
     );
     return rows.slice(0, limit).map((r, i) => ({ rank: i + 1, ...r }));
+  }
+
+  /** Mirrors V_LEADERBOARD_BY_SPORT (sql/multisport.sql) for one non-boxing sport. */
+  private sportLeaderboard(limit: number, sport: string): LeaderboardRow[] {
+    const perSession = new Map<string, { player_id: string; score: number }>();
+    const perPlayer = new Map<string, { fastest: number | null; bestRt: number | null }>();
+    for (const e of this.events) {
+      if (String(e.sport ?? 'boxing').toLowerCase() !== sport || !e.player_id) continue;
+      const s = perSession.get(e.session_id) ?? { player_id: e.player_id, score: 0 };
+      s.score += e.points ?? 0;
+      perSession.set(e.session_id, s);
+      const p = perPlayer.get(e.player_id) ?? { fastest: null, bestRt: null };
+      if (typeof e.speed_mps === 'number' && e.speed_mps > 0) p.fastest = p.fastest === null ? e.speed_mps : Math.max(p.fastest, e.speed_mps);
+      if (typeof e.reaction_ms === 'number' && e.reaction_ms > 0) p.bestRt = p.bestRt === null ? e.reaction_ms : Math.min(p.bestRt, e.reaction_ms);
+      perPlayer.set(e.player_id, p);
+    }
+    const best = new Map<string, number>();
+    for (const s of perSession.values()) best.set(s.player_id, Math.max(best.get(s.player_id) ?? -Infinity, s.score));
+    const rows = [...best.entries()].map(([player_id, score]) => ({
+      player_id,
+      name: this.players.get(player_id)?.name ?? 'Unknown',
+      score,
+      fastest_punch: round(perPlayer.get(player_id)?.fastest ?? null, 2),
+      best_reaction_ms: round(perPlayer.get(player_id)?.bestRt ?? null, 1),
+    }));
+    const desc = (a: number | null, b: number | null) => (b ?? -Infinity) - (a ?? -Infinity);
+    const asc = (a: number | null, b: number | null) => (a ?? Infinity) - (b ?? Infinity);
+    rows.sort(
+      (a, b) =>
+        desc(a.score, b.score) ||
+        desc(a.fastest_punch, b.fastest_punch) ||
+        asc(a.best_reaction_ms, b.best_reaction_ms) ||
+        (a.player_id < b.player_id ? -1 : 1),
+    );
+    return rows.slice(0, limit).map((r, i) => ({ rank: i + 1, ...r }));
+  }
+
+  async sessionEvents(sessionId: string): Promise<MotionEvent[]> {
+    return this.events
+      .filter((e) => e.session_id === sessionId)
+      .sort((a, b) => a.event_ts.localeCompare(b.event_ts) || (a.event_id < b.event_id ? -1 : 1))
+      .map((e) => structuredClone(e));
   }
 
   async playerSessions(playerId: string, limit: number): Promise<SessionSummary[]> {
@@ -289,7 +332,9 @@ export class MemoryRepo implements Repo {
   }
 
   async highlights(limit: number): Promise<HighlightsFeed> {
-    const all = deriveHighlights(this.events, (pid) => this.players.get(pid)?.name ?? 'Unknown');
+    // T_HIGHLIGHTS only reads boxing events (pipelines.sql); goalkeeper/archery rows must not count.
+    const boxing = this.events.filter((e) => String(e.sport ?? 'boxing').toLowerCase() === 'boxing');
+    const all = deriveHighlights(boxing, (pid) => this.players.get(pid)?.name ?? 'Unknown');
     return { available: true, highlights: all.slice(0, Math.min(50, Math.max(1, limit))) };
   }
 

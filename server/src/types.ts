@@ -3,6 +3,16 @@
 export const SPORT = 'boxing' as const;
 export type Sport = typeof SPORT;
 
+/** Every sport MOTION_EVENTS / SESSIONS store (lower case). Boxing stays the default everywhere. */
+export const SPORTS = ['boxing', 'goalkeeper', 'archery'] as const;
+export type SportName = (typeof SPORTS)[number];
+/** Sports other than boxing; their rows never reach the boxing analytics (all filter sport = 'boxing'). */
+export const MULTI_SPORTS = ['goalkeeper', 'archery'] as const;
+export type MultiSport = (typeof MULTI_SPORTS)[number];
+/** MOTION_EVENTS.event_type per non-boxing sport (sql/PLUS_CONTRACT.md "Multi-sport"). */
+export const SPORT_EVENT_TYPES = { goalkeeper: ['save', 'goal'], archery: ['arrow'] } as const satisfies Record<MultiSport, readonly string[]>;
+export type MultiSportEventType = (typeof SPORT_EVENT_TYPES)[MultiSport][number];
+
 export const EVENT_TYPES = ['jab', 'cross', 'hook', 'uppercut', 'block'] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 export const PUNCH_TYPES = ['jab', 'cross', 'hook', 'uppercut'] as const;
@@ -21,8 +31,9 @@ export interface MotionEvent {
   sport: string;
   /** ISO-8601 UTC, e.g. 2026-11-21T12:00:00.123Z (stored as TIMESTAMP_NTZ in UTC). */
   event_ts: string;
-  event_type: StoredEventType;
-  hand: Hand;
+  event_type: StoredEventType | MultiSportEventType;
+  /** Always 'L' | 'R' for boxing; NULL when a goalkeeper/archery event has no hand. */
+  hand: Hand | null;
   speed_mps: number;
   accuracy: number | null;
   reaction_ms: number | null;
@@ -82,6 +93,10 @@ export interface CoachMeta {
   /** True when the card came from AI_COMPLETE structured output. */
   structured: boolean;
   headline?: string | null;
+  /** Set for goalkeeper/archery cards only (boxing cards leave it out). */
+  sport?: string;
+  /** Front-end badge description for goalkeeper/archery cards. */
+  badge_note?: string;
 }
 
 /** What is stored in SESSIONS.ai_coach_json (the card plus provenance). */
@@ -93,6 +108,8 @@ export interface StoredCoach extends CoachCard {
   grounding?: CoachGrounding;
   structured?: boolean;
   headline?: string | null;
+  sport?: string;
+  badge_note?: string;
   /** What the front end reported at round end (final_score, result, avg_inference_fps, stats). */
   client?: Record<string, unknown>;
 }

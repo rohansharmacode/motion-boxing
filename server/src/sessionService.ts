@@ -4,6 +4,8 @@ import { HttpError, db } from './errors';
 import type { EventQueue } from './eventQueue';
 import type { Logger } from './logger';
 import { sessionMetrics } from './metrics';
+import { isMultiSport, sportSummary } from './multisport';
+import { generateSportCoachCard, sportFallbackCard } from './sportCoach';
 import { computePercentiles } from './percentile';
 import type { Repo } from './repo/types';
 import type { Benchmark, CoachCard, CoachMeta, Percentiles, SessionEndResult, SessionRecord, StoredCoach } from './types';
@@ -45,6 +47,8 @@ function storedMeta(c: StoredCoach): CoachMeta | undefined {
     grounding: c.grounding,
     structured: c.structured === true,
     ...(c.headline ? { headline: c.headline } : {}),
+    ...(c.sport ? { sport: c.sport } : {}),
+    ...(c.badge_note ? { badge_note: c.badge_note } : {}),
   };
 }
 
@@ -123,25 +127,36 @@ export class SessionService {
 
     const agg = await db(repo.aggregateSession(sessionId));
 
-    let percentiles: Partial<Percentiles> = {};
-    try {
-      percentiles = computePercentiles(sessionMetrics(agg), await this.d.benchmarks.get(session.sport || 'boxing'));
-    } catch (err) {
-      log.warn('session end: percentiles unavailable', { error: errorMessage(err) });
-    }
+    // Goalkeeper / archery: their own prompt and fallback card (src/sportCoach.ts); boxing unchanged.
+    const sport = String(session.sport ?? '').toLowerCase();
+    let full: Promise<CoachResult>;
+    let provisionalCard: CoachCard;
+    if (isMultiSport(sport)) {
+      const summary = sportSummary(sport, await db(repo.sessionEvents(sessionId)));
+      full = generateSportCoachCard({ cortex: this.d.cortex, timeoutMs: this.d.coachTimeoutMs, log }, summary);
+      provisionalCard = sportFallbackCard(summary);
+    } else {
+      let percentiles: Partial<Percentiles> = {};
+      try {
+        percentiles = computePercentiles(sessionMetrics(agg), await this.d.benchmarks.get(session.sport || 'boxing'));
+      } catch (err) {
+        log.warn('session end: percentiles unavailable', { error: errorMessage(err) });
+      }
 
-    const full = generateCoachCard(
-      {
-        cortex: this.d.cortex,
-        timeoutMs: this.d.coachTimeoutMs,
-        log,
-        structured: this.d.coachStructured !== false,
-        search: this.d.coachGrounding === false ? undefined : (q, o) => repo.searchDrills(q, o),
-        searchTimeoutMs: this.d.coachSearchTimeoutMs,
-      },
-      agg,
-      percentiles,
-    );
+      full = generateCoachCard(
+        {
+          cortex: this.d.cortex,
+          timeoutMs: this.d.coachTimeoutMs,
+          log,
+          structured: this.d.coachStructured !== false,
+          search: this.d.coachGrounding === false ? undefined : (q, o) => repo.searchDrills(q, o),
+          searchTimeoutMs: this.d.coachSearchTimeoutMs,
+        },
+        agg,
+        percentiles,
+      );
+      provisionalCard = fallbackCard(agg.stats);
+    }
     const fastMs = this.d.coachFastMs ?? 0;
     if (fastMs > 0 && fastMs < this.d.coachTimeoutMs) {
       const early = await raceTimeout(full, fastMs, 'slow' as const);
@@ -150,7 +165,7 @@ export class SessionService {
         const provisional: SessionEndResult = {
           session_id: sessionId,
           stats: agg.stats,
-          coach: publicCard(fallbackCard(agg.stats)),
+          coach: publicCard(provisionalCard),
           fallback: true,
           warming_up: true,
         };
@@ -180,7 +195,14 @@ export class SessionService {
       model: fallback ? 'fallback' : this.d.cortex.model,
       generated_at: new Date().toISOString(),
       ...(meta
-        ? { focus: meta.focus, grounding: meta.grounding, structured: meta.structured, ...(meta.headline ? { headline: meta.headline } : {}) }
+        ? {
+            focus: meta.focus,
+            grounding: meta.grounding,
+            structured: meta.structured,
+            ...(meta.headline ? { headline: meta.headline } : {}),
+            ...(meta.sport ? { sport: meta.sport } : {}),
+            ...(meta.badge_note ? { badge_note: meta.badge_note } : {}),
+          }
         : {}),
       ...(client ? { client } : {}),
     };
