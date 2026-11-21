@@ -23,9 +23,9 @@ const GLOVE_VISUAL = 0.2
 const TORSO_RADIUS = 0.28
 
 // ---------- palette ----------
-const BG = 0x0b0c0f
-const CYAN = 0x22e6ff
-const MAGENTA = 0xff3fd0
+const BG = 0x070a17
+const CYAN = 0x22e5ff
+const MAGENTA = 0xff2e88
 const AMBER = 0xffb23a
 const SAVE_GREEN = 0x3dffb0
 const RED = 0xff2a55
