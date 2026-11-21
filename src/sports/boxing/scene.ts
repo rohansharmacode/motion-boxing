@@ -91,6 +91,8 @@ const CAM_OMEGA = 15
 const USE_GLTF_ROBOT = false
 /** Fighters are drawn bigger than the hit layout so they fill the frame. */
 const FIGHTER_SCALE = 1.2
+/** A hand out of view keeps its last position this long before the glove returns to the guard, ms. */
+const HAND_HOLD_MS = 250
 const PLAYER_TWIN = { x: -0.5, z: 0.35 } as const
 /** Shoulder widths to metres for the mirrored body lean, and its limits. */
 const BODY_LEAN_M = 0.4
@@ -208,6 +210,8 @@ interface Glove {
   parts: GloveParts
   joints: { shoulder: number; elbow: number; wrist: number }
   tracked: boolean
+  /** performance.now() when the hand went out of view; null while tracked. */
+  lostAt: number | null
   /** Rig-local target from the body, valid while tracked. */
   track: Vector3
   /** Spring state and the final displayed position (spring plus punch animation). */
@@ -349,6 +353,7 @@ function makeGlove(hand: Hand, robot?: RobotLook): Glove {
       ? { shoulder: LM.L_SHOULDER, elbow: LM.L_ELBOW, wrist: LM.L_WRIST }
       : { shoulder: LM.R_SHOULDER, elbow: LM.R_ELBOW, wrist: LM.R_WRIST },
     tracked: false,
+    lostAt: null,
     track: new Vector3(),
     pos: new Vector3((left ? -1 : 1) * (GUARD_REST.x + VIEW_OFFSET.x), GUARD_REST.y + VIEW_OFFSET.y, GUARD_REST.z),
     vel: new Vector3(),
@@ -603,7 +608,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
   function trackGlove(g: Glove, body: BodyFrame): boolean {
     const wrist = body.body[g.joints.wrist]
-    if (!wrist || wrist.visibility < 0.5) return false
+    if (!wrist || wrist.visibility < 0.3) return false // body.ts zeroes out-of-frame joints
     const ls = body.body[LM.L_SHOULDER]
     const rs = body.body[LM.R_SHOULDER]
     const cx = ls && rs ? (ls.x + rs.x) / 2 : 0
@@ -1236,7 +1241,17 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     },
 
     setBody(body) {
-      for (const g of gloves) g.tracked = body !== null && trackGlove(g, body)
+      for (const g of gloves) {
+        // A hand that leaves the frame holds its last spot for a moment, then eases back to the guard.
+        if (body !== null && trackGlove(g, body)) {
+          g.tracked = true
+          g.lostAt = null
+        } else {
+          const now = performance.now()
+          g.lostAt ??= now
+          if (now - g.lostAt > HAND_HOLD_MS) g.tracked = false
+        }
+      }
       const ls = body?.body[LM.L_SHOULDER]
       const rs = body?.body[LM.R_SHOULDER]
       if (!body || !ls || !rs || ls.visibility < 0.5 || rs.visibility < 0.5) {
