@@ -19,7 +19,10 @@ import './styles.css';
 import './components.css';
 import './kinetic.css';
 
-const DRONE_NAME = 'HEX-7';
+/** Shown under the timer in keyboard mode, so nobody has to guess the keys. */
+const KEYBOARD_HINT = 'Keyboard · J jab · K cross · H hook · U uppercut · Shift guard · ← → dodge';
+
+const DRONE_NAME = new URLSearchParams(location.search).get('style') === 'mii' ? 'CHAMP' : 'HEX-7';
 const ROUND_MS = 60_000;
 const NAME_KEY = 'kr.lastName';
 
@@ -56,6 +59,8 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
   let hud: BoxingHUD | null = null;
   let post: PostMatchScreen | null = null;
   let keyboardMode = false;
+  /** Online 1v1: the friend's name replaces the drone's on the health bar. */
+  let opponentName: string | null = null;
   let combo = 0;
   let guardOn = false;
   let guardSamples = 0;
@@ -157,7 +162,13 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
         void c.complete();
         return;
       }
-      calib.setWarning(status === 'no-pose' ? 'no_person' : status === 'shoulders-hidden' || status === 'too-close' ? 'too_close' : null);
+      calib.setWarning(
+        status === 'no-pose' ? 'no_person'
+        : status === 'too-close' ? 'too_close'
+        : status === 'shoulders-hidden' ? 'shoulders_hidden'
+        : status === 'hands-hidden' ? 'hands_hidden'
+        : null,
+      );
       calib.setProgress(status === 'holding' ? progress : 0);
     },
 
@@ -174,10 +185,10 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       post?.destroy();
       post = null;
       hud?.destroy();
-      hud = new BoxingHUD(layer, { playerName: playerName || 'Player', opponentName: DRONE_NAME, roundMs: ROUND_MS });
+      hud = new BoxingHUD(layer, { playerName: playerName || 'Player', opponentName: opponentName ?? DRONE_NAME, roundMs: ROUND_MS });
       hud.element.classList.add('kr-big');
       hud.update({ playerHp: 100, opponentHp: 100, timeLeftMs: ROUND_MS, round: 1, combo: 0 });
-      hud.setMode(keyboardMode ? 'Keyboard mode' : null);
+      hud.setMode(keyboardMode ? KEYBOARD_HINT : null);
       combo = 0;
       guardSamples = 0;
       guardHits = 0;
@@ -227,7 +238,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
 
     setKeyboardMode(on) {
       keyboardMode = on;
-      hud?.setMode(on ? 'Keyboard mode' : null);
+      hud?.setMode(on ? KEYBOARD_HINT : null);
     },
 
     showRoundEnd(result: RoundResult, onAgain, onHome) {
@@ -275,6 +286,10 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
 
     setCoachCard(_card) {
       // No-op: the post-match screen fetches its coach card from the backend.
+    },
+
+    setOpponentName(name) {
+      opponentName = name;
     },
 
     setCameraActive(on) {

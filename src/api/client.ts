@@ -35,7 +35,10 @@ import type {
 
 export const MOTION_EVENT = 'motion-event';
 
-const API_URL = String(import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
+// VITE_API_URL=same-origin: the API is on the host that served the page (hosted build, see render.yaml).
+const RAW_API_URL = String(import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
+const API_URL =
+  RAW_API_URL === 'same-origin' ? (typeof location !== 'undefined' ? location.origin : '') : RAW_API_URL;
 export const USE_MOCK: boolean = !API_URL || import.meta.env.VITE_USE_MOCK === 'true';
 
 const FLUSH_MS = 2000;

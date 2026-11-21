@@ -1,99 +1,79 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SportId } from '../types';
-import { ArenaBackdrop, Button, Chip, LiveChip, cx } from '../components/ui';
-import { Logo } from '../components/art';
+import { Button, useInterval } from '../components/ui';
+import { ChannelArt } from '../components/ChannelArt';
 
 export interface StartScreenProps {
   defaultName?: string;
-  /** Shows the "Mock data: no API connected" footer chip. */
   mockData?: boolean;
   onStart: (name: string, sport: SportId) => void;
   onLeaderboard: () => void;
 }
 
-const SPORTS: { id: SportId; name: string; sub: string; enabled: boolean; icon: string }[] = [
-  { id: 'boxing', name: 'Boxing', sub: 'Jab, cross, hook, uppercut', enabled: true, icon: '🥊' },
-  { id: 'keeper', name: 'Reflex Keeper', sub: 'Goalkeeper reaction saves', enabled: false, icon: '🧤' },
-  { id: 'bow', name: 'Aero Bow', sub: 'Draw, aim, release', enabled: false, icon: '🎯' },
+type Channel = 'boxing' | 'keeper' | 'bow' | 'player' | 'disc';
+const channels: { id: Channel | 'leaderboard'; label: string; sub: string }[] = [
+  { id: 'disc', label: 'Disc Channel', sub: 'Kinetic Ring' },
+  { id: 'boxing', label: 'Boxing', sub: 'Kinetic Sports' },
+  { id: 'keeper', label: 'Reflex Keeper', sub: 'Kinetic Sports' },
+  { id: 'bow', label: 'Aero Bow', sub: 'Coming soon' },
+  { id: 'player', label: 'Mii Channel', sub: 'Your fighter' },
+  { id: 'leaderboard', label: 'Leaderboard', sub: 'Kinetic rankings' },
 ];
 
 export function StartScreen({ defaultName = '', mockData = true, onStart, onLeaderboard }: StartScreenProps) {
   const [name, setName] = useState(defaultName);
-  const [sport, setSport] = useState<SportId>('boxing');
-  const refs = useRef<(HTMLDivElement | null)[]>([]);
+  const [selected, setSelected] = useState<Channel | null>(null);
+  const [now, setNow] = useState(new Date());
+  const dialog = useRef<HTMLDialogElement>(null);
+  useInterval(() => setNow(new Date()), 1000);
+  useEffect(() => {
+    if (selected) dialog.current?.showModal();
+    else dialog.current?.close();
+  }, [selected]);
+  const activeChannel = channels.find((c) => c.id === selected);
+  const playable = selected === 'boxing' || selected === 'disc' || selected === 'keeper';
+  const upcoming = selected === 'bow';
 
-  const onRadioKey = (e: KeyboardEvent, i: number) => {
-    if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
-    e.preventDefault();
-    const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
-    const next = (i + dir + SPORTS.length) % SPORTS.length;
-    refs.current[next]?.focus();
-    if (SPORTS[next].enabled) setSport(SPORTS[next].id);
-  };
-
-  const start = () => onStart(name.trim() || 'PLAYER', sport);
-
+  const h = now.getHours(), h12 = h % 12 || 12, mm = String(now.getMinutes()).padStart(2, '0');
   return (
-    <ArenaBackdrop>
-      <form className="screen-in mx-auto flex h-full max-w-5xl flex-col items-center justify-center gap-8 px-8" onSubmit={(e) => { e.preventDefault(); start(); }}>
-        <div className="flex flex-col items-center gap-4 text-center">
-          <LiveChip label="LIVE · 2026" />
-          <Logo />
-          <p className="text-2xl text-white/90">No controller. Just you, a webcam and Snowflake.</p>
+    <main className="wii-menu">
+      <section className="wii-channel-area" aria-label="Game channels">
+        <div className="wii-channel-grid">
+          {channels.map((channel) => (
+            <div className="wii-slot" key={channel.id}>
+              <Button variant="wii" className={`wii-channel wii-channel-${channel.id}`} onClick={() => channel.id === 'leaderboard' ? onLeaderboard() : setSelected(channel.id)} aria-label={channel.label}>
+                <ChannelArt kind={channel.id} />
+              </Button>
+              <span className="wii-label" aria-hidden="true">{channel.label}</span>
+            </div>
+          ))}
+          {Array.from({ length: 6 }, (_, i) => <div className="wii-empty-channel" aria-hidden="true" key={i} />)}
         </div>
+      </section>
 
-        <label className="flex w-full max-w-md flex-col gap-2">
-          <span className="font-display text-sm uppercase tracking-widest text-muted">Fighter name</span>
-          <input
-            autoFocus
-            maxLength={20}
-            value={name}
-            onChange={(e) => setName(e.target.value.toUpperCase())}
-            placeholder="ENTER NAME"
-            className="skew-panel border-2 border-cyan/70 bg-navy-2/90 px-5 py-3 font-display text-2xl font-bold tracking-wider text-white placeholder:text-muted/70 focus:border-cyan focus:outline-none"
-          />
-        </label>
+      <footer className="wii-footer">
+        <svg className="wii-footer-shape" viewBox="0 0 1000 190" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="wiifoot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e9ebed" /><stop offset="1" stopColor="#d9dcdf" /></linearGradient></defs>
+          <path d="M0 10H170C250 10 260 104 340 104H660C740 104 750 10 830 10H1000V190H0Z" fill="url(#wiifoot)" />
+          <path d="M0 10H170C250 10 260 104 340 104H660C740 104 750 10 830 10H1000" fill="none" stroke="#29b6e9" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div className="wii-clock"><time dateTime={now.toISOString()}><b>{h12}<i>:</i>{mm}</b></time><small>{h < 12 ? 'AM' : 'PM'}</small></div>
+        <div className="wii-date">{now.toLocaleDateString('en-US', { weekday: 'short' })} {now.getMonth() + 1}/{now.getDate()}</div>
+        <Button variant="wii" className="wii-round-button wii-system-button" aria-label={`Mii profile: ${name.trim() || 'Guest'}`} title="Mii profile" onClick={() => setSelected('player')}>Wii</Button>
+        <div className="wii-sd" aria-hidden="true">SD</div>
+        <Button variant="wii" className="wii-round-button wii-mail-button" aria-label="Open leaderboard" title="Leaderboard" onClick={onLeaderboard}><svg viewBox="0 0 40 30" aria-hidden="true"><path d="M2 4q0-3 3-3h30q3 0 3 3v22q0 3-3 3H5q-3 0-3-3Zm2 1 16 12L36 5" stroke="#fff" strokeWidth="2" /></svg><span>{mockData ? 1 : ''}</span></Button>
+      </footer>
 
-        <div role="radiogroup" aria-label="Choose a sport" className="grid w-full grid-cols-3 gap-5">
-          {SPORTS.map((s, i) => {
-            const selected = sport === s.id;
-            return (
-              <div
-                key={s.id}
-                ref={(el) => { refs.current[i] = el; }}
-                role="radio"
-                aria-checked={selected}
-                aria-disabled={!s.enabled}
-                tabIndex={selected ? 0 : -1}
-                onKeyDown={(e) => onRadioKey(e, i)}
-                onClick={() => s.enabled && setSport(s.id)}
-                className={cx(
-                  'skew-panel relative cursor-pointer border-2 px-6 py-5 transition-all duration-200',
-                  selected ? 'glow-cyan border-cyan bg-navy-3' : 'border-navy-3 bg-navy-2/80',
-                  !s.enabled && 'cursor-not-allowed opacity-55',
-                )}
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-4xl" aria-hidden>{s.icon}</span>
-                    {s.enabled ? <Chip tone="lime">Featured</Chip> : <Chip tone="muted">Coming soon</Chip>}
-                  </div>
-                  <span className="font-display text-2xl font-bold uppercase">{s.name}</span>
-                  <span className="text-lg text-muted">{s.sub}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-8">
-          <Button type="submit" hint="Enter">Enter the ring</Button>
-          <button type="button" onClick={onLeaderboard} className="font-display text-lg font-bold uppercase tracking-widest text-cyan underline-offset-4 hover:underline">
-            Leaderboard <span className="opacity-70">(L)</span>
-          </button>
-        </div>
-      </form>
-      {mockData && <div className="absolute bottom-5 left-1/2 -translate-x-1/2"><Chip tone="amber">Mock data: no API connected</Chip></div>}
-    </ArenaBackdrop>
+      <dialog ref={dialog} className="wii-dialog" onCancel={() => setSelected(null)} onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }} onClose={() => setSelected(null)}>
+        {selected && <>
+          <div className={`wii-dialog-art wii-channel-${selected}`}><ChannelArt kind={selected} /></div>
+          <form onSubmit={(e) => { e.preventDefault(); if (playable) onStart(name.trim() || 'PLAYER', selected === 'keeper' ? 'keeper' : 'boxing'); else setSelected(null); }}>
+            <h2>{activeChannel?.label}</h2>
+            {upcoming ? <p>Coming soon</p> : <label>Fighter name<input aria-label="Fighter name" maxLength={20} placeholder="PLAYER" value={name} onChange={(e) => setName(e.target.value.toUpperCase())} /></label>}
+            <div className="wii-dialog-actions"><Button variant="wii" className="wii-pill" onClick={() => setSelected(null)}>Wii Menu</Button>{!upcoming && <Button variant="wii" className="wii-pill wii-pill-primary" type="submit">{playable ? 'Start' : 'Save'}</Button>}</div>
+          </form>
+        </>}
+      </dialog>
+    </main>
   );
 }

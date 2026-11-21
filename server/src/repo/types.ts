@@ -59,7 +59,15 @@ export interface Repo {
    */
   finalizeSession(sessionId: string, stats: SessionStats, coach: StoredCoach): Promise<boolean>;
 
-  leaderboard(limit: number): Promise<LeaderboardRow[]>;
+  /**
+   * Best single-session score per player, top N. sport defaults to boxing (V_LEADERBOARD, unchanged);
+   * goalkeeper/archery read V_LEADERBOARD_BY_SPORT (sql/multisport.sql), fastest_punch = fastest
+   * glove / release speed.
+   */
+  leaderboard(limit: number, sport?: string): Promise<LeaderboardRow[]>;
+
+  /** All MOTION_EVENTS rows of one session, oldest first (goalkeeper/archery coach card). */
+  sessionEvents(sessionId: string): Promise<MotionEvent[]>;
   playerSessions(playerId: string, limit: number): Promise<SessionSummary[]>;
   playerMetrics(playerId: string): Promise<PlayerMetrics>;
   benchmarks(sport: string): Promise<Benchmark[]>;

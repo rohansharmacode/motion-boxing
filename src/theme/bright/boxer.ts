@@ -25,6 +25,7 @@ import { DRONE } from '../../sports/boxing/sceneParts.ts'
 import type { Hand } from '../../pose/types.ts'
 import { armGeometry, BODY, buildFigure, glossy, SHOULDER, stretchArm, toy } from './avatar.ts'
 import { BOXING, SKIN } from './palette.ts'
+import { dressAsMii, isMiiStyle } from './mii.ts'
 
 /** Opponent look. Original local colours on top of the shared palette. */
 const LOOK = {
@@ -116,6 +117,7 @@ export function buildBrightGlove(hand: Hand): GloveParts {
     opacity: 0.08,
     side: BackSide,
     depthWrite: false,
+    visible: false, // minimal look: no glow rim
   })
   const model = gloveModel(0.085, inward, {
     shell,
@@ -157,7 +159,7 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const chestCore = new MeshBasicMaterial({ color: BOXING.droneCore })
   const accent = new LineBasicMaterial({ color: BOXING.drone })
   const accentSolid = new MeshBasicMaterial({ color: BOXING.drone })
-  const shortsMat = toy(LOOK.shorts)
+  const shortsMat = toy(isMiiStyle() ? 0x2f6fdc : LOOK.shorts)
 
   // Humanoid in foot space (feet at y=0) so the feet touch the floor when root is at DRONE.y.
   // Head centre lands at body (0, 0.52, 0.02) with radius 0.2: the head hit zone.
@@ -168,6 +170,8 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const fig = figure.fig
   fig.position.y = -DRONE.y
   body.add(fig)
+  const mii = isMiiStyle()
+  if (mii) { dressAsMii(figure, headShell); chestShell.color.set(0xe23b3b) }
 
   // Headband over the hair, tipped back like the hair cap, with a knot and two tails.
   const band = new Mesh(new SphereGeometry(BODY.headR * 1.11, 40, 3, 0, Math.PI * 2, 0.82, 0.3), headCore)
@@ -175,14 +179,14 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const knot = new Mesh(new SphereGeometry(0.04, 12, 8), headCore)
   knot.position.set(0, 0.09, -0.21)
   knot.scale.set(1, 1, 0.6)
-  figure.head.add(band, knot)
+  if (!mii) figure.head.add(band, knot)
   const tailGeo = new CapsuleGeometry(0.026, 0.12, 3, 8)
   for (const side of [-1, 1]) {
     const tail = new Mesh(tailGeo, headCore)
     tail.position.set(side * 0.045, 0.02, -0.23)
     tail.rotation.set(0.5, 0, side * 0.55)
     tail.scale.set(1, 1, 0.45)
-    figure.head.add(tail)
+    if (!mii) figure.head.add(tail)
   }
 
   // Belt with accent trim lines; leg cuffs with accent hems; orange soles.
@@ -209,7 +213,7 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
 
   // Gloves ride the pods ([left, right]); the scene sets each pod's full position every frame (guard bob,
   // wind-ups, hooks, overhead slams). Stubby arms stretch from fixed shoulders to the moving gloves.
-  const gloveShell = glossy({ color: LOOK.gloves, roughness: 0.2, metalness: 0 })
+  const gloveShell = glossy({ color: mii ? 0xe23b3b : LOOK.gloves, roughness: 0.2, metalness: 0 })
   const gloveMats: GloveMats = {
     shell: gloveShell,
     cuff: toy(0xffffff, 0.45),
@@ -276,7 +280,7 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const chestCenter = new Vector3(0, 0, 0.12)
   const headCenter = new Vector3(0, DRONE.headY, 0.04)
   const rim = (): MeshBasicMaterial =>
-    new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, side: BackSide, depthWrite: false })
+    new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, side: BackSide, depthWrite: false, visible: false })
   const headHalo = rim()
   const chestHalo = rim()
   const headPop = new Mesh(new SphereGeometry(0.255, 24, 16), headHalo)

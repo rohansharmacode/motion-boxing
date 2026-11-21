@@ -62,6 +62,14 @@ export class OneEuroVec3 {
     this.fz = new OneEuroFilter(minCutoff, beta, dCutoff)
   }
 
+  /** Allocation-free filter: writes the result into dst and returns it. */
+  filterInto(dst: Vec3, v: Vec3, tSeconds: number): Vec3 {
+    dst.x = this.fx.filter(v.x, tSeconds)
+    dst.y = this.fy.filter(v.y, tSeconds)
+    dst.z = this.fz.filter(v.z, tSeconds)
+    return dst
+  }
+
   filter(v: Vec3, tSeconds: number): Vec3 {
     return {
       x: this.fx.filter(v.x, tSeconds),

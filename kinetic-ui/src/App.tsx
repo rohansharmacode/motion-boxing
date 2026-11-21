@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CalibrationState, CoachStatus, LeaderboardRow, Result } from './types';
+import type { SportId, CalibrationState, CoachStatus, LeaderboardRow, Result } from './types';
 import * as mock from './mocks';
 import { createHudStore } from './hudStore';
 import { useHotkeys, useInterval } from './components/ui';
@@ -11,6 +11,7 @@ import { DemoControls } from './screens/DemoControls';
 import { PostMatchScreen } from './screens/PostMatchScreen';
 import { LeaderboardScreen } from './screens/LeaderboardScreen';
 import { Gallery } from './Gallery';
+import { launchRealGame } from './gameLink';
 
 type Screen = 'start' | 'calibrate' | 'countdown' | 'round' | 'post' | 'leaderboard';
 
@@ -30,7 +31,7 @@ function GameFlow() {
   return (
     <div className="h-full w-full" key={screen}>
       {screen === 'start' && (
-        <StartScreenWithKeys onStart={(n) => { setName(n); setScreen('calibrate'); }} onLeaderboard={() => setScreen('leaderboard')} />
+        <StartScreenWithKeys onStart={(n, sport) => { setName(n); launchRealGame(sport === 'keeper' ? 'goalkeeper' : 'boxing'); }} onLeaderboard={() => setScreen('leaderboard')} />
       )}
       {screen === 'calibrate' && <MockCalibration onLocked={() => setScreen('countdown')} />}
       {screen === 'countdown' && <Countdown onDone={() => setScreen('round')} />}
@@ -41,7 +42,7 @@ function GameFlow() {
   );
 }
 
-function StartScreenWithKeys(props: { onStart: (n: string) => void; onLeaderboard: () => void }) {
+function StartScreenWithKeys(props: { onStart: (n: string, sport: SportId) => void; onLeaderboard: () => void }) {
   useHotkeys({ l: props.onLeaderboard });
   return <StartScreen defaultName="" mockData onStart={props.onStart} onLeaderboard={props.onLeaderboard} />;
 }

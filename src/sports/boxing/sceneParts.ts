@@ -235,6 +235,7 @@ export function buildGlove(hand: Hand): GloveParts {
     blending: AdditiveBlending,
     depthWrite: false,
     side: BackSide,
+    visible: false, // solid gloves read cleaner than a see-through glow shell
   })
 
   const fistGeo = new IcosahedronGeometry(0.085, 1)
@@ -271,6 +272,50 @@ export function buildGlove(hand: Hand): GloveParts {
   const group = new Group()
   group.add(model)
   return { group, shell, glow }
+}
+
+// ---------- player body ----------
+
+/**
+ * The player's own robot for the over-the-shoulder camera, built around the rig origin (the eyes).
+ * Solid armour with neon edges: helmet with a cyan visor, neck, shoulders and a short torso. The
+ * gloves float in front on their own, so the body has no arms. Faces -z, toward the opponent.
+ */
+export function buildPlayerBody(): Group {
+  const body = new Group()
+  const shell = armour()
+  const edge = new LineBasicMaterial({ color: hdr(COLORS.left, 1.4), transparent: true, opacity: 0.7 })
+  const visorMat = new MeshBasicMaterial({ color: hdr(COLORS.left, 1.6) })
+  const withEdges = (mesh: Mesh): Mesh => {
+    mesh.add(new LineSegments(new EdgesGeometry(mesh.geometry, 20), edge))
+    return mesh
+  }
+
+  const helmet = withEdges(new Mesh(new DodecahedronGeometry(0.095, 0), shell))
+  helmet.scale.set(1, 1.08, 1.05)
+  helmet.position.set(0, -0.07, 0.06)
+  const visor = new Mesh(new BoxGeometry(0.13, 0.026, 0.02), visorMat)
+  visor.position.set(0, 0.01, -0.052)
+  helmet.add(visor)
+  const crest = withEdges(new Mesh(new BoxGeometry(0.02, 0.05, 0.13), shell))
+  crest.position.set(0, 0.09, 0.02)
+  helmet.add(crest)
+
+  const neck = new Mesh(new CylinderGeometry(0.04, 0.05, 0.1, 8), shell)
+  neck.position.set(0, -0.19, 0.08)
+  const torso = withEdges(new Mesh(new CylinderGeometry(0.19, 0.12, 0.32, 6), shell))
+  torso.scale.z = 0.6
+  torso.position.set(0, -0.42, 0.1)
+  const chestLight = new Mesh(new BoxGeometry(0.12, 0.02, 0.01), visorMat)
+  chestLight.position.set(0, 0.07, -0.17)
+  torso.add(chestLight)
+  body.add(helmet, neck, torso)
+  for (const side of [-1, 1]) {
+    const shoulder = withEdges(new Mesh(new IcosahedronGeometry(0.08, 0), shell))
+    shoulder.position.set(side * 0.22, -0.27, 0.1)
+    body.add(shoulder)
+  }
+  return body
 }
 
 // ---------- drone ----------
@@ -331,6 +376,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const orb = new Mesh(new IcosahedronGeometry(0.09, 1), orbMat)
   orb.position.z = DRONE.orbZ
   const chestHalo = additive(COLORS.drone, HALO_OPACITY)
+  chestHalo.visible = false // the drone reads solid: no see-through holo bubbles
   const chestCenter = new Vector3(0, 0, 0.12)
   const chestSphere = new Mesh(new SphereGeometry(DRONE.chestRadius, 20, 14), chestHalo)
   chestSphere.position.copy(chestCenter)
@@ -360,6 +406,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const crest = new Mesh(new BoxGeometry(0.025, 0.07, 0.2), headShell)
   crest.position.set(0, 0.17, -0.01)
   const headHalo = additive(COLORS.drone, HALO_OPACITY)
+  headHalo.visible = false
   const headCenter = new Vector3(0, DRONE.headY, 0.04)
   const headSphere = new Mesh(new SphereGeometry(DRONE.headRadius, 18, 12), headHalo)
   headSphere.position.set(0, 0, headCenter.z)

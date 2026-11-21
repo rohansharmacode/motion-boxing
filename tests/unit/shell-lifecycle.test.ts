@@ -46,6 +46,7 @@ vi.mock('../../src/sports/goalkeeper/scene.ts', () => ({
     return {
       canvas,
       resize() {},
+      setQuality() {},
       setKeeper() {},
       setBall() {},
       setStriker() {},

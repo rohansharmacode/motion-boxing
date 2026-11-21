@@ -1,4 +1,5 @@
-import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { connect } from './sf.js';
 import { generate, SEED_TAG, type GenResult } from './generator.js';
 
 const argv = process.argv.slice(2);
@@ -41,32 +42,13 @@ async function viaApi(base: string, d: GenResult) {
 }
 
 // ---------- Snowflake mode ----------
-function loadEnvFile() {
-  for (const f of ['../server/.env', '.env']) {
-    if (!existsSync(f)) continue;
-    for (const line of readFileSync(f, 'utf8').split('\n')) {
-      const m = line.match(/^\s*([A-Z_]+)\s*=\s*"?([^"#]*?)"?\s*$/);
-      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
-    }
-  }
-}
+// Same connection as the other scripts (server/.env, key pair or password).
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const num = (v: number | null) => (v == null ? 'NULL' : String(v));
 
 async function viaSnowflake(d: GenResult) {
-  loadEnvFile();
-  const e = process.env;
-  const missing = ['SNOWFLAKE_ACCOUNT', 'SNOWFLAKE_USER', 'SNOWFLAKE_PASSWORD'].filter((k) => !e[k]);
-  if (missing.length) throw new Error(`Missing env: ${missing.join(', ')}`);
-  const sf: any = (await import('snowflake-sdk')).default;
-  const conn = sf.createConnection({
-    account: e.SNOWFLAKE_ACCOUNT, username: e.SNOWFLAKE_USER, password: e.SNOWFLAKE_PASSWORD,
-    role: e.SNOWFLAKE_ROLE ?? 'MOTION_APP_ROLE', warehouse: e.SNOWFLAKE_WAREHOUSE ?? 'MOTION_WH',
-    database: e.SNOWFLAKE_DATABASE ?? 'MOTION_DB', schema: e.SNOWFLAKE_SCHEMA ?? 'PUBLIC',
-  });
-  await new Promise<void>((res, rej) => conn.connect((err: Error) => (err ? rej(err) : res())));
-  const run = (sqlText: string) => new Promise<any[]>((res, rej) =>
-    conn.execute({ sqlText, complete: (err: Error, _s: unknown, rows: any[]) => (err ? rej(err) : res(rows ?? [])) }));
+  const conn = await connect();
+  const run = (sqlText: string) => conn.exec(sqlText);
   const batched = async (head: string, rows: string[], size = 200) => {
     for (let i = 0; i < rows.length; i += size) await run(`${head} VALUES ${rows.slice(i, i + size).join(',')}`);
   };
@@ -90,7 +72,7 @@ async function viaSnowflake(d: GenResult) {
     await batched('INSERT INTO MOTION_EVENTS (event_id, session_id, player_id, sport, event_ts, event_type, hand, speed_mps, accuracy, reaction_ms, guard_up, points)', evRows, 500);
     console.log(`Snowflake seed done: ${d.players.length} players, ${d.sessions.length} sessions, ${evRows.length} events`);
   } finally {
-    conn.destroy(() => {});
+    await conn.close();
   }
 }
 

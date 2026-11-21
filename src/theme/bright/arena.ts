@@ -150,7 +150,7 @@ function makePennantGeometry(): BufferGeometry {
   return g
 }
 
-export function buildBrightArena(): Group {
+export function buildBrightArena(opts: { bunting?: boolean } = {}): Group {
   const arena = new Group()
   arena.name = 'bright-arena'
   const { halfWidth: hw, near, far } = R
@@ -279,65 +279,68 @@ export function buildBrightArena(): Group {
     addRow(row, 0, BACK_Z(row), backLen, true, 1)
   }
 
-  // ----- bunting on poles -----
-  const poleH = 4.6
-  const poleGeo = new CylinderGeometry(0.06, 0.07, poleH, 8)
-  const knobGeo = new SphereGeometry(0.13, 10, 8)
-  const poleMat = std(0xffffff, 0.6)
-  const poles = [
-    new Vector3(-4.4, poleH, 0.7),
-    new Vector3(4.4, poleH, 0.7),
-    new Vector3(-4.4, poleH, -8.0),
-    new Vector3(4.4, poleH, -8.0),
-  ]
-  poles.forEach((p, i) => {
-    const pole = new Mesh(poleGeo, poleMat)
-    pole.position.set(p.x, ARENA_GROUND_Y + poleH / 2, p.z)
-    const knob = new Mesh(knobGeo, std(OUTFIT[i % OUTFIT.length], 0.6))
-    knob.position.set(p.x, ARENA_GROUND_Y + poleH + 0.08, p.z)
-    arena.add(shadowed(pole, true, false), shadowed(knob, true, false))
-  })
-  const top = (v: Vector3): Vector3 => new Vector3(v.x, ARENA_GROUND_Y + poleH - 0.05, v.z)
-  const strings: Array<[Vector3, Vector3, number]> = [
-    [top(poles[2]), top(poles[3]), 0.55],
-    [top(poles[0]), top(poles[2]), 0.6],
-    [top(poles[1]), top(poles[3]), 0.6],
-  ]
-  const stringMat = std(0xffffff, 0.7)
-  const flagGeo = makePennantGeometry()
-  const flagMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0, side: DoubleSide })
-  const flagColors = [OUTFIT[0], OUTFIT[3], OUTFIT[1], OUTFIT[2], 0xffffff, OUTFIT[4], OUTFIT[5]]
-  const flagSpacing = 0.42
-  const flagCounts = strings.map(([a, b]) => Math.floor(a.distanceTo(b) / flagSpacing))
-  const flags = new InstancedMesh(flagGeo, flagMat, flagCounts.reduce((s, n) => s + n, 0))
-  const m4 = new Matrix4()
-  const dummy = new Object3D()
-  const col = new Color()
-  let k = 0
-  strings.forEach(([a, b, sag], si) => {
-    const at = (t: number): Vector3 => a.clone().lerp(b, t).add(new Vector3(0, -sag * 4 * t * (1 - t), 0))
-    const pts: Vector3[] = []
-    for (let i = 0; i <= 16; i++) pts.push(at(i / 16))
-    const curve = new CatmullRomCurve3(pts)
-    const tube = new Mesh(new TubeGeometry(curve, 48, 0.01, 4, false), stringMat)
-    arena.add(tube)
-    const n = flagCounts[si]
-    const yaw = Math.atan2(-(b.z - a.z), b.x - a.x)
-    for (let i = 0; i < n; i++) {
-      const t = (i + 0.5) / n
-      dummy.position.copy(at(t))
-      dummy.rotation.set(0, yaw, 0)
-      dummy.updateMatrix()
-      m4.copy(dummy.matrix)
-      flags.setMatrixAt(k, m4)
-      flags.setColorAt(k, col.set(flagColors[(i + si * 2) % flagColors.length]))
-      k++
-    }
-  })
-  flags.instanceMatrix.needsUpdate = true
-  if (flags.instanceColor) flags.instanceColor.needsUpdate = true
-  flags.computeBoundingSphere()
-  arena.add(shadowed(flags, true, false))
+  // ----- bunting on poles (off by default: the minimal look keeps the sky clear) -----
+  if (opts.bunting) {
+    // ----- bunting on poles -----
+    const poleH = 4.6
+    const poleGeo = new CylinderGeometry(0.06, 0.07, poleH, 8)
+    const knobGeo = new SphereGeometry(0.13, 10, 8)
+    const poleMat = std(0xffffff, 0.6)
+    const poles = [
+      new Vector3(-4.4, poleH, 0.7),
+      new Vector3(4.4, poleH, 0.7),
+      new Vector3(-4.4, poleH, -8.0),
+      new Vector3(4.4, poleH, -8.0),
+    ]
+    poles.forEach((p, i) => {
+      const pole = new Mesh(poleGeo, poleMat)
+      pole.position.set(p.x, ARENA_GROUND_Y + poleH / 2, p.z)
+      const knob = new Mesh(knobGeo, std(OUTFIT[i % OUTFIT.length], 0.6))
+      knob.position.set(p.x, ARENA_GROUND_Y + poleH + 0.08, p.z)
+      arena.add(shadowed(pole, true, false), shadowed(knob, true, false))
+    })
+    const top = (v: Vector3): Vector3 => new Vector3(v.x, ARENA_GROUND_Y + poleH - 0.05, v.z)
+    const strings: Array<[Vector3, Vector3, number]> = [
+      [top(poles[2]), top(poles[3]), 0.55],
+      [top(poles[0]), top(poles[2]), 0.6],
+      [top(poles[1]), top(poles[3]), 0.6],
+    ]
+    const stringMat = std(0xffffff, 0.7)
+    const flagGeo = makePennantGeometry()
+    const flagMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0, side: DoubleSide })
+    const flagColors = [OUTFIT[0], OUTFIT[3], OUTFIT[1], OUTFIT[2], 0xffffff, OUTFIT[4], OUTFIT[5]]
+    const flagSpacing = 0.42
+    const flagCounts = strings.map(([a, b]) => Math.floor(a.distanceTo(b) / flagSpacing))
+    const flags = new InstancedMesh(flagGeo, flagMat, flagCounts.reduce((s, n) => s + n, 0))
+    const m4 = new Matrix4()
+    const dummy = new Object3D()
+    const col = new Color()
+    let k = 0
+    strings.forEach(([a, b, sag], si) => {
+      const at = (t: number): Vector3 => a.clone().lerp(b, t).add(new Vector3(0, -sag * 4 * t * (1 - t), 0))
+      const pts: Vector3[] = []
+      for (let i = 0; i <= 16; i++) pts.push(at(i / 16))
+      const curve = new CatmullRomCurve3(pts)
+      const tube = new Mesh(new TubeGeometry(curve, 48, 0.01, 4, false), stringMat)
+      arena.add(tube)
+      const n = flagCounts[si]
+      const yaw = Math.atan2(-(b.z - a.z), b.x - a.x)
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n
+        dummy.position.copy(at(t))
+        dummy.rotation.set(0, yaw, 0)
+        dummy.updateMatrix()
+        m4.copy(dummy.matrix)
+        flags.setMatrixAt(k, m4)
+        flags.setColorAt(k, col.set(flagColors[(i + si * 2) % flagColors.length]))
+        k++
+      }
+    })
+    flags.instanceMatrix.needsUpdate = true
+    if (flags.instanceColor) flags.instanceColor.needsUpdate = true
+    flags.computeBoundingSphere()
+    arena.add(shadowed(flags, true, false))
+  }
 
   // ----- the island around it -----
   arena.add(buildIslandBackdrop({ exclude: ARENA_FOOTPRINT, groundY: ARENA_GROUND_Y }))

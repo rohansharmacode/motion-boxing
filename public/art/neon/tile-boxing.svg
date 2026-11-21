@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="KINETIC Boxing neon retro-arcade sport illustration">
+  <defs>
+    <linearGradient id="nb-sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060916" />
+      <stop offset="52%" stop-color="#0D1430" />
+      <stop offset="76%" stop-color="#28123D" />
+      <stop offset="100%" stop-color="#080C1C" />
+    </linearGradient>
+    <linearGradient id="nb-sun" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFB433" />
+      <stop offset="48%" stop-color="#FF2E88" />
+      <stop offset="100%" stop-color="#7B1FA2" />
+    </linearGradient>
+    <radialGradient id="nb-glow-c" cx="26%" cy="62%" r="42%">
+      <stop offset="0%" stop-color="#22E5FF" stop-opacity="0.34" />
+      <stop offset="100%" stop-color="#080C1C" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="nb-glow-p" cx="74%" cy="58%" r="44%">
+      <stop offset="0%" stop-color="#FF2E88" stop-opacity="0.36" />
+      <stop offset="100%" stop-color="#080C1C" stop-opacity="0" />
+    </radialGradient>
+    <clipPath id="nb-sun-clip">
+      <circle cx="640" cy="316" r="172" />
+    </clipPath>
+    <filter id="nb-neon" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+    <filter id="nb-soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Synthwave Navy Sky -->
+  <rect width="1280" height="720" fill="url(#nb-sky)" />
+  <rect width="1280" height="720" fill="url(#nb-glow-c)" />
+  <rect width="1280" height="720" fill="url(#nb-glow-p)" />
+
+  <!-- Starfield -->
+  <g fill="#F2F7FF" opacity="0.65">
+    <circle cx="112" cy="84" r="2" /><circle cx="240" cy="142" r="1.5" /><circle cx="388" cy="68" r="2.2" />
+    <circle cx="890" cy="78" r="2" /><circle cx="1044" cy="134" r="1.6" /><circle cx="1182" cy="86" r="2.4" />
+    <circle cx="186" cy="212" r="1.5" /><circle cx="1096" cy="224" r="1.8" /><circle cx="780" cy="110" r="1.4" />
+  </g>
+
+  <!-- Sliced Synthwave Sun -->
+  <g clip-path="url(#nb-sun-clip)" opacity="0.92">
+    <circle cx="640" cy="316" r="172" fill="url(#nb-sun)" />
+    <rect x="460" y="346" width="360" height="8" fill="#181034" />
+    <rect x="460" y="368" width="360" height="12" fill="#14102E" />
+    <rect x="460" y="394" width="360" height="16" fill="#110E28" />
+    <rect x="460" y="424" width="360" height="22" fill="#0B0E20" />
+  </g>
+
+  <!-- Distant Arena Skyline Band -->
+  <path d="M0,432 L0,368 L48,368 L48,328 L108,328 L108,386 L154,386 L154,308 L220,308 L220,378 L272,378 L272,340 L330,340 L330,404 L950,404 L950,336 L1012,336 L1012,376 L1068,376 L1068,302 L1138,302 L1138,362 L1198,362 L1198,324 L1280,324 L1280,432 Z" fill="#090D20" />
+
+  <!-- Perspective Synthwave Ring Floor -->
+  <rect x="0" y="432" width="1280" height="288" fill="#080C1C" />
+  <g stroke="#22E5FF" stroke-opacity="0.32" stroke-width="2">
+    <line x1="0" y1="432" x2="1280" y2="432" stroke="#FF2E88" stroke-opacity="0.75" stroke-width="3" />
+    <line x1="0" y1="468" x2="1280" y2="468" />
+    <line x1="0" y1="516" x2="1280" y2="516" />
+    <line x1="0" y1="580" x2="1280" y2="580" />
+    <line x1="0" y1="664" x2="1280" y2="664" />
+    <line x1="640" y1="432" x2="640" y2="720" />
+    <line x1="510" y1="432" x2="360" y2="720" />
+    <line x1="770" y1="432" x2="920" y2="720" />
+    <line x1="380" y1="432" x2="40" y2="720" />
+    <line x1="900" y1="432" x2="1240" y2="720" />
+  </g>
+
+  <!-- Neon Boxing Ring Ropes & Corner Posts -->
+  <g filter="url(#nb-soft)">
+    <rect x="74" y="210" width="22" height="260" rx="6" fill="#131C3A" stroke="#22E5FF" stroke-width="3" />
+    <rect x="1184" y="210" width="22" height="260" rx="6" fill="#131C3A" stroke="#FF2E88" stroke-width="3" />
+    <line x1="96" y1="252" x2="1184" y2="252" stroke="#FF2E88" stroke-width="5" stroke-opacity="0.82" />
+    <line x1="96" y1="316" x2="1184" y2="316" stroke="#8C52FF" stroke-width="5" stroke-opacity="0.78" />
+    <line x1="96" y1="380" x2="1184" y2="380" stroke="#22E5FF" stroke-width="5" stroke-opacity="0.82" />
+  </g>
+
+  <!-- Hovering Synthwave Visor-Drone Opponent Silhouette -->
+  <g transform="translate(640, 276)" filter="url(#nb-neon)">
+    <!-- Telegraph ring -->
+    <circle cx="0" cy="-16" r="144" fill="none" stroke="#FF2E88" stroke-opacity="0.55" stroke-width="3.5" stroke-dasharray="22 14" />
+    <!-- Side Thruster Pods -->
+    <rect x="-184" y="-36" width="44" height="84" rx="20" fill="#111834" stroke="#22E5FF" stroke-width="4" />
+    <rect x="140" y="-36" width="44" height="84" rx="20" fill="#111834" stroke="#FF2E88" stroke-width="4" />
+    <line x1="-140" y1="6" x2="-96" y2="6" stroke="#22E5FF" stroke-width="7" />
+    <line x1="96" y1="6" x2="140" y2="6" stroke="#FF2E88" stroke-width="7" />
+    <!-- Faceted Torso -->
+    <polygon points="-86,-52 86,-52 114,24 62,112 -62,112 -114,24" fill="#0E152E" stroke="#22E5FF" stroke-width="4.5" stroke-linejoin="round" />
+    <polygon points="0,-10 34,26 0,62 -34,26" fill="#FF2E88" stroke="#F2F7FF" stroke-width="2.5" />
+    <!-- Ion Plume -->
+    <polygon points="-32,118 32,118 0,186" fill="#22E5FF" fill-opacity="0.72" />
+    <!-- Faceted Visor Helmet -->
+    <polygon points="-68,-146 68,-146 92,-102 64,-68 -64,-68 -92,-102" fill="#131C3A" stroke="#FF2E88" stroke-width="4.5" stroke-linejoin="round" />
+    <path d="M -66 -108 Q 0 -84 66 -108" fill="none" stroke="#22E5FF" stroke-width="16" stroke-linecap="round" />
+    <path d="M -54 -108 Q 0 -88 54 -108" fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Impact Shockwave Diamond & Radial Sparks -->
+  <g transform="translate(640, 444)" filter="url(#nb-neon)">
+    <polygon points="0,-64 20,0 0,64 -20,0" fill="#F2F7FF" />
+    <polygon points="-68,0 0,-18 68,0 0,18" fill="#22E5FF" />
+    <g stroke="#FF2E88" stroke-width="5" stroke-linecap="round">
+      <line x1="-96" y1="-58" x2="-48" y2="-28" />
+      <line x1="96" y1="-58" x2="48" y2="-28" />
+      <line x1="-108" y1="48" x2="-54" y2="24" stroke="#22E5FF" />
+      <line x1="108" y1="48" x2="54" y2="24" stroke="#22E5FF" />
+    </g>
+  </g>
+
+  <!-- Left Foreground Cyber Boxing Glove (Cyan) -->
+  <g transform="translate(210, 396)" filter="url(#nb-neon)">
+    <polygon points="14,126 116,44 268,68 308,162 232,262 84,254 0,192" fill="#0E1D3B" stroke="#22E5FF" stroke-width="7" stroke-linejoin="round" />
+    <polygon points="116,44 268,68 232,126 94,104" fill="#22E5FF" fill-opacity="0.24" />
+    <rect x="122" y="88" width="118" height="24" rx="12" transform="rotate(10 181 100)" fill="#22E5FF" />
+    <rect x="128" y="94" width="106" height="8" rx="4" transform="rotate(10 181 98)" fill="#F2F7FF" />
+    <!-- Neon Cuff -->
+    <polygon points="-16,236 146,264 134,312 -28,284" fill="#0B1126" stroke="#22E5FF" stroke-width="5" />
+    <line x1="8" y1="264" x2="126" y2="284" stroke="#FF2E88" stroke-width="5" stroke-linecap="round" />
+  </g>
+
+  <!-- Right Foreground Cyber Boxing Glove (Hot Pink) -->
+  <g transform="translate(762, 396)" filter="url(#nb-neon)">
+    <polygon points="294,126 192,44 40,68 0,162 76,262 224,254 308,192" fill="#280E2A" stroke="#FF2E88" stroke-width="7" stroke-linejoin="round" />
+    <polygon points="192,44 40,68 76,126 214,104" fill="#FF2E88" fill-opacity="0.26" />
+    <rect x="68" y="88" width="118" height="24" rx="12" transform="rotate(-10 127 100)" fill="#FF2E88" />
+    <rect x="74" y="94" width="106" height="8" rx="4" transform="rotate(-10 127 98)" fill="#F2F7FF" />
+    <!-- Neon Cuff -->
+    <polygon points="324,236 162,264 174,312 336,284" fill="#180A20" stroke="#FF2E88" stroke-width="5" />
+    <line x1="300" y1="264" x2="182" y2="284" stroke="#22E5FF" stroke-width="5" stroke-linecap="round" />
+  </g>
+
+  <!-- Subtle CRT Scanline Sheen -->
+  <g fill="#FFFFFF" opacity="0.03">
+    <rect y="0" width="1280" height="2" /><rect y="120" width="1280" height="2" /><rect y="240" width="1280" height="2" />
+    <rect y="360" width="1280" height="2" /><rect y="480" width="1280" height="2" /><rect y="600" width="1280" height="2" />
+  </g>
+</svg>

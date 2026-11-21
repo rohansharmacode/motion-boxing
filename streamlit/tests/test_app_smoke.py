@@ -152,7 +152,7 @@ class _FakeDF:
         return self._frame()
 
     def collect(self):
-        assert "SNOWFLAKE.CORTEX.COMPLETE(" in self.q
+        assert "AI_COMPLETE(" in self.q
         return [(self.s.cortex(self.p[0]),)]
 
 
@@ -166,6 +166,8 @@ def _install_fake_snowpark(monkeypatch, session):
     monkeypatch.setitem(sys.modules, "snowflake", snowflake)
     monkeypatch.setitem(sys.modules, "snowflake.snowpark", snowpark)
     monkeypatch.setitem(sys.modules, "snowflake.snowpark.context", context)
+    # Marks the run as Streamlit in Snowflake (app.get_backend checks for it).
+    monkeypatch.setitem(sys.modules, "_snowflake", types.ModuleType("_snowflake"))
 
 
 QUESTION = "Ignore the rules'); DROP TABLE MOTION_EVENTS; -- how is my guard?"
@@ -190,10 +192,10 @@ def test_snowflake_path_uses_bind_parameters_and_cortex(monkeypatch):
     for obj in ("V_GLOBAL_STATS", "V_LEADERBOARD", "PLAYERS", "PRO_BENCHMARKS", "PLAYER_FORM",
                 "V_SPEED_OVER_TIME", "V_FATIGUE_CURVE", "MOTION_EVENTS", "V_SESSION_STATS"):
         assert "MOTION_DB.PUBLIC." + obj in queried
-    cortex_calls = [(q, p) for q, p in session.calls if "CORTEX.COMPLETE" in q]
+    cortex_calls = [(q, p) for q, p in session.calls if "AI_COMPLETE(" in q]
     assert len(cortex_calls) == 1
     sql, params = cortex_calls[0]
-    assert sql == "SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large3', ?) AS answer"
+    assert sql == "SELECT AI_COMPLETE('mistral-large3', ?) AS answer"
     assert QUESTION in params[0]  # user text travels only as a bind value
     assert all(QUESTION not in q and "DROP TABLE" not in q for q, _ in session.calls)
     pid = next(s for s in at.selectbox if s.label == "Player").value

@@ -17,6 +17,8 @@ export interface KeeperSfx {
   roar(): void
   /** Disappointed crowd (goal). */
   groan(): void
+  /** Save-grade sting: perfect = bright rising chime, good = two notes, fingertip = soft tick. Combo lifts the pitch. */
+  grade(grade: 'perfect' | 'good' | 'fingertip', combo: number): void
   /** End-of-shootout fanfare, good = more saves than goals. */
   fullTime(good: boolean): void
   setMuted(muted: boolean): void
@@ -181,6 +183,19 @@ export function createKeeperSfx(): KeeperSfx {
       tone('sine', 220, 70, 120, 0.45)
       hiss('bandpass', 1400, 1.2, 0.002, 0.09, 0.35)
       if (punch) hiss('highpass', 3200, 0.8, 0.001, 0.05, 0.3)
+    },
+
+    grade(grade, combo) {
+      const lift = Math.pow(2, Math.min(6, Math.max(0, combo - 1)) / 12) // up a semitone per combo step
+      if (grade === 'perfect') {
+        ;[784, 988, 1175, 1568].forEach((f, i) => tone('triangle', f * lift, f * lift, 140, 0.11, i * 0.055))
+        hiss('highpass', 6000, 0.7, 0.002, 0.25, 0.06, 0.05)
+      } else if (grade === 'good') {
+        tone('triangle', 659 * lift, 659 * lift, 120, 0.1)
+        tone('triangle', 880 * lift, 880 * lift, 160, 0.1, 0.07)
+      } else {
+        tone('sine', 520 * lift, 380 * lift, 90, 0.08)
+      }
     },
 
     net() {

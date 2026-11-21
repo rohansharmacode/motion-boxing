@@ -6,6 +6,7 @@ import type { PosePipeline } from '../../pose/pipeline.ts'
 import { createCalibrator } from '../../pose/calibration.ts'
 import { createBodyTracker } from '../../pose/body.ts'
 import { createTrackingHint } from '../../pose/trackingHint.ts'
+import { createQualityGovernor } from '../../pose/qualityGovernor.ts'
 import type { BodyTracker } from '../../pose/body.ts'
 import { StartupError } from '../../pose/types.ts'
 import type { StartupErrorKind } from '../../pose/types.ts'
@@ -19,6 +20,8 @@ import { createKeeperHud } from './hud.ts'
 import { createKeeperInput } from './input.ts'
 import { createKeeperSfx } from './sfx.ts'
 import { KICKS_PER_SHOOTOUT } from './types.ts'
+import { loadDifficulty, saveDifficulty } from './difficulty.ts'
+import { PRACTICE_KICKS } from './shots.ts'
 import type { Calibration, KickResult } from './types.ts'
 
 /** Goalkeeper 1-euro tuning from the doc (minimal lag for reflex lunges). body.ts filters in pixels. */
@@ -64,6 +67,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   root.append(stage, ui)
   ctx.host.append(root)
   const trackingHint = createTrackingHint(ui)
+  const governor = createQualityGovernor()
 
   uiSfx ??= createSfx() // shell sfx has no dispose: share one AudioContext across launches
   const sfx = createKeeperSfx()
@@ -82,6 +86,11 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   })
   const telemetry = createKeeperTelemetry()
   const engine = createKeeperEngine({ telemetry })
+  engine.setDifficulty(loadDifficulty())
+  hud.setDifficulty(engine.difficulty, (level) => {
+    engine.setDifficulty(level)
+    saveDifficulty(level)
+  })
 
   let disposed = false
   let initialized = false
@@ -125,15 +134,46 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
 
   // ---------- engine wiring ----------
   function resultCallout(r: KickResult): void {
-    if (r.outcome === 'goal') hud.callout('GOAL', 'bad')
-    else if (r.punch) hud.callout('PUNCHED CLEAR!', 'good')
-    else if (r.part === null) hud.callout('WIDE!', 'good')
-    else hud.callout('SAVED!', 'good')
+    if (r.outcome === 'save' && r.part === null) hud.callout('WIDE!', 'info')
+    else if (r.grade) hud.gradePopup(r.grade, r.combo ?? 0, r.points ?? 0)
+    else hud.callout(r.outcome === 'goal' ? 'GOAL' : 'SAVED!', r.outcome === 'goal' ? 'bad' : 'good')
   }
+
+  // ---------- guided practice (opt-in from the start screen or P, skippable with S) ----------
+  let practiceWanted = false
+  hud.setPracticeChoice(false, (on) => {
+    practiceWanted = on
+  })
+  const markPracticeDone = (): void => {
+    practiceWanted = false
+    hud.setPracticeChoice(false, (on) => {
+      practiceWanted = on
+    })
+  }
+  const PRACTICE_IDLE: readonly string[] = [
+    'Watch the arrow on the grass when the striker winds up.',
+    'Same again: follow the arrow with your hands.',
+    'A pink, longer arrow means a high shot. Hands up!',
+  ]
+  function practicePrompt(phase: string, kick: number): string | null {
+    if (phase === 'idle') return PRACTICE_IDLE[kick] ?? null
+    if (phase === 'telegraph') return 'Now! Move your hands to where it points.'
+    return null
+  }
+  function skipPractice(): void {
+    if (!engine.practice) return
+    markPracticeDone()
+    hud.setPractice(null)
+    startShootout()
+  }
+  const kicksNow = (): number => (engine.practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT)
 
   engine.onKickResult((r) => {
     hud.setTelegraph(false)
-    hud.setScoreboard(engine.results, KICKS_PER_SHOOTOUT)
+    hud.setScoreboard(engine.results, kicksNow())
+    if (engine.practice) {
+      hud.setPractice(r.outcome === 'goal' ? 'Close! Reach a little further next time.' : 'Nice save! That is all there is to it.')
+    }
     resultCallout(r)
     sfx.setTension(0)
     if (r.outcome === 'goal') {
@@ -141,6 +181,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
       sfx.groan()
     } else {
       if (r.part !== null) sfx.save(r.punch)
+      if (r.grade && r.grade !== 'miss') sfx.grade(r.grade, r.combo ?? 1)
       sfx.roar()
     }
   })
@@ -148,8 +189,9 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   engine.onStrikerPhase((phase, kick) => {
     switch (phase) {
       case 'idle':
-        hud.setScoreboard(engine.results, KICKS_PER_SHOOTOUT)
-        hud.callout(kick === KICKS_PER_SHOOTOUT - 1 ? 'LAST KICK' : `KICK ${kick + 1}`, 'info')
+        hud.setScoreboard(engine.results, kicksNow())
+        if (engine.practice) hud.setPractice(practicePrompt('idle', kick))
+        else hud.callout(kick === KICKS_PER_SHOOTOUT - 1 ? 'LAST KICK' : `KICK ${kick + 1}`, 'info')
         sfx.setTension(0.25)
         break
       case 'runup':
@@ -158,6 +200,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
         break
       case 'telegraph':
         hud.setTelegraph(true)
+        if (engine.practice) hud.setPractice(practicePrompt('telegraph', kick))
         sfx.setTension(1)
         break
       case 'kick':
@@ -171,6 +214,15 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
 
   engine.onShootoutEnd((result) => {
     hud.setTelegraph(false)
+    if (result.practice) {
+      markPracticeDone()
+      hud.setPractice('Practice done. Here comes the real shootout!')
+      later(1600, () => {
+        hud.setPractice(null)
+        startShootout()
+      })
+      return
+    }
     sfx.setTension(0)
     sfx.fullTime(result.saves > result.goals)
     trackingHint.setActive(false)
@@ -181,15 +233,16 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     if (disposed) return
     engine.init(scene, calibration)
     initialized = true
-    startShootout()
+    startShootout(practiceWanted)
   }
 
-  function startShootout(): void {
+  function startShootout(practice = false): void {
     sfx.startCrowd()
-    hud.setScoreboard([], KICKS_PER_SHOOTOUT)
+    hud.setScoreboard([], practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT)
+    hud.setPractice(practice ? 'Practice: 3 slow shots to learn the arrow.' : null, skipPractice)
     hud.showPlay()
     trackingHint.setActive(tracker !== null && !input.mouseOn)
-    engine.startShootout()
+    engine.startShootout({ practice })
   }
 
   // ---------- camera path (shared PosePipeline) ----------
@@ -269,7 +322,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     inStartMouse = false
     hud.setInputMode('mouse')
     if (!tracker) begin(null)
-    else startShootout()
+    else startShootout(practiceWanted)
   }
 
   hud.showStart(() => void startCamera(), startMouse)
@@ -282,6 +335,10 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
     if (e.code === 'Backquote') {
       hud.toggleDebug()
       debugOpen = !debugOpen
+    } else if (e.code === 'KeyS' && engine.practice) {
+      skipPractice()
+    } else if (e.code === 'KeyP' && initialized && !engine.practice) {
+      startShootout(true)
     } else if (e.code === 'KeyR' && initialized) {
       startShootout()
     } else if (e.code === 'KeyM') {
@@ -302,10 +359,14 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   function frame(now: number): void {
     if (disposed) return
     raf = requestAnimationFrame(frame)
-    const dt = Math.min(Math.max(now - last, 0), 250)
+    const rawDt = Math.max(now - last, 0)
+    const dt = Math.min(rawDt, 250)
     last = now
+    const nextQuality = governor.update(rawDt, pipeline ? pipeline.inferenceMs : 0)
+    if (nextQuality) scene.setQuality(nextQuality)
     if (dt > 0) fps += (1000 / dt - fps) * 0.05
 
+    input.update(dt)
     engine.setPointer(input.mouseOn ? input.target() : null)
     engine.update(dt)
     scene.update(dt * engine.timeScale)

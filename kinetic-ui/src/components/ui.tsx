@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes } from 'react';
 import type { DataSource } from '../types';
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -78,17 +78,19 @@ export function KeyHint({ k }: { k: string }) {
   return <kbd className="ml-2 rounded border border-current/50 px-1.5 py-px font-display text-xs opacity-80">{k}</kbd>;
 }
 
-export function Button({ variant = 'primary', children, onClick, hint, autoFocus, type = 'button' }: {
-  variant?: 'primary' | 'secondary'; children: ReactNode; onClick?: () => void; hint?: string; autoFocus?: boolean; type?: 'button' | 'submit';
+export function Button({ variant = 'primary', children, onClick, hint, autoFocus, type = 'button', className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'secondary' | 'wii'; children: ReactNode; hint?: string;
 }) {
   return (
     <button
       type={type}
       autoFocus={autoFocus}
       onClick={onClick}
+      {...props}
       className={cx(
-        'skew-panel cursor-pointer px-8 py-3 font-display text-xl font-bold uppercase tracking-wider transition-transform duration-150 hover:scale-105 active:scale-95',
-        variant === 'primary' ? 'glow-pink bg-pink text-navy' : 'border-2 border-cyan bg-navy/60 text-cyan',
+        variant === 'wii' ? 'wii-button' : 'skew-panel cursor-pointer px-8 py-3 font-display text-xl font-bold uppercase tracking-wider transition-transform duration-150 hover:scale-105 active:scale-95',
+        variant === 'wii' ? '' : variant === 'primary' ? 'glow-pink bg-pink text-navy' : 'border-2 border-cyan bg-navy/60 text-cyan',
+        className,
       )}
     >
       <span className="inline-flex items-center">{children}{hint && <KeyHint k={hint} />}</span>
