@@ -238,6 +238,57 @@
   pointer-events: none;
 }
 
+/* Tile artwork. z-index -1 keeps it inside the tile's stacking context (the tile has a
+   transform) but under the icon, text, glow, shine, badge and dwell layers. */
+.shell-tile-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.9;
+  transform: scale(1);
+  transition: transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 260ms, filter 260ms;
+}
+
+.shell-tile:hover .shell-tile-art,
+.shell-tile:focus .shell-tile-art { opacity: 1; transform: scale(1.04); }
+
+/* Locked tile: the sport art fades back and the coming-soon art glows over it. */
+.shell-tile-art--dim { filter: grayscale(0.7) brightness(0.45); }
+.shell-tile-art--soon { mix-blend-mode: screen; opacity: 0.8; }
+.shell-tile:hover .shell-tile-art--soon,
+.shell-tile:focus .shell-tile-art--soon { opacity: 0.95; }
+
+/* Scrim: darkens the bottom (title and tagline) and the top-left (icon), tinted with the accent. */
+.shell-tile-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(to top, rgba(7, 9, 19, 0.94) 0%, rgba(7, 9, 19, 0.72) 30%, rgba(7, 9, 19, 0.1) 62%, transparent 80%),
+    linear-gradient(160deg, color-mix(in srgb, var(--a) 26%, rgba(7, 9, 19, 0.45)) 0%, transparent 42%);
+}
+
+.shell-tile[data-ready='false'] .shell-tile-scrim {
+  background:
+    linear-gradient(to top, rgba(7, 9, 19, 0.97) 0%, rgba(7, 9, 19, 0.9) 34%, rgba(7, 9, 19, 0.2) 60%, transparent 78%),
+    linear-gradient(160deg, color-mix(in srgb, var(--a) 26%, rgba(7, 9, 19, 0.45)) 0%, transparent 42%);
+}
+
+.shell-tile--featured .shell-tile-scrim {
+  background:
+    linear-gradient(to top, rgba(7, 9, 19, 0.95) 0%, rgba(7, 9, 19, 0.75) 26%, rgba(7, 9, 19, 0.12) 52%, transparent 70%),
+    linear-gradient(100deg, rgba(7, 9, 19, 0.55) 0%, transparent 50%),
+    linear-gradient(160deg, color-mix(in srgb, var(--a) 22%, transparent) 0%, transparent 40%);
+}
+
 .shell-tile-glow {
   position: absolute;
   inset: auto -20% -45% auto;
@@ -327,9 +378,14 @@
 
 .shell-tile--featured .shell-tile-title { font-size: clamp(54px, 7vw, 104px); }
 
+.shell-tile-title,
+.shell-tile-tag,
+.shell-tile-how,
+.shell-tile-best { text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85); }
+
 .shell-tile-tag {
   font-size: clamp(13px, 1.1vw, 16px);
-  color: var(--muted, #a6aaa2);
+  color: #d4d6dc;
 }
 
 .shell-tile-how {
@@ -435,12 +491,14 @@
   line-height: 0.9;
 }
 
-.shell-launch-sub {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--muted, #a6aaa2);
+.shell-launch-art {
+  display: block;
+  width: min(440px, 70vw);
+  height: auto;
+  aspect-ratio: 800 / 320;
+  margin: -8px 0 -4px;
+  pointer-events: none;
+  user-select: none;
 }
 
 .shell-launch-bar {
@@ -610,4 +668,6 @@
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
   }
+  .shell-tile:hover .shell-tile-art,
+  .shell-tile:focus .shell-tile-art { transform: none; }
 }

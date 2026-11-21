@@ -8,7 +8,7 @@
 //   cal.destroy();                       // remove immediately (same as cancel())
 
 import type { Sport } from '../api/types';
-import { el, ensurePositioned, html, leave, prefersReducedMotion, wait } from './dom';
+import { artImg, el, ensurePositioned, html, leave, prefersReducedMotion, wait } from './dom';
 
 export type CalibrationState = 'searching' | 'holding' | 'locked';
 export type CalibrationWarning = 'too_dark' | 'too_close' | 'no_person';
@@ -102,9 +102,14 @@ export class CalibrationOverlay {
     this.ring = svg.querySelector<SVGCircleElement>('.kr-calib-ring')!;
     this.warnBox = el('div', { class: 'kr-calib-warn', role: 'alert', hidden: '' }, this.warnIcon, this.warnText);
 
+    // Full-frame stance guide over the (mirrored) webcam. The overlay is inset:0 like the video, so
+    // object-fit:contain keeps the whole 4:3 guide visible. Falls back to the inline line art if it fails.
+    const guide = artImg('calibration-silhouette.svg', 'kr-calib-art', () => this.element.classList.remove('kr-calib-has-art'));
+
     this.element = el(
       'section',
-      { class: 'kr-screen kr-calib kr-calib2', 'data-state': 'searching', 'aria-live': 'polite' },
+      { class: 'kr-screen kr-calib kr-calib2 kr-calib-has-art', 'data-state': 'searching', 'aria-live': 'polite' },
+      guide,
       el(
         'div',
         { class: 'kr-calib-top' },

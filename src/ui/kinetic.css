@@ -85,3 +85,6 @@
   font: 12px/1.4 ui-monospace, Menlo, monospace;
   pointer-events: none;
 }
+
+/* Loading splash art (public/art/splash-loading.svg, 640x360). */
+.kr-k-splash { display: block; width: min(560px, 80vw, 56vh * 16 / 9); height: auto; aspect-ratio: 16 / 9; pointer-events: none; user-select: none; }

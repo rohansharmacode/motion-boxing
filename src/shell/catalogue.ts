@@ -1,6 +1,9 @@
 // Tile catalogue. Original line-art icons, drawn for this project.
 import type { TileInfo } from './types.ts'
 
+/** URL of a file in public/art. BASE_URL keeps it working under any deploy base. */
+export const artUrl = (name: string): string => `${import.meta.env.BASE_URL}art/${name}.svg`
+
 const svg = (body: string): string =>
   `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`
 
@@ -38,6 +41,7 @@ export const TILES: readonly TileInfo[] = [
     accent: '#ff5a1f',
     accent2: '#ff2d75',
     icon: GLOVE,
+    art: artUrl('tile-boxing'),
     featured: true,
   },
   {
@@ -48,6 +52,7 @@ export const TILES: readonly TileInfo[] = [
     accent: '#38c8ff',
     accent2: '#3cf2b0',
     icon: GOAL,
+    art: artUrl('tile-goalkeeper'),
   },
   {
     id: 'archery',
@@ -57,6 +62,7 @@ export const TILES: readonly TileInfo[] = [
     accent: '#ffd23c',
     accent2: '#ff8a1f',
     icon: TARGET,
+    art: artUrl('tile-archery'),
   },
   {
     id: 'leaderboard',
@@ -66,5 +72,6 @@ export const TILES: readonly TileInfo[] = [
     accent: '#a98bff',
     accent2: '#38c8ff',
     icon: PODIUM,
+    art: artUrl('tile-leaderboard'),
   },
 ]

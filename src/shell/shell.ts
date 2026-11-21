@@ -1,7 +1,7 @@
 // Home dashboard, game selection, launch transition and return-to-home.
 // Mount once: mountShell({ launchers: { boxing: startBoxing } }).
 import './shell.css'
-import { TILES } from './catalogue.ts'
+import { TILES, artUrl } from './catalogue.ts'
 import { createRecords } from './records.ts'
 import { createSfx } from './sfx.ts'
 import type { CursorPoint, GameSession, Shell, ShellOptions, TileId, TileInfo } from './types.ts'
@@ -48,7 +48,7 @@ const TEMPLATE = `
   <div class="shell-launch-card">
     <span class="shell-launch-icon"></span>
     <h2 class="shell-launch-title"></h2>
-    <p class="shell-launch-sub">Get ready</p>
+    <img class="shell-launch-art" src="${artUrl('splash-get-ready')}" alt="Get ready" width="800" height="320" decoding="async" />
     <span class="shell-launch-bar"><span></span></span>
   </div>
 </div>
@@ -107,6 +107,17 @@ export function mountShell(options: ShellOptions): Shell {
     return s
   }
 
+  function artImg(src: string, cls: string): HTMLImageElement {
+    const img = document.createElement('img')
+    img.className = cls
+    img.src = src
+    img.alt = ''
+    img.decoding = 'async'
+    img.loading = 'eager'
+    img.draggable = false
+    return img
+  }
+
   function buildTile(info: TileInfo): HTMLButtonElement {
     const ready = options.launchers[info.id] !== undefined
     const b = document.createElement('button')
@@ -125,7 +136,13 @@ export function mountShell(options: ShellOptions): Shell {
     const how = span('shell-tile-how', info.howTo)
     const best = span('shell-tile-best')
     bestEls.set(info.id, best)
+    // Art layers sit behind the text: sport art, then (locked tiles only) the coming-soon overlay, then a scrim.
+    const art = ready
+      ? [artImg(info.art, 'shell-tile-art')]
+      : [artImg(info.art, 'shell-tile-art shell-tile-art--dim'), artImg(artUrl('tile-coming-soon'), 'shell-tile-art shell-tile-art--soon')]
     b.append(
+      ...art,
+      span('shell-tile-scrim'),
       span('shell-tile-glow'),
       span('shell-tile-shine'),
       span('shell-tile-badge', ready ? 'Play' : 'Coming soon'),
