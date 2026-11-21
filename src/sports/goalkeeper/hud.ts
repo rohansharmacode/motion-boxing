@@ -12,6 +12,7 @@ import type {
 import { DIFFICULTIES } from './difficulty.ts'
 import type { Difficulty } from './difficulty.ts'
 import type { SaveGrade } from './grading.ts'
+import type { ShotType } from './shots.ts'
 
 type View = 'start' | 'loading' | 'error' | 'calibration' | 'play' | 'end'
 
@@ -29,6 +30,9 @@ const ROW_LABEL = ['Top', 'Mid', 'Low'] as const
 const COL_LABEL = ['left', 'centre', 'right'] as const
 
 const GRADE_WORD: Record<SaveGrade, string> = { perfect: 'PERFECT!', good: 'GOOD SAVE', fingertip: 'FINGERTIP!', miss: 'MISSED' }
+
+const GRADE_LABEL: Record<SaveGrade, string> = { perfect: 'Perfect', good: 'Good', fingertip: 'Fingertip', miss: 'Miss' }
+const SHOT_LABEL: Record<ShotType, string> = { straight: 'Straight', curl: 'Curler', dip: 'Dipper', skimmer: 'Skimmer', topCorner: 'Top corner' }
 
 const RING_R = 34
 const RING_C = 2 * Math.PI * RING_R
@@ -223,15 +227,24 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   const end = el('section', 'gk-panel gk-end')
   end.setAttribute('aria-labelledby', 'gk-end-title')
   const endKicker = el('p', 'gk-kicker', 'Full time')
+  // Header: big letter grade beside SAVES n/5.
+  const endHead = el('div', 'gk-end-head')
+  const endGrade = el('p', 'gk-end-grade')
+  endGrade.setAttribute('aria-label', 'Grade')
   const endSaves = el('h2', 'gk-end-saves')
   endSaves.id = 'gk-end-title'
+  endHead.append(endGrade, endSaves)
   const stats = el('dl', 'gk-stats')
   const kicksTable = el('table', 'gk-kicks')
   const endActions = el('div', 'gk-actions')
-  const again = button('Again')
+  const again = button('Rematch')
   endActions.append(again)
   if (opts.onHome) endActions.append(homeButton())
-  end.append(endKicker, endSaves, stats, kicksTable, levelPicker(), endActions)
+  // Buttons sit right under the stats so they are visible without scrolling on a 768 px laptop;
+  // the per-kick table and level picker follow.
+  const endMore = el('div', 'gk-end-more')
+  endMore.append(levelPicker(), kicksTable)
+  end.append(endKicker, endHead, stats, endActions, endMore)
 
   // ---------- debug ----------
   const debug = el('aside', 'gk-debug')
@@ -384,28 +397,33 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       onAgain = againCb
       const total = result.kicks.length
       endSaves.replaceChildren('SAVES ', el('span', undefined, `${result.saves}/${total}`))
+      const grade = result.grade ?? 'C'
+      endGrade.textContent = grade
+      endGrade.dataset.grade = grade
+      const pct = result.savePct ?? (total > 0 ? Math.round((result.saves / total) * 100) : 0)
       stats.replaceChildren(
-        stat('Score', result.score.toLocaleString('en-US')),
+        stat('Save %', `${pct}`, '%'),
+        stat('Best combo', `x${result.bestCombo ?? 0}`),
         stat('Avg reaction', fmtMs(result.avgReactionMs), result.avgReactionMs === null ? undefined : 'ms'),
-        stat('Best glove', result.bestPeakVelocity.toFixed(1), 'SW/s'),
+        stat('Score', result.score.toLocaleString('en-US')),
       )
       const head = el('thead')
       const hr = el('tr')
-      for (const h of ['#', 'Result', 'Zone', 'React ms', 'SW/s']) hr.append(el('th', undefined, h))
+      for (const h of ['#', 'Result', 'Shot', 'Zone', 'React ms']) hr.append(el('th', undefined, h))
       head.append(hr)
       const body = el('tbody')
       for (const k of result.kicks) {
         const tr = el('tr')
         const outcome =
           k.outcome === 'save'
-            ? el('td', 'gk-ok', `✓ ${k.punch ? 'Punch' : k.part ? PART_LABEL[k.part] : 'Save'}`)
+            ? el('td', 'gk-ok', `✓ ${k.grade ? GRADE_LABEL[k.grade] : k.part ? PART_LABEL[k.part] : 'Wide'}`)
             : el('td', 'gk-no', '✗ Goal')
         tr.append(
           el('td', undefined, String(k.kick + 1)),
           outcome,
+          el('td', undefined, k.shot ? SHOT_LABEL[k.shot] : '—'),
           el('td', undefined, zoneLabel(k.zone)),
           el('td', undefined, fmtMs(k.reactionMs)),
-          el('td', undefined, k.peakVelocity.toFixed(1)),
         )
         body.append(tr)
       }
