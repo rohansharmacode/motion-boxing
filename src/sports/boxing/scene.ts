@@ -314,8 +314,6 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   camera.position.set(VIEW.x, VIEW.y, VIEW.z)
   camera.rotation.set(VIEW.pitch, VIEW.yaw, 0)
   rig.add(camera)
-  const player = look ? buildBrightPlayer() : buildPlayerBody()
-  rig.add(player)
   const vignetteMat = new MeshBasicMaterial({
     map: vignetteMap,
     color: COLORS.telegraph,
@@ -342,6 +340,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   const rightGlove = makeGlove('right')
   const gloves = [leftGlove, rightGlove]
   for (const g of gloves) rig.add(g.parts.group)
+  rig.add(look ? buildBrightPlayer() : buildPlayerBody([leftGlove.parts.group, rightGlove.parts.group]))
   const gloveOf = (hand: Hand): Glove => (hand === 'left' ? leftGlove : rightGlove)
 
   const post = createRenderPipeline(renderer, scene, camera, (level) => {
@@ -1019,7 +1018,10 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
         }
       })
       for (const g of geometries) g.dispose()
-      for (const m of materials) m.dispose()
+      for (const m of materials) {
+        ;(m as Material & { map?: { dispose(): void } | null }).map?.dispose() // canvas textures on the ring
+        m.dispose()
+      }
       botRing.dispose()
       playerRing.dispose()
       glowMap.dispose()

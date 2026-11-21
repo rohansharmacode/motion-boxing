@@ -305,6 +305,7 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   return {
     root,
     body,
+    headRoot: figure.head,
     head: { center: headCenter, radius: DRONE.headRadius, shell: headShell, halo: headHalo, core: headCore },
     chest: { center: chestCenter, radius: DRONE.chestRadius, shell: chestShell, halo: chestHalo, core: chestCore },
     accent,

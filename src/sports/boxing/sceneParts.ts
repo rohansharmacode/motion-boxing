@@ -6,7 +6,6 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
-  CapsuleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -20,10 +19,13 @@ import {
   LineSegments,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
+  Object3D,
   MeshStandardMaterial,
   PlaneGeometry,
   Points,
   PointsMaterial,
+  SRGBColorSpace,
   SphereGeometry,
   TorusGeometry,
   Vector3,
@@ -127,6 +129,71 @@ const armour = (): MeshStandardMaterial =>
 
 // ---------- arena ----------
 
+/** Ring mat: dark navy weave, a lighter border band, and a centre circle with the game's name. */
+function ringCanvasTexture(): CanvasTexture {
+  const size = 1024
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const ctx = c.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = '#161a2e'
+    ctx.fillRect(0, 0, size, size)
+    // Weave: faint crossing threads.
+    for (let i = 0; i < size; i += 4) {
+      ctx.fillStyle = i % 8 === 0 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.12)'
+      ctx.fillRect(i, 0, 2, size)
+      ctx.fillRect(0, i, size, 2)
+    }
+    // Border band.
+    ctx.strokeStyle = '#2b3770'
+    ctx.lineWidth = 44
+    ctx.strokeRect(22, 22, size - 44, size - 44)
+    ctx.strokeStyle = '#6f88f0'
+    ctx.lineWidth = 5
+    ctx.strokeRect(52, 52, size - 104, size - 104)
+    // Centre logo: two rings and the name.
+    const mid = size / 2
+    ctx.strokeStyle = 'rgba(56,200,255,0.55)'
+    ctx.lineWidth = 8
+    ctx.beginPath()
+    ctx.arc(mid, mid, 170, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(255,61,154,0.45)'
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.arc(mid, mid, 150, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(216,220,255,0.5)'
+    ctx.font = '700 76px "Bebas Neue", "Outfit", system-ui, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('KINETIC', mid, mid - 34)
+    ctx.fillText('RING', mid, mid + 40)
+  }
+  const tex = new CanvasTexture(c)
+  tex.colorSpace = SRGBColorSpace
+  return tex
+}
+
+/** Brushed-steel streaks for the corner posts. */
+function brushedTexture(): CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = 64
+  c.height = 256
+  const ctx = c.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = '#c8ccd6'
+    ctx.fillRect(0, 0, 64, 256)
+    for (let x = 0; x < 64; x++) {
+      ctx.fillStyle = `rgba(${x % 3 === 0 ? '255,255,255' : '40,44,60'},${0.08 + ((x * 37) % 11) / 60})`
+      ctx.fillRect(x, 0, 1, 256)
+    }
+  }
+  const tex = new CanvasTexture(c)
+  tex.colorSpace = SRGBColorSpace
+  return tex
+}
+
 const RING = { halfWidth: 2.3, near: 0.9, far: -5.3, ropes: [0.45, 0.85, 1.25] } as const
 
 export function buildArena(): Group {
@@ -140,46 +207,98 @@ export function buildArena(): Group {
   grid.material.opacity = 0.75
   arena.add(floor, grid)
 
-  // Neon ropes on three sides (the fourth is behind the camera), brighter toward the top.
+  // Canvas: woven dark-navy mat with a padded border band and a centre ring logo.
   const { halfWidth: hw, near, far } = RING
-  const sideGeo = new BoxGeometry(0.03, 0.03, near - far)
-  const backGeo = new BoxGeometry(hw * 2, 0.03, 0.03)
+  const canvasTex = ringCanvasTexture()
+  const canvasMat = new MeshLambertMaterial({ map: canvasTex }) // Lambert: the canvas fills much of the screen
+  const canvas = new Mesh(new PlaneGeometry(hw * 2 + 0.5, near - far + 0.5), canvasMat)
+  canvas.rotation.x = -Math.PI / 2
+  canvas.position.set(0, 0.005, (near + far) / 2)
+  arena.add(canvas)
+  // Raised apron edge around the canvas with a neon trim line.
+  const apronMat = armour()
+  const trimMat = new MeshBasicMaterial({ color: hdr(0x6f88f0, 1.4) })
+  const ax = hw + 0.32
+  const az0 = near + 0.32
+  const az1 = far - 0.32
+  for (const [w, d, x, z] of [
+    [ax * 2 + 0.12, 0.12, 0, az1],
+    [ax * 2 + 0.12, 0.12, 0, az0],
+    [0.12, az0 - az1, -ax, (az0 + az1) / 2],
+    [0.12, az0 - az1, ax, (az0 + az1) / 2],
+  ] as const) {
+    const edge = new Mesh(new BoxGeometry(w, 0.08, d), apronMat)
+    edge.position.set(x, 0.04, z)
+    const trim = new Mesh(new BoxGeometry(w + 0.004, 0.012, d + 0.004), trimMat)
+    trim.position.y = 0.03
+    edge.add(trim)
+    arena.add(edge)
+  }
+
+  // Round ropes on three sides (the fourth is behind the camera): cyan, white, pink from the bottom.
+  // Standard material so the key light shades them as tubes; emissive keeps the neon glow.
+  const ropeTint = [0x38c8ff, 0xd8dcff, 0xff3d9a]
+  const sideGeo = new CylinderGeometry(0.024, 0.024, near - far, 10)
+  sideGeo.rotateX(Math.PI / 2)
+  const backGeo = new CylinderGeometry(0.024, 0.024, hw * 2, 10)
+  backGeo.rotateZ(Math.PI / 2)
+  const tieGeo = new CylinderGeometry(0.032, 0.032, 0.05, 10)
+  const tieMat = new MeshStandardMaterial({ color: 0xf2f2f8, roughness: 0.6 })
   RING.ropes.forEach((y, i) => {
-    const mat = new MeshBasicMaterial({ color: hdr(0x6f88f0, [1, 1.5, 2.4][i]) })
+    const mat = new MeshStandardMaterial({
+      color: new Color(ropeTint[i]).multiplyScalar(0.35),
+      emissive: hdr(ropeTint[i], 0.9),
+      emissiveIntensity: 1,
+      roughness: 0.3,
+      metalness: 0.2,
+    })
     for (const x of [-hw, hw]) {
       const rope = new Mesh(sideGeo, mat)
       rope.position.set(x, y, (near + far) / 2)
       arena.add(rope)
+      // Tape ties at the thirds keep the ropes from looking like light bars.
+      for (const t of [1 / 3, 2 / 3]) {
+        const tie = new Mesh(tieGeo, tieMat)
+        tie.rotation.x = Math.PI / 2
+        tie.position.set(x, y, near + (far - near) * t)
+        arena.add(tie)
+      }
     }
     const back = new Mesh(backGeo, mat)
     back.position.set(0, y, far)
     arena.add(back)
   })
-
-  // Far corner posts with glowing pads: cyan on the player's left, orange on the right.
-  const postMat = armour()
-  const postGeo = new BoxGeometry(0.12, 1.45, 0.12)
-  const padGeo = new BoxGeometry(0.16, 0.95, 0.16)
-  for (const [x, color] of [
-    [-hw, COLORS.left],
-    [hw, COLORS.right],
-  ] as const) {
-    const post = new Mesh(postGeo, postMat)
-    post.position.set(x, 0.725, far)
-    const pad = new Mesh(padGeo, new MeshBasicMaterial({ color: hdr(color, 1.9) }))
-    pad.position.set(x, 0.85, far)
-    arena.add(post, pad)
+  // Rope spacers: vertical straps joining the three ropes at the middle of each side.
+  const strapGeo = new BoxGeometry(0.02, RING.ropes[2] - RING.ropes[0] + 0.06, 0.05)
+  for (const x of [-hw, hw]) {
+    const strap = new Mesh(strapGeo, tieMat)
+    strap.position.set(x, (RING.ropes[0] + RING.ropes[2]) / 2, (near + far) / 2)
+    arena.add(strap)
   }
 
-  // Ring outline on the floor.
-  const outline = new BufferGeometry().setFromPoints([
-    new Vector3(-hw, 0, near), new Vector3(-hw, 0, far),
-    new Vector3(-hw, 0, far), new Vector3(hw, 0, far),
-    new Vector3(hw, 0, far), new Vector3(hw, 0, near),
-  ])
-  const outlineLines = new LineSegments(outline, new LineBasicMaterial({ color: 0x4a62b0 }))
-  outlineLines.position.y = 0.006
-  arena.add(outlineLines)
+  // Four corner posts (brushed steel) with padded turnbuckle covers: cyan and orange at the far
+  // corners like the gloves, white at the near ones.
+  const steel = new MeshStandardMaterial({ color: 0x9aa3b8, roughness: 0.3, metalness: 0.85, map: brushedTexture() })
+  const postGeo = new CylinderGeometry(0.05, 0.06, 1.45, 12)
+  const padGeo = new CylinderGeometry(0.1, 0.1, 0.95, 12)
+  const capGeo = new SphereGeometry(0.07, 12, 8)
+  for (const [x, z, color] of [
+    [-hw, far, COLORS.left],
+    [hw, far, COLORS.right],
+    [-hw, near, 0xd8dcff],
+    [hw, near, 0xd8dcff],
+  ] as const) {
+    const post = new Mesh(postGeo, steel)
+    post.position.set(x, 0.725, z)
+    const cap = new Mesh(capGeo, steel)
+    cap.position.set(x, 1.45, z)
+    const pad = new Mesh(
+      padGeo,
+      new MeshStandardMaterial({ color: new Color(color).multiplyScalar(0.5), emissive: hdr(color, 0.8), roughness: 0.55 }),
+    )
+    pad.position.set(x, 0.85, z)
+    arena.add(post, cap, pad)
+  }
 
   // Broadcast light frame on the far wall.
   const frameMat = new MeshBasicMaterial({ color: 0x30285c })
@@ -281,42 +400,60 @@ export function buildGlove(hand: Hand): GloveParts {
  * Solid armour with neon edges: helmet with a cyan visor, neck, shoulders and a short torso. The
  * gloves float in front on their own, so the body has no arms. Faces -z, toward the opponent.
  */
-export function buildPlayerBody(): Group {
+export function buildPlayerBody(hands: readonly Object3D[] = []): Group {
   const body = new Group()
   const shell = armour()
   const edge = new LineBasicMaterial({ color: hdr(COLORS.left, 1.4), transparent: true, opacity: 0.7 })
   const visorMat = new MeshBasicMaterial({ color: hdr(COLORS.left, 1.6) })
-  const withEdges = (mesh: Mesh): Mesh => {
-    mesh.add(new LineSegments(new EdgesGeometry(mesh.geometry, 20), edge))
+  const withEdges = (mesh: Mesh, geo = mesh.geometry): Mesh => {
+    mesh.add(new LineSegments(new EdgesGeometry(geo, 20), edge))
     return mesh
   }
 
-  const helmet = withEdges(new Mesh(new DodecahedronGeometry(0.095, 0), shell))
-  helmet.scale.set(1, 1.08, 1.05)
-  helmet.position.set(0, -0.07, 0.06)
-  const visor = new Mesh(new BoxGeometry(0.13, 0.026, 0.02), visorMat)
-  visor.position.set(0, 0.01, -0.052)
-  helmet.add(visor)
-  const crest = withEdges(new Mesh(new BoxGeometry(0.02, 0.05, 0.13), shell))
-  crest.position.set(0, 0.09, 0.02)
+  // Bobblehead helmet seen from behind: big rounded shell, a cyan stripe down the back, crest.
+  const helmet = withEdges(new Mesh(new DodecahedronGeometry(0.115, 1), shell), new DodecahedronGeometry(0.115, 0))
+  helmet.scale.set(1.12, 1, 1.05)
+  helmet.position.set(0, -0.13, 0.08)
+  const stripe = new Mesh(new BoxGeometry(0.025, 0.16, 0.02), visorMat)
+  stripe.position.set(0, 0.02, 0.115)
+  stripe.rotation.x = -0.35
+  helmet.add(stripe)
+  const crest = withEdges(new Mesh(new BoxGeometry(0.022, 0.05, 0.16), shell))
+  crest.position.set(0, 0.12, 0.01)
   helmet.add(crest)
 
   const neck = new Mesh(new CylinderGeometry(0.04, 0.05, 0.1, 8), shell)
-  neck.position.set(0, -0.19, 0.08)
+  neck.position.set(0, -0.25, 0.08)
   const torso = withEdges(new Mesh(new CylinderGeometry(0.19, 0.12, 0.32, 6), shell))
   torso.scale.z = 0.6
-  torso.position.set(0, -0.42, 0.1)
+  torso.position.set(0, -0.45, 0.1)
   const chestLight = new Mesh(new BoxGeometry(0.12, 0.02, 0.01), visorMat)
   chestLight.position.set(0, 0.07, -0.17)
   torso.add(chestLight)
   body.add(helmet, neck, torso)
-  for (const side of [-1, 1]) {
+  const armGeo = new CylinderGeometry(0.018, 0.024, 1, 6)
+  ;[-1, 1].forEach((side, i) => {
     const shoulder = withEdges(new Mesh(new IcosahedronGeometry(0.08, 0), shell))
-    shoulder.position.set(side * 0.22, -0.27, 0.1)
+    shoulder.position.set(side * 0.22, -0.3, 0.1)
     body.add(shoulder)
-  }
+    // Piston arm to the glove; both live in the camera rig, so rig space works for both ends.
+    const hand = hands[i]
+    if (!hand) return
+    const arm = new Mesh(armGeo, shell)
+    arm.frustumCulled = false
+    const wrist = new Vector3()
+    const aim = (): void => {
+      stretch(arm, shoulder.position, wrist.copy(hand.position).add(WRIST_BACK))
+      arm.updateMatrixWorld()
+    }
+    aim()
+    arm.onBeforeRender = aim
+    body.add(arm)
+  })
   return body
 }
+/** From a glove's centre back to its cuff, in rig space (the gloves' cuffs point at the camera). */
+const WRIST_BACK = new Vector3(0, -0.01, 0.07)
 
 // ---------- drone ----------
 
@@ -338,6 +475,8 @@ export interface DroneParts {
   root: Group
   /** Rotation: sway, tilt, KO tumble. */
   body: Group
+  /** The whole head as one group in body space, so a KO can knock it off. */
+  headRoot: Group
   head: DroneHitPart
   chest: DroneHitPart
   /** Neon edge lines on the armour, and the solid neon trim (neck ring, pod tips). */
@@ -356,7 +495,22 @@ export interface DroneParts {
   telegraphGuide: Mesh<TorusGeometry, MeshBasicMaterial>
 }
 
-/** Sparring drone: faceted gem core, arc visor, crest fin, side pods, ion thruster. */
+/** Arm or leg segment from a to b (body space): a unit-height cylinder stretched and turned in place. */
+const UP = new Vector3(0, 1, 0)
+const span = new Vector3()
+function stretch(limb: Mesh, a: Vector3, b: Vector3): void {
+  span.copy(b).sub(a)
+  const len = Math.max(0.02, span.length())
+  limb.position.copy(a).addScaledVector(span, 0.5)
+  limb.quaternion.setFromUnitVectors(UP, span.multiplyScalar(1 / len))
+  limb.scale.set(1, len, 1)
+}
+
+/**
+ * Bobblehead sparring robot: small faceted torso, oversized helmet head with a wide visor, piston
+ * arms that follow the fists (the pods), and short legs standing on the floor. The head is its own
+ * group (headRoot) so it can be knocked off on a KO. Hit spheres keep the old layout, so hit rates hold.
+ */
 export function buildDrone(glowMap: Texture): DroneParts {
   const root = new Group()
   root.position.set(0, DRONE.y, DRONE.z)
@@ -364,82 +518,151 @@ export function buildDrone(glowMap: Texture): DroneParts {
   root.add(body)
   const accent = new LineBasicMaterial({ color: NEON.accent, transparent: true, opacity: 0.9 })
   const accentSolid = new MeshBasicMaterial({ color: NEON.accent })
+  const limbShell = armour()
+  limbShell.color.setHex(0x2a2f48)
+  // Fists glow in the robot's colour so punches read from across the ring.
+  const fistShell = new MeshStandardMaterial({
+    color: new Color(COLORS.drone).multiplyScalar(0.5),
+    emissive: hdr(COLORS.drone, 0.7),
+    roughness: 0.35,
+    flatShading: true,
+  })
+  const edged = (mesh: Mesh): Mesh => {
+    const lines = new LineSegments(new EdgesGeometry(mesh.geometry, 25), accent)
+    mesh.add(lines)
+    return mesh
+  }
 
-  // Chest: faceted core with a reactor orb and a holo hit sphere.
+  // Chest: tapered six-sided torso with a reactor orb and the chest hit sphere.
   const chestShell = armour()
-  const coreGeo = new IcosahedronGeometry(0.3, 0)
-  const core = new Mesh(coreGeo, chestShell)
-  core.scale.set(1.15, 1.2, 0.85)
-  const coreEdges = new LineSegments(new EdgesGeometry(coreGeo), accent)
-  coreEdges.scale.copy(core.scale)
+  const torso = edged(new Mesh(new CylinderGeometry(0.27, 0.17, 0.44, 6), chestShell))
+  torso.scale.z = 0.72
+  torso.position.y = 0.02
   const orbMat = new MeshBasicMaterial({ color: NEON.core })
-  const orb = new Mesh(new IcosahedronGeometry(0.09, 1), orbMat)
+  const orb = new Mesh(new IcosahedronGeometry(0.075, 1), orbMat)
   orb.position.z = DRONE.orbZ
   const chestHalo = additive(COLORS.drone, HALO_OPACITY)
-  chestHalo.visible = false // the drone reads solid: no see-through holo bubbles
+  chestHalo.visible = false // the robot reads solid: no see-through holo bubbles
   const chestCenter = new Vector3(0, 0, 0.12)
-  const chestSphere = new Mesh(new SphereGeometry(DRONE.chestRadius, 20, 14), chestHalo)
+  const chestSphere = new Mesh(new SphereGeometry(DRONE.chestRadius, 12, 8), chestHalo)
   chestSphere.position.copy(chestCenter)
-  body.add(core, coreEdges, orb, chestSphere)
+  const belt = new Mesh(new CylinderGeometry(0.18, 0.18, 0.05, 6), accentSolid)
+  belt.scale.z = 0.74
+  belt.position.y = -0.2
+  body.add(torso, orb, chestSphere, belt)
 
-  // Neck: a floating ring between the segments.
-  const neckRing = new Mesh(new TorusGeometry(0.1, 0.014, 6, 24), accentSolid)
+  // Shoulder pads.
+  const shoulderGeo = new IcosahedronGeometry(0.1, 0)
+  const shoulders = [-1, 1].map((side) => {
+    const pad = edged(new Mesh(shoulderGeo, limbShell))
+    pad.position.set(side * 0.31, 0.17, 0)
+    pad.scale.set(1.1, 0.85, 1)
+    body.add(pad)
+    return pad.position.clone()
+  })
+
+  // Short neck with the spinning ring.
+  const neck = new Mesh(new CylinderGeometry(0.05, 0.07, 0.12, 8), limbShell)
+  neck.position.y = 0.27
+  const neckRing = new Mesh(new TorusGeometry(0.085, 0.014, 6, 24), accentSolid)
   neckRing.rotation.x = Math.PI / 2
-  neckRing.position.y = 0.335
-  body.add(neckRing)
+  neckRing.position.y = 0.27
+  body.add(neck, neckRing)
 
-  // Head: faceted helmet, arc visor wrapped around the front, crest fin, holo hit sphere.
+  // Big bobblehead: faceted helmet, wide visor band facing the player, crest and antenna ears.
   const headShell = armour()
   const head = new Group()
   head.position.y = DRONE.headY
-  const headGeo = new DodecahedronGeometry(0.17, 0)
+  const headGeo = new DodecahedronGeometry(0.25, 1)
   const helmet = new Mesh(headGeo, headShell)
-  helmet.scale.set(1.2, 0.95, 1)
-  const helmetEdges = new LineSegments(new EdgesGeometry(headGeo), accent)
-  helmetEdges.scale.copy(helmet.scale)
+  helmet.scale.set(1.15, 1, 1)
+  const helmetEdges = new LineSegments(new EdgesGeometry(new DodecahedronGeometry(0.25, 0)), accent)
+  helmetEdges.scale.set(1.17, 1.02, 1.02)
   const visorMat = new MeshBasicMaterial({ color: NEON.core })
-  const visorGeo = new TorusGeometry(0.19, 0.022, 4, 20, 2)
-  visorGeo.rotateZ(Math.PI / 2 - 1) // centre the 2 rad arc on +y
+  const visorGeo = new TorusGeometry(0.262, 0.03, 4, 24, 2.2)
+  visorGeo.rotateZ(Math.PI / 2 - 1.1) // centre the arc on +y
   visorGeo.rotateX(Math.PI / 2) // then +y becomes +z (facing the player)
   const visor = new Mesh(visorGeo, visorMat)
+  visor.scale.set(1.15, 1, 1)
   visor.position.y = 0.01
-  const crest = new Mesh(new BoxGeometry(0.025, 0.07, 0.2), headShell)
-  crest.position.set(0, 0.17, -0.01)
+  const crest = new Mesh(new BoxGeometry(0.03, 0.08, 0.26), headShell)
+  crest.position.set(0, 0.25, -0.02)
+  head.add(helmet, helmetEdges, visor, crest)
+  for (const side of [-1, 1]) {
+    const ear = new Mesh(new CylinderGeometry(0.05, 0.05, 0.05, 8), limbShell)
+    ear.rotation.z = Math.PI / 2
+    ear.position.set(side * 0.29, 0, 0)
+    const tip = new Mesh(new BoxGeometry(0.015, 0.1, 0.015), accentSolid)
+    tip.position.set(side * 0.3, 0.08, 0)
+    head.add(ear, tip)
+  }
   const headHalo = additive(COLORS.drone, HALO_OPACITY)
   headHalo.visible = false
   const headCenter = new Vector3(0, DRONE.headY, 0.04)
-  const headSphere = new Mesh(new SphereGeometry(DRONE.headRadius, 18, 12), headHalo)
+  const headSphere = new Mesh(new SphereGeometry(DRONE.headRadius, 12, 8), headHalo)
   headSphere.position.set(0, 0, headCenter.z)
-  head.add(helmet, helmetEdges, visor, crest, headSphere)
+  head.add(headSphere)
   body.add(head)
 
-  // Side pods on short struts.
-  const podShell = armour()
-  const podGeo = new CapsuleGeometry(0.06, 0.16, 3, 8)
-  const tipGeo = new TorusGeometry(0.048, 0.012, 6, 16)
-  const strutGeo = new BoxGeometry(0.12, 0.03, 0.05)
-  const pods = [-1, 1].map((side) => {
+  // Fists (the pods): chunky faceted gloves with a neon wrist cuff, knuckles toward the player.
+  const fistGeo = new IcosahedronGeometry(0.11, 1)
+  const cuffGeo = new TorusGeometry(0.06, 0.014, 6, 16)
+  const armGeo = new CylinderGeometry(0.035, 0.045, 1, 6)
+  const wristOff = new Vector3(0, 0, -0.08)
+  const pods = [-1, 1].map((side, i) => {
     const pod = new Group()
     pod.position.set(side * DRONE.podX, DRONE.podY, DRONE.podZ)
-    const hull = new Mesh(podGeo, podShell)
-    hull.rotation.x = Math.PI / 2
-    const tip = new Mesh(tipGeo, accentSolid)
-    tip.position.z = 0.15
-    const strut = new Mesh(strutGeo, podShell)
-    strut.position.x = -side * 0.08
-    pod.add(hull, tip, strut)
+    const fist = edged(new Mesh(fistGeo, fistShell))
+    fist.scale.set(1, 0.9, 1.1)
+    fist.position.z = 0.04
+    const cuff = new Mesh(cuffGeo, accentSolid)
+    cuff.position.z = -0.07
+    pod.add(fist, cuff)
     body.add(pod)
+    // Piston arm from the shoulder to the wrist, re-aimed every frame because the scene moves the pods.
+    const arm = new Mesh(armGeo, limbShell)
+    arm.frustumCulled = false
+    const wrist = new Vector3()
+    const aim = (): void => {
+      stretch(arm, shoulders[i], wrist.copy(pod.position).add(wristOff))
+      arm.updateMatrixWorld()
+    }
+    aim()
+    arm.onBeforeRender = aim
+    body.add(arm)
     return pod
   })
 
-  // Ion thruster under the core.
-  const nozzle = new Mesh(new CylinderGeometry(0.07, 0.1, 0.07, 8), podShell)
-  nozzle.position.y = -0.3
+  // Hips and legs, standing on the floor (body origin sits DRONE.y above it).
+  const hips = edged(new Mesh(new BoxGeometry(0.26, 0.12, 0.16), limbShell))
+  hips.position.y = -0.3
+  body.add(hips)
+  const legGeo = new CylinderGeometry(0.075, 0.06, 1, 6)
+  const kneeGeo = new IcosahedronGeometry(0.08, 0)
+  const footGeo = new BoxGeometry(0.13, 0.07, 0.22)
+  for (const side of [-1, 1]) {
+    const hip = new Vector3(side * 0.1, -0.34, 0)
+    const knee = new Vector3(side * 0.13, -0.66, 0.05)
+    const ankle = new Vector3(side * 0.13, -DRONE.y + 0.08, -0.01)
+    const thigh = new Mesh(legGeo, limbShell)
+    stretch(thigh, hip, knee)
+    const shin = new Mesh(legGeo, limbShell)
+    stretch(shin, knee, ankle)
+    const kneePad = edged(new Mesh(kneeGeo, limbShell))
+    kneePad.position.copy(knee)
+    const foot = edged(new Mesh(footGeo, limbShell))
+    foot.position.set(ankle.x, ankle.y - 0.05, ankle.z + 0.04)
+    body.add(thigh, shin, kneePad, foot)
+  }
+
+  // Small back thruster (kept for the hover flicker), tucked behind the torso.
+  const nozzle = new Mesh(new CylinderGeometry(0.05, 0.07, 0.08, 8), limbShell)
+  nozzle.position.set(0, -0.1, -0.2)
   const thrusterMat = additive(0x7f6bff, 0.45)
   thrusterMat.color.multiplyScalar(2)
-  const thruster = new Mesh(new ConeGeometry(0.09, 0.32, 10, 1, true), thrusterMat)
+  const thruster = new Mesh(new ConeGeometry(0.06, 0.22, 8, 1, true), thrusterMat)
   thruster.rotation.x = Math.PI
-  thruster.position.y = -0.48
+  thruster.position.set(0, -0.24, -0.2)
   body.add(nozzle, thruster)
 
   const floorGlow = new Mesh(
@@ -468,6 +691,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   return {
     root,
     body,
+    headRoot: head,
     head: { center: headCenter, radius: DRONE.headRadius, shell: headShell, halo: headHalo, core: visorMat },
     chest: { center: chestCenter, radius: DRONE.chestRadius, shell: chestShell, halo: chestHalo, core: orbMat },
     accent,
