@@ -95,7 +95,8 @@ filters `LOWER(COALESCE(sport, 'boxing')) = 'boxing'`, so boxing numbers are unc
 - Event mapping (front-end shape and original API both accepted; the raw event stays in `payload`):
   - `SAVE` / `GOAL` -> sport `'goalkeeper'`, event_type `'save'` / `'goal'`, `hand` = saving glove (`L`/`R`, NULL for torso or goal),
     `speed_mps` = peak glove speed (m/s), `reaction_ms`, `accuracy` 0..1, `guard_up` NULL,
-    `points` = save 1000 (+250 if reaction < 450 ms, +150 punch clearance, + accuracy/2), goal 0 (the keeper engine's arcade score),
+    `points` = save 1000 (+250 if reaction < 450 ms, +150 punch clearance, + accuracy/2), goal 0 (the keeper engine's arcade score;
+    the bundled client sends each save's share of the once-rounded shootout total, so `SUM(points)` = the in-game score exactly),
     `payload:zone` 0..8 (= row * 3 + col, row 0 = top, col 0 = screen left; falls back to `payload:metrics:zone`, then row/col).
   - `ARROW_RELEASE` -> sport `'archery'`, event_type `'arrow'`, `points` = ring 0..10 (or `metrics.points`),
     `accuracy` = accuracy_score / 100 (else ring / 10), `payload:ring`, `payload:dx`, `payload:dy` (hit offset; NULL when not sent).
@@ -108,3 +109,4 @@ filters `LOWER(COALESCE(sport, 'boxing')) = 'boxing'`, so boxing numbers are unc
   via CUME_DIST, overall_rating = mean over sports played, sports_played), `MULTISPORT_RATING` DYNAMIC TABLE (V_DECATHLON, 1 minute lag).
 - `GET /api/leaderboard?sport=boxing|goalkeeper|archery` (case-insensitive, default boxing; unknown sport -> 400). Same row shape for
   every sport; for goalkeeper/archery `fastest_punch` / `max_speed` hold the fastest glove / release speed.
+- `GET /api/player/:id/stats` stays boxing-only: `sessions` lists boxing rounds only (a player id is shared across sports).

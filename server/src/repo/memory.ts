@@ -225,7 +225,8 @@ export class MemoryRepo implements Repo {
 
   async playerSessions(playerId: string, limit: number): Promise<SessionSummary[]> {
     return [...this.sessions.values()]
-      .filter((s) => s.player_id === playerId)
+      // Boxing only, like SQL.playerSessions: /api/player/:id/stats percentiles are boxing-shaped.
+      .filter((s) => s.player_id === playerId && String(s.sport || 'boxing').toLowerCase() === 'boxing')
       .sort((a, b) => b.started_at.localeCompare(a.started_at))
       .slice(0, limit)
       .map((s) => ({
