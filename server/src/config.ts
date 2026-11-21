@@ -43,6 +43,12 @@ export interface AppConfig {
   coachTimeoutMs: number;
   /** POST /api/session/end waits this long for that session's queued events to land. */
   sessionEndFlushWaitMs: number;
+  /** Answer /api/session/end within this many ms; a slower Cortex card finishes in the background (0 = off). */
+  coachFastMs: number;
+  /** Run a warehouse-using query this often so MOTION_WH never auto-suspends (0 = off). */
+  keepWarmMs: number;
+  /** Fire one tiny Cortex COMPLETE at startup so the first real card is not a cold start. */
+  cortexWarmup: boolean;
   /** Converts the front end's peak_velocity (shoulder-widths/s) to m/s. */
   shoulderWidthM: number;
   events: EventQueueConfig;
@@ -87,6 +93,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
     cortexModel: str(env, 'CORTEX_MODEL', 'mistral-large2'),
     coachTimeoutMs: int(env, 'COACH_TIMEOUT_MS', 8000, 100, 120_000),
     sessionEndFlushWaitMs: int(env, 'SESSION_END_FLUSH_WAIT_MS', 5000, 0, 60_000),
+    coachFastMs: int(env, 'COACH_FAST_MS', 5000, 0, 120_000),
+    keepWarmMs: int(env, 'WAREHOUSE_KEEPWARM_MS', 0, 0, 3_600_000),
+    cortexWarmup: env.CORTEX_WARMUP === undefined ? true : isTruthy(env.CORTEX_WARMUP),
     shoulderWidthM: Number(str(env, 'SHOULDER_WIDTH_M', '0.4')) > 0 ? Number(str(env, 'SHOULDER_WIDTH_M', '0.4')) : 0.4,
     events: {
       maxBatch: int(env, 'EVENTS_MAX_BATCH', 500, 1, 5000),

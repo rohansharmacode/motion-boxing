@@ -6,7 +6,11 @@
   "scripts": {
     "seed": "tsx src/seed.ts",
     "seed:dry": "tsx src/seed.ts --dry-run",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sql:setup": "tsx src/run-sql.ts ../sql/setup.sql ../sql/analytics.sql",
+    "sql:verify": "tsx src/run-sql.ts ../sql/verify.sql",
+    "streamlit:deploy": "tsx src/deploy-streamlit.ts",
+    "cortex:latency": "tsx src/cortex-latency.ts"
   },
   "dependencies": {
     "snowflake-sdk": "^1.15.0"

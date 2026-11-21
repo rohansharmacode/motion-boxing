@@ -23,6 +23,19 @@ async function main(): Promise<void> {
 
   if (repo.mode === 'snowflake') {
     void repo.ping().then((ok) => (ok ? log.info('snowflake: connected') : log.warn('snowflake: not reachable yet (events will be queued)')));
+    if (config.keepWarmMs > 0) {
+      const warm = () => repo.warm().catch((err) => log.warn('keep-warm query failed', { error: err instanceof Error ? err.message : String(err) }));
+      void warm();
+      setInterval(warm, config.keepWarmMs).unref();
+      log.info(`keep-warm: querying MOTION_WH every ${Math.round(config.keepWarmMs / 1000)} s (warehouse stays resumed and billed)`);
+    }
+    if (config.cortexWarmup) {
+      const t = Date.now();
+      void cortex
+        .complete('Reply with the single word OK.', { purpose: 'answer', timeoutMs: 60_000 })
+        .then(() => log.info(`cortex warm-up: ${Date.now() - t} ms`, { model: config.cortexModel }))
+        .catch((err) => log.warn('cortex warm-up failed', { error: err instanceof Error ? err.message : String(err) }));
+    }
   }
 
   let stopping = false;

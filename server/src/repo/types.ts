@@ -21,6 +21,9 @@ export interface Repo {
   /** Cheap connectivity check; must not throw. */
   ping(): Promise<boolean>;
 
+  /** Runs a tiny query that needs the warehouse (SELECT 1 is answered without one), to keep it resumed. */
+  warm(): Promise<void>;
+
   createPlayer(name: string): Promise<string>;
   getPlayer(playerId: string): Promise<Player | null>;
 
