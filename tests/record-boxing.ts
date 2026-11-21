@@ -36,6 +36,17 @@ let fps = 0
 let lastT = 0
 let lastLatency = 0
 
+/** What to do for each calibrator status (src/pose/calibration.ts). */
+const CAL_HINT: Record<string, string> = {
+  'no-pose': 'No body found. Step back so your head and upper body are in view, and add light in front of you.',
+  'shoulders-hidden': 'Shoulders not clear. Face the camera square-on, step back a little, avoid a bright window behind you.',
+  'too-close': 'Too close. Step back (about 1.5 to 2.5 m).',
+  'hands-hidden': 'Fists not in view. Raise your guard to chin height, keep both fists fully inside the picture (not at the edge).',
+  holding: 'Good. Hold still with your guard up...',
+}
+
+const vis = (f: PoseFrame, i: number): string => (f.image[i]?.visibility ?? 0).toFixed(2)
+
 function log(msg: string): void {
   const line = document.createElement('div')
   line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`
@@ -51,6 +62,8 @@ function onFrame(frame: PoseFrame | null): void {
   if (!calibration) {
     const p = calibrator.push(frame, pipeline ? pipeline.videoWidth / pipeline.videoHeight : 4 / 3)
     status.textContent = `calibrating: ${p.status} ${(p.progress * 100).toFixed(0)}%`
+    live.textContent = `fps ${fps.toFixed(1)}   inference ${pipeline?.inferenceMs.toFixed(1) ?? '-'} ms   pose ${frame ? 'found' : 'NOT found'}\n\n${CAL_HINT[p.status] ?? ''}` +
+      (frame ? `\n\nvisibility: shoulders L ${vis(frame, 11)} R ${vis(frame, 12)}   wrists L ${vis(frame, 15)} R ${vis(frame, 16)}  (need > 0.5 / > 0.4)` : '')
     if (p.status === 'done' && p.calibration) {
       calibration = p.calibration
       tracker = createBodyTracker(calibration, BOXING_FILTER)
