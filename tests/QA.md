@@ -1,5 +1,7 @@
 # QA pass: motion-boxing
 
+> **Status 21 Nov 13:40:** #1 fixed (`main.ts` mounts the shell with boxing, goalkeeper and leaderboard; `dist/` has all lazy chunks). Boxing camera release re-verified headless with a fake camera: tracks end on Home both mid-load and after a tracker error. Boxing scene uses `forceContextLoss()` (#3 boxing side).
+
 - Date: 2026-11-21 (about 12:20 to 12:31 local)
 - Git HEAD: `b7c97b5` (HEAD moved 34fa0f6 -> e00cecf -> b7c97b5 during the pass; uncommitted goalkeeper edits in the working tree)
 - `npm run build` (tsc && vite build): PASS. One warning: the single JS chunk is 750 kB (201 kB gzip), over Vite's 500 kB limit. Only `index.html` is bundled (see #1).
