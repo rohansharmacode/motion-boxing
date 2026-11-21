@@ -364,7 +364,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   const podGlows = drone.pods.map((pod) => {
     const m = new Mesh(
       new SphereGeometry(0.13, 16, 10),
-      new MeshBasicMaterial({ color: COLORS.telegraph, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, fog: false }),
+      new MeshBasicMaterial({ color: 0xffb000, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, fog: false }),
     )
     m.visible = false
     pod.add(m)
@@ -1335,6 +1335,15 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       const dt = sceneMs / 1000
       time += dt
       updateGloves(dt)
+      if (twin) {
+        // The player's robot reaches for the tracked gloves: its hidden fists sit where the gloves are,
+        // so its arms connect to them. Rotated to face away, so the left glove maps to its +x fist.
+        twin.root.updateMatrixWorld(true)
+        for (const g of gloves) {
+          const pod = twin.pods[g.hand === 'left' ? 1 : 0]
+          if (pod) twin.body.worldToLocal(g.parts.group.getWorldPosition(pod.position))
+        }
+      }
       updateDrone(dt)
       flushPending()
       botRing.group.visible = !ko

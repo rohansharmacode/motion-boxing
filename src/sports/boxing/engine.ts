@@ -65,7 +65,9 @@ const COMBO_CALLOUTS = [3, 5, 8]
 const KO_FINISH_MS = 2600
 /** Impact frames: the scene freezes this long on contact (about 4 frames at 60 fps; counters 6). */
 const HITSTOP_MS = 65
-const COUNTER_HITSTOP_MS = 95
+/** Style guide: heavy punches (cross, hook, uppercut) freeze 100-130 ms, counters longer. */
+const HEAVY_HITSTOP_MS = 110
+const COUNTER_HITSTOP_MS = 200
 const PLAYER_HITSTOP_MS = 70
 /** The finishing blow holds longest, so the head pop reads. */
 const KO_HITSTOP_MS = 170
@@ -422,7 +424,7 @@ export function createBoxingEngine(deps: {
       damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult * staminaMult)
       droneHp = Math.max(0, round1(droneHp - damage))
       scene.droneHit(hit, damage, counter)
-      scene.hitstop(counter ? COUNTER_HITSTOP_MS : HITSTOP_MS)
+      scene.hitstop(counter ? COUNTER_HITSTOP_MS : punch.kind === 'jab' ? HITSTOP_MS : HEAVY_HITSTOP_MS)
       hud.flashPunch(punch, true, counter)
       hud.setHp(playerHp, droneHp)
       if (COMBO_CALLOUTS.includes(combo)) hud.callout(`${combo} HIT COMBO`, 'good')
