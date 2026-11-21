@@ -157,7 +157,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
         void c.complete();
         return;
       }
-      calib.setWarning(status === 'no-pose' ? 'no_person' : status === 'shoulders-hidden' ? 'too_close' : null);
+      calib.setWarning(status === 'no-pose' ? 'no_person' : status === 'shoulders-hidden' || status === 'too-close' ? 'too_close' : null);
       calib.setProgress(status === 'holding' ? progress : 0);
     },
 

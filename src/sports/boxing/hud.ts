@@ -35,8 +35,10 @@ const ERROR_COPY: Record<StartupErrorKind, { title: string; help: string }> = {
 
 const CALIBRATION_COPY: Record<CalibrationStatus, string> = {
   'no-pose': 'Step into frame so we can see you',
-  'shoulders-hidden': 'Show both shoulders. Step back a little',
-  holding: 'Hold still. Guard up',
+  'shoulders-hidden': 'Show both shoulders. Face the camera',
+  'too-close': 'Too close! Take a big step back',
+  'hands-hidden': 'Raise both fists so we can see them',
+  holding: 'Nice! Hold your guard up',
   done: 'Locked in. Fight!',
 }
 

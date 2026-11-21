@@ -6,9 +6,9 @@ import type { BodyTracker } from './pose/body.ts'
 import type { Calibrator } from './pose/calibration.ts'
 import type { PosePipeline } from './pose/pipeline.ts'
 import type { Calibration, PoseFrame, StartupErrorKind } from './pose/types.ts'
-import type { RoundResult } from './sports/boxing/types.ts'
+import type { BoxingActions, RoundResult } from './sports/boxing/types.ts'
 
-type BoxingState = 'start' | 'loading' | 'calibrating' | 'fighting' | 'ended' | 'error'
+type BoxingState = 'start' | 'loading' | 'calibrating' | 'tutorial' | 'fighting' | 'ended' | 'error'
 
 /** Longest frame step fed to the game, ms (a hidden tab must not jump the round). */
 const MAX_DT_MS = 50
@@ -41,6 +41,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     { createPoseOverlay },
     { onPipelineEnded, startPosePipeline },
     { StartupError },
+    { createBoxingTutorial, tutorialNeeded },
+    { createTrackingHint },
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
@@ -56,6 +58,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./pose/overlay.ts'),
     import('./pose/pipeline.ts'),
     import('./pose/types.ts'),
+    import('./sports/boxing/tutorial.ts'),
+    import('./pose/trackingHint.ts'),
   ])
   // Nothing has been created yet, so there is nothing to dispose.
   if (ctx.signal.aborted) return NOOP_SESSION
@@ -77,11 +81,21 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   }
   const hud = createBoxingHud(ui)
   const telemetry = createTelemetry()
-  const detector = createBoxingDetector()
+  const overlay = createPoseOverlay(overlayCanvas)
+  const trackingHint = createTrackingHint(ui)
+  // Every punch the camera reads bursts on that fist in the preview, so players see what registered.
+  const flashPunches = (a: BoxingActions): BoxingActions => {
+    for (const p of a.punches) overlay.flash(p.hand, p.kind.toUpperCase())
+    return a
+  }
+  const rawDetector = createBoxingDetector()
+  const detector: typeof rawDetector = {
+    update: (b) => flashPunches(rawDetector.update(b)),
+    reset: () => rawDetector.reset(),
+  }
   const sfx = createBoxingSfx()
   const engine = createBoxingEngine({ hud, telemetry, detector, sfx, getPlayerName: () => hud.playerName })
   const keyboard = createKeyboardFallback()
-  const overlay = createPoseOverlay(overlayCanvas)
   // Bind the scene now so the drone idles on the start screen; beginFight rebinds with the real calibration.
   engine.init(scene, defaultCalibration(16 / 9))
 
@@ -92,6 +106,9 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   /** Bumped whenever the camera is stopped, so a pending start knows it is stale. */
   let cameraToken = 0
   let calibrator: Calibrator | null = null
+  let tutorial: ReturnType<typeof createBoxingTutorial> | null = null
+  /** Separate detector for practice so its cooldowns and baselines never leak into the round. */
+  const tutorialDetector = createBoxingDetector()
   let bodyTracker: BodyTracker | null = null
   let calibration: Calibration = defaultCalibration(16 / 9)
   let aspect = 16 / 9
@@ -103,6 +120,27 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function setState(next: BoxingState): void {
     state = next
     document.body.dataset.state = next
+    overlay.setGuide(next === 'calibrating')
+    trackingHint.setActive((next === 'fighting' || next === 'tutorial') && pipeline !== null)
+    if (next !== 'tutorial') endTutorial()
+  }
+
+  function endTutorial(): void {
+    const t = tutorial
+    tutorial = null
+    t?.dispose()
+  }
+
+  function beginTutorial(c: Calibration): void {
+    calibration = c
+    tutorialDetector.reset()
+    setState('tutorial')
+    tutorial = createBoxingTutorial(ui, {
+      onStep: () => sfx.block(),
+      onDone: () => {
+        if (state === 'tutorial') beginFight(calibration)
+      },
+    })
   }
 
   function stopCamera(): void {
@@ -113,6 +151,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     pipeline = null
     calibrator = null
     bodyTracker = null
+    trackingHint.setActive(false)
     overlay.draw(null, false)
   }
 
@@ -174,14 +213,20 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function onFrame(frame: PoseFrame | null): void {
     frames++
     overlay.draw(frame, state === 'fighting' && engine.debug.guard === 1)
+    trackingHint.push(frame)
     if (state === 'calibrating' && calibrator) {
       const p = calibrator.push(frame, aspect)
       hud.showCalibration(p.progress, p.status)
       if (p.status === 'done' && p.calibration) {
         calibrator = null
         bodyTracker = createBodyTracker(p.calibration, BOXING_FILTER)
-        beginFight(p.calibration)
+        if (tutorialNeeded()) beginTutorial(p.calibration)
+        else beginFight(p.calibration)
       }
+    } else if (state === 'tutorial' && bodyTracker && tutorial) {
+      const body = bodyTracker.push(frame)
+      const actions = flashPunches(tutorialDetector.update(body))
+      tutorial.onActions(actions, body ? body.t : performance.now())
     } else if ((state === 'fighting' || state === 'ended') && bodyTracker) {
       engine.onPoseFrame(bodyTracker.push(frame))
     }
@@ -324,6 +369,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     engine.dispose()
     scene.dispose()
     sfx.dispose()
+    endTutorial()
+    trackingHint.dispose()
     hud.dispose()
     arena.remove()
     overlay.draw(null, false)

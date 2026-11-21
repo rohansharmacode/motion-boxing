@@ -415,16 +415,16 @@ describe('mapping', () => {
   })
 
   test('bodyToGoal maps the reach box centre and corners onto the goal', () => {
-    const c = bodyToGoal(0, -0.3)
+    const c = bodyToGoal(0, -0.25)
     expect(c.x).toBeCloseTo(0, 9)
     expect(c.y).toBeCloseTo((GOAL_HEIGHT + 0.2) / 2, 9)
-    const tl = bodyToGoal(-1.4, -1.1)
+    const tl = bodyToGoal(-1.25, -1.0)
     expect(tl.x).toBeCloseTo(-GOAL_HALF_WIDTH, 9)
     expect(tl.y).toBeCloseTo(GOAL_HEIGHT, 9)
-    const tr = bodyToGoal(1.4, -1.1)
+    const tr = bodyToGoal(1.25, -1.0)
     expect(tr.x).toBeCloseTo(GOAL_HALF_WIDTH, 9)
     expect(tr.y).toBeCloseTo(GOAL_HEIGHT, 9)
-    const bl = bodyToGoal(-1.4, 0.5)
+    const bl = bodyToGoal(-1.25, 0.5)
     expect(bl.x).toBeCloseTo(-GOAL_HALF_WIDTH, 9)
     expect(bl.y).toBeCloseTo(0.2, 9)
     // Screen right (+bx) is +x, body y down is world y down.

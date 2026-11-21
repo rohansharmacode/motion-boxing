@@ -37,6 +37,12 @@ export interface BoxingDetectorConfig {
   straightMaxZReach: number
   /** m. ...and at least this far in front of that hand's guard baseline (its quiet z_wrist - z_shoulder with a bent arm). */
   straightMinForward: number
+  /** SW/s. Thrust straight (forgiving path for monocular depth error): the wrist drives toward the camera, relative to its shoulder, faster than this... */
+  thrustMinFwd: number
+  /** deg. ...the elbow opens past this... */
+  thrustMinTheta: number
+  /** deg/s. ...while extending at least this fast within straightDthetaWindowMs. Forward speed must also dominate the 2D wrist speed. */
+  thrustMinDtheta: number
   /** m. A straight is a cross when the punching side's shoulder has come forward by more than this (z_11 - z_12 against the stance baseline), else a jab. */
   crossMinTwist: number
   /** SW/s. Hook: minimum inward lateral wrist speed. */
@@ -81,36 +87,41 @@ export interface BoxingDetectorConfig {
   switchSuppressMs: number
 }
 
+// Tuned to be forgiving: casual players throw short, slow punches and stand at odd angles to a laptop camera,
+// and MediaPipe's monocular depth is the noisiest signal, so every depth threshold has a speed-based backup.
 export const DEFAULT_BOXING_CONFIG: BoxingDetectorConfig = {
-  minVisibility: 0.5,
+  minVisibility: 0.35,
   maxGapMs: 250,
   velocityWindowMs: 55,
   peakWindowMs: 150,
-  cooldownMs: 220,
+  cooldownMs: 200,
   rearmTheta: 125,
   rearmSpeed: 1,
   quietMs: 400,
   baselineTauMs: 3000,
-  straightMinDtheta: 280,
-  straightDthetaWindowMs: 80,
-  straightMinTheta: 135,
-  straightMaxZReach: -0.18,
-  straightMinForward: 0.1,
-  crossMinTwist: 0.1,
-  hookMinSpeed: 2.8,
-  hookMinTheta: 70,
+  straightMinDtheta: 180,
+  straightDthetaWindowMs: 120,
+  straightMinTheta: 131,
+  straightMaxZReach: -0.12,
+  straightMinForward: 0.06,
+  thrustMinFwd: 2,
+  thrustMinTheta: 105,
+  thrustMinDtheta: 90,
+  crossMinTwist: 0.08,
+  hookMinSpeed: 2.2,
+  hookMinTheta: 60,
   hookMaxTheta: 130,
-  hookMidlineMargin: 0.1,
-  hookCrossWindowMs: 120,
-  uppercutMinSpeed: 3,
-  uppercutStartBelow: 0,
-  uppercutStartWindowMs: 250,
+  hookMidlineMargin: 0.2,
+  hookCrossWindowMs: 180,
+  uppercutMinSpeed: 2.4,
+  uppercutStartBelow: -0.1,
+  uppercutStartWindowMs: 300,
   uppercutMaxOtherRise: 0.5,
   dominanceRatio: 1,
-  guardMaxNoseDist: 0.45,
-  guardMaxTheta: 140,
-  slipMinNoseX: 0.35,
-  duckMinDrop: 0.25,
+  guardMaxNoseDist: 0.6,
+  guardMaxTheta: 145,
+  slipMinNoseX: 0.3,
+  duckMinDrop: 0.2,
   noseTauMs: 2000,
   slipHoldMs: 1000,
   hysteresis: 0.05,
@@ -119,8 +130,11 @@ export const DEFAULT_BOXING_CONFIG: BoxingDetectorConfig = {
   switchSuppressMs: 300,
 }
 
-/** 1-euro filter tuning for boxing (research doc: minCutoff 1.5 Hz, beta 0.08, dCutoff 1.0 Hz). */
-export const BOXING_FILTER: OneEuroParams = { minCutoff: 1.5, beta: 0.08, dCutoff: 1.0 }
+/**
+ * 1-euro filter tuning for boxing. The research doc's minCutoff 1.5 Hz / beta 0.08 lagged the start of
+ * punches by a frame or two; a higher beta opens the filter sooner on fast moves while idle jitter stays smoothed.
+ */
+export const BOXING_FILTER: OneEuroParams = { minCutoff: 1.2, beta: 0.15, dCutoff: 1.0 }
 
 interface Sample {
   t: number
@@ -178,6 +192,8 @@ interface HandState {
   motion: Motion | null
   armed: boolean
   lastPunchT: number
+  /** When this hand last re-armed. Extension evidence older than this belongs to the previous punch. */
+  armedT: number
   lastStraight: boolean
   crossT: number | null
   /** Quiet zReach with a bent arm: where this hand rests in its guard. */
@@ -206,6 +222,7 @@ function newHand(hand: Hand): HandState {
     motion: null,
     armed: true,
     lastPunchT: -Infinity,
+    armedT: -Infinity,
     lastStraight: false,
     crossT: null,
     guardZ: newBaseline(),
@@ -358,7 +375,10 @@ export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {})
 
     if (!h.armed && t - h.lastPunchT >= cfg.cooldownMs) {
       const slow = h.motion !== null && h.motion.rel < cfg.rearmSpeed
-      if (slow || (h.lastStraight && theta < cfg.rearmTheta)) h.armed = true
+      if (slow || (h.lastStraight && theta < cfg.rearmTheta)) {
+        h.armed = true
+        h.armedT = t
+      }
     }
   }
 
@@ -369,11 +389,22 @@ export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {})
     const inward = -h.side * m.vx
     const up = -m.vy
     const r = cfg.dominanceRatio
-    const straight =
+    // Extension evidence must be newer than this hand's re-arm, so one long extension never fires twice.
+    const since = Math.max(t - cfg.straightDthetaWindowMs, h.armedT)
+    const extendedSince = (minDtheta: number): boolean => h.hist.some((p) => p.t >= since && p.dtheta > minDtheta)
+    const reached =
       s.theta > cfg.straightMinTheta &&
       s.zReach < cfg.straightMaxZReach &&
       (h.guardZ.v === null || s.zReach < h.guardZ.v - cfg.straightMinForward) &&
-      h.hist.some((p) => p.t >= t - cfg.straightDthetaWindowMs && p.dtheta > cfg.straightMinDtheta)
+      extendedSince(cfg.straightMinDtheta)
+    // Depth is often under-read for a punch straight at the camera, so a fast forward drive with an opening
+    // elbow also counts. Forward speed must beat the 2D speed so raising the guard never reads as a jab.
+    const thrust =
+      m.fwd > cfg.thrustMinFwd &&
+      m.fwd > r * Math.hypot(m.vx, m.vy) &&
+      s.theta > cfg.thrustMinTheta &&
+      extendedSince(cfg.thrustMinDtheta)
+    const straight = reached || thrust
     const hook =
       inward > cfg.hookMinSpeed &&
       h.crossT !== null &&
@@ -546,6 +577,7 @@ export function createBoxingDetector(config: Partial<BoxingDetectorConfig> = {})
       for (const h of hands) {
         h.armed = true
         h.lastPunchT = -Infinity
+        h.armedT = -Infinity
         h.lastStraight = false
       }
       guard = false

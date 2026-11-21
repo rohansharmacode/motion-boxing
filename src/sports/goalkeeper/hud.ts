@@ -14,7 +14,9 @@ type View = 'start' | 'loading' | 'error' | 'calibration' | 'play' | 'end'
 
 const CALIB_COPY: Record<CalibrationStatus, { title: string; sub: string }> = {
   'no-pose': { title: 'Step into view', sub: 'Stand back until the camera sees you.' },
-  'shoulders-hidden': { title: 'Show both shoulders', sub: 'Keep your upper body and hands in frame.' },
+  'shoulders-hidden': { title: 'Show both shoulders', sub: 'Face the camera, upper body in frame.' },
+  'too-close': { title: 'Too close', sub: 'Take a big step back so your arms fit.' },
+  'hands-hidden': { title: 'Hands up', sub: 'Raise both hands so we can see them.' },
   holding: { title: 'Hold still…', sub: 'Ready stance, hands up.' },
   done: { title: 'Ready!', sub: 'Here comes the striker.' },
 }
