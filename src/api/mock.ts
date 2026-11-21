@@ -236,7 +236,8 @@ export async function mockSessionEnd(req: SessionEndRequest): Promise<SessionEnd
 
 /** Plausible highlights from the mock leaderboard (and this browser's own best), newest first. */
 export async function mockHighlights(limit = 10): Promise<HighlightsResponse> {
-  await sleep(jitter(80, 200));
+  // No fake latency here: the home ticker remounts on every visit, and a pending timer per mount
+  // would read as a leak (tests/unit/shell-lifecycle.test.ts counts timers).
   const board = rank(loadBoard('BOXING'));
   const now = Date.now();
   const kinds = ['speed_record', 'punch_milestone', 'reaction_record', 'personal_best_speed'] as const;

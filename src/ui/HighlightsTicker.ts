@@ -63,6 +63,7 @@ export class HighlightsTicker {
   private refreshTimer = 0;
   private rotateTimer = 0;
   private destroyed = false;
+  private paused = false;
   private readonly opts: Required<Omit<HighlightsTickerOptions, 'playerId'>> & { playerId?: string };
 
   constructor(parent: HTMLElement, opts: HighlightsTickerOptions = {}) {
@@ -79,8 +80,22 @@ export class HighlightsTicker {
     );
     parent.append(this.element);
     void this.refresh();
-    this.refreshTimer = window.setInterval(() => void this.refresh(), this.opts.refreshMs);
-    this.rotateTimer = window.setInterval(() => this.rotate(), this.opts.rotateMs);
+    this.refreshTimer = window.setInterval(() => {
+      if (!this.paused) void this.refresh();
+    }, this.opts.refreshMs);
+    this.rotateTimer = window.setInterval(() => {
+      if (!this.paused) this.rotate();
+    }, this.opts.rotateMs);
+  }
+
+  /**
+   * Pause while hidden (e.g. a game is running): the intervals stay registered but do no work and
+   * make no requests. Resuming fetches straight away.
+   */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (!paused) void this.refresh();
   }
 
   async refresh(): Promise<void> {
@@ -125,8 +140,11 @@ export class HighlightsTicker {
   }
 }
 
-/** Shell-friendly wrapper: mount a ticker anywhere and get back { dispose }. */
-export function mountHighlightsTicker(parent: HTMLElement, opts: HighlightsTickerOptions = {}): { dispose(): void } {
+/** Shell-friendly wrapper: mount a ticker anywhere and get back { setPaused, dispose }. */
+export function mountHighlightsTicker(
+  parent: HTMLElement,
+  opts: HighlightsTickerOptions = {},
+): { setPaused(paused: boolean): void; dispose(): void } {
   const t = new HighlightsTicker(parent, opts);
-  return { dispose: () => t.destroy() };
+  return { setPaused: (p) => t.setPaused(p), dispose: () => t.destroy() };
 }

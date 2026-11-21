@@ -429,16 +429,12 @@ export function mountShell(options: ShellOptions): Shell {
   let lastFocused: ChannelId = 'boxing'
   let toastTimer = 0
 
-  // "Live from Snowflake" highlights ticker: only while the home view shows, so it never polls during a game.
+  // "Live from Snowflake" highlights ticker. Created once; paused (no requests, no rotation) whenever
+  // the home view is not showing, so it never polls during a game.
   const tickerSlot = wrap.querySelector<HTMLElement>('.shell-ticker')
-  let ticker: { dispose(): void } | null = null
+  let ticker: { setPaused(paused: boolean): void; dispose(): void } | null = tickerSlot ? mountHighlightsTicker(tickerSlot) : null
   function syncTicker(v: View): void {
-    if (!tickerSlot) return
-    if (v === 'home') ticker ??= mountHighlightsTicker(tickerSlot)
-    else if (ticker) {
-      ticker.dispose()
-      ticker = null
-    }
+    ticker?.setPaused(v !== 'home')
   }
 
   function setView(v: View): void {
