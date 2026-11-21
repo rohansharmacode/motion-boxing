@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Combo surge HUD icon">
+  <defs>
+    <linearGradient id="ic-bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22E5FF" />
+      <stop offset="52%" stop-color="#F2F7FF" />
+      <stop offset="100%" stop-color="#FF2E88" />
+    </linearGradient>
+    <filter id="ic-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#ic-glow)">
+    <!-- Back Kinetic Streak Chevron (Hot Pink) -->
+    <polygon
+      points="20,94 52,58 34,54 70,16 58,48 76,52 38,96"
+      fill="#FF2E88"
+      fill-opacity="0.32"
+      stroke="#FF2E88"
+      stroke-width="4"
+      stroke-linejoin="round"
+    />
+    <!-- Primary Cyber Lightning Bolt (Cyan -> Pink) -->
+    <polygon
+      points="74,12 34,66 60,66 48,116 98,54 70,54"
+      fill="#080C1C"
+      stroke="url(#ic-bolt)"
+      stroke-width="6"
+      stroke-linejoin="round"
+    />
+    <polygon points="71,22 44,61 65,61 56,102 88,59 66,59" fill="url(#ic-bolt)" fill-opacity="0.3" />
+    <!-- Stacked Speed Chevrons & Sparks -->
+    <polyline points="86,84 102,96 86,108" fill="none" stroke="#22E5FF" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+    <polyline points="100,84 114,96 100,108" fill="none" stroke="#FF2E88" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="28" cy="30" r="4.5" fill="#22E5FF" />
+    <circle cx="104" cy="32" r="4" fill="#FF2E88" />
+  </g>
+</svg>

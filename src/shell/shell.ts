@@ -4,7 +4,6 @@
 import '../theme/index.ts'
 import './shell.css'
 import './channels.css'
-import './calm.css'
 import '../theme/bright/shell.css'
 import { isBright } from '../theme/index.ts'
 import { TILES, artUrl } from './catalogue.ts'
@@ -57,10 +56,32 @@ const NEON_HOME = `
 </footer>
 `
 
+/** Original pixel cloud: 12 x 6 cells, drawn with crisp SVG rects. */
+const PIXEL_CLOUD = `<svg viewBox="0 0 12 6" shape-rendering="crispEdges" aria-hidden="true">
+  <path fill="#fff" d="M4 0h3v1h1v1h2v1h1v2h1v1H0V5h1V3h1V2h1V1h1z"/>
+  <path fill="#cfe3f5" d="M0 5h12v1H0zM10 3h1v2h-1z"/>
+</svg>`
+
+/** Kinetic logo mark: a ring with a motion spark. Original. */
+const LOGO = `<svg viewBox="0 0 48 48" aria-hidden="true">
+  <circle cx="24" cy="24" r="15" fill="none" stroke="#ff5e24" stroke-width="5"/>
+  <path d="M24 13v11l8 5" fill="none" stroke="#232629" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`
+
+const RECORDS_ICON = `<svg viewBox="0 0 48 48" aria-hidden="true">
+  <rect x="9" y="13" width="30" height="22" rx="3" fill="none" stroke="#5c6066" stroke-width="3.5"/>
+  <path d="M10 15l14 11 14-11" fill="none" stroke="#5c6066" stroke-width="3.5" stroke-linejoin="round"/>
+</svg>`
+
 const BRIGHT_HOME = `
-<div class="shell-bg ch-bg" aria-hidden="true"></div>
+<div class="shell-bg ch-bg" aria-hidden="true">
+  <span class="ch-cloud ch-cloud--1">${PIXEL_CLOUD}</span>
+  <span class="ch-cloud ch-cloud--2">${PIXEL_CLOUD}</span>
+  <span class="ch-cloud ch-cloud--3">${PIXEL_CLOUD}</span>
+</div>
 
 <nav class="shell-grid ch-grid" aria-label="Channels"></nav>
+<span class="ch-page" aria-hidden="true">&#9654;</span>
 
 <footer class="ch-bar">
   <svg class="ch-bar-shape" viewBox="0 0 1600 200" preserveAspectRatio="none" aria-hidden="true">
@@ -73,14 +94,16 @@ const BRIGHT_HOME = `
     <path d="M0 40 H520 C600 40 610 0 700 0 H900 C990 0 1000 40 1080 40 H1600 V200 H0 Z" fill="url(#ch-bar-fill)"/>
     <path d="M0 40 H520 C600 40 610 0 700 0 H900 C990 0 1000 40 1080 40 H1600" fill="none" stroke="#cfe3f5" stroke-width="3"/>
   </svg>
+  <button type="button" class="ch-round ch-round--logo" data-dwell aria-label="Kinetic settings">${LOGO}</button>
   <div class="ch-time">
     <time class="shell-clock ch-clock"><span class="ch-clock-h"></span><span class="ch-colon">:</span><span class="ch-clock-m"></span></time>
     <span class="ch-date"></span>
   </div>
+  <button type="button" class="ch-round ch-round--records" data-dwell aria-label="Records">${RECORDS_ICON}</button>
 </footer>
 
 <section class="ch-preview" role="dialog" aria-modal="true" aria-label="Channel preview" hidden>
-  <div class="ch-preview-art"><img class="ch-preview-img" alt="" decoding="async" hidden /><span class="ch-preview-icon"></span></div>
+  <div class="ch-preview-art"><img class="ch-preview-img" alt="" decoding="async" /></div>
   <div class="ch-preview-info">
     <h2 class="ch-preview-title"></h2>
     <p class="ch-preview-how"></p>
@@ -190,10 +213,10 @@ function mutable(inner: Sfx): Sfx {
 
 // ---------- channel grid extras (bright) ----------
 
-type ChannelId = TileId | 'settings'
+type ChannelId = TileId | 'coach' | 'settings'
 
 interface ExtraChannel {
-  id: 'settings'
+  id: 'coach' | 'settings'
   title: string
   howTo: string
   glyph: string
@@ -202,15 +225,22 @@ interface ExtraChannel {
 
 const EXTRA: readonly ExtraChannel[] = [
   {
+    id: 'coach',
+    title: 'Coach',
+    howTo: 'Warm-ups and form tips from your motion coach.',
+    glyph: `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="20" r="9" fill="#2f9bff"/><path d="M16 54c0-12 7-20 16-20s16 8 16 20z" fill="#2f9bff"/><path d="M42 12l10-4-2 10" fill="none" stroke="#ff5e24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    accent: '#8fd3fb',
+  },
+  {
     id: 'settings',
     title: 'Settings',
     howTo: 'Pick a look and switch sounds on or off.',
-    glyph: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="32" cy="32" r="9"/><path d="M32 10v7M32 47v7M10 32h7M47 32h7M16.4 16.4l5 5M42.6 42.6l5 5M16.4 47.6l5-5M42.6 21.4l5-5"/></svg>`,
+    glyph: `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="11" fill="none" stroke="#5c6066" stroke-width="6"/><path d="M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M15 49l6-6M43 21l6-6" stroke="#5c6066" stroke-width="6" stroke-linecap="round"/></svg>`,
     accent: '#dfe7ef',
   },
 ]
 
-
+const SLOTS = 12
 
 // ---------- mount ----------
 
@@ -341,9 +371,7 @@ export function mountShell(options: ShellOptions): Shell {
   if (channels) {
     for (const info of TILES) {
       const ready = options.launchers[info.id] !== undefined
-      // One consistent line-icon set on every tile (catalogue icons), no illustrations.
-      const img = span('ch-tile-glyph ch-tile-icon')
-      img.innerHTML = info.icon // static catalogue SVG
+      const img = artImg(info.art, 'ch-tile-img', neon)
       const b = buildChannel(info.id, info.title, ready, img)
       b.style.setProperty('--a', info.accent)
       tileEls.set(info.id, b)
@@ -353,12 +381,13 @@ export function mountShell(options: ShellOptions): Shell {
     for (const x of EXTRA) {
       const glyph = span('ch-tile-glyph')
       glyph.innerHTML = x.glyph // static markup
-      glyph.classList.add('ch-tile-icon')
-      const b = buildChannel(x.id, x.title, true, glyph)
-      b.style.setProperty('--a', '#a98bff')
+      glyph.style.setProperty('--tint', x.accent)
+      const b = buildChannel(x.id, x.title, x.id === 'settings', glyph)
+      b.style.setProperty('--a', x.id === 'settings' ? '#a98bff' : '#38c8ff')
       channelEls.set(x.id, b)
       grid.append(b)
     }
+    for (let i = channelEls.size; i < SLOTS; i++) grid.append(span('ch-tile ch-tile--empty'))
   } else {
     for (const info of TILES) {
       const el = buildTile(info)
@@ -454,8 +483,9 @@ export function mountShell(options: ShellOptions): Shell {
     if (info) {
       const ready = options.launchers[info.id] !== undefined
       // Neon: reuse the tile's still bitmap (animated SVGs are the costliest thing to draw).
-      img.hidden = true
-      q('.ch-preview-icon').innerHTML = info.icon // static catalogue SVG
+      const still = channelEls.get(info.id)?.querySelector<HTMLImageElement>('img')?.dataset.still
+      img.src = neon && still ? still : info.art
+      img.hidden = false
       preview.style.setProperty('--a', info.accent)
       title.textContent = info.title
       how.textContent = info.howTo
@@ -467,7 +497,6 @@ export function mountShell(options: ShellOptions): Shell {
     }
     const x = EXTRA.find((e) => e.id === id)
     img.hidden = true
-    q('.ch-preview-icon').innerHTML = x?.glyph ?? '' // static markup
     title.textContent = x?.title ?? ''
     how.textContent = x?.howTo ?? ''
     best.textContent = ''
@@ -520,6 +549,12 @@ export function mountShell(options: ShellOptions): Shell {
     if (!preview || view !== 'home' || previewOpen()) return
     const tile = channelEls.get(id)
     if (!tile) return
+    if (id === 'coach') {
+      sfx.denied()
+      replay(tile, 'ch-tile--nope')
+      showToast('Coach is coming soon')
+      return
+    }
     sfx.select()
     lastFocused = id
     previewId = id
@@ -573,6 +608,8 @@ export function mountShell(options: ShellOptions): Shell {
       const id = previewId
       if (id && TILES.some((t) => t.id === id)) void shell.launch(id as TileId)
     })
+    q('.ch-round--logo').addEventListener('click', () => openPreview('settings'))
+    q('.ch-round--records').addEventListener('click', () => openPreview('leaderboard'))
   }
 
   // ---------- keyboard ----------
