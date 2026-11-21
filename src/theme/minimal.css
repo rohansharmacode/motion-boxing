@@ -589,3 +589,96 @@
 }
 :root:not(#_)[data-theme='neon'] .kr-calib-warn > * { transform: none; }
 :root:not(#_)[data-theme='neon'] .kr-calib2[data-warning='too_dark'] .kr-calib-warn { background: none; box-shadow: none; color: #ffd166; }
+
+/* ==========================================================================
+   Arcade cabinet finish for shared screens and the goalkeeper / archery HUDs
+   (GDD S1, S2, S4, 2.7, 3.7). Palette 60/30/10: void #070A17, navy plates
+   #0C1228, slate #1A2342, steel #2E3E6E, cyan #22E5FF, pink #FF2E88, amber
+   #FFD166, red #FF2442, lime #B8FF00. Sharp or chamfered corners, 2-3px solid
+   borders, hard shadows (no blur), no glass, no pills.
+   ========================================================================== */
+:root[data-theme='neon'] {
+  --k-void: #070a17;
+  --k-navy: #0c1228;
+  --k-slate: #1a2342;
+  --k-steel: #2e3e6e;
+  --k-cyan: #22e5ff;
+  --k-pink: #ff2e88;
+  --k-amber: #ffd166;
+  --k-red: #ff2442;
+  --k-lime: #b8ff00;
+  --k-white: #f2f7ff;
+  --k-shadow: #03050d;
+  --k-chamfer: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+/* Buttons, toggles and pills everywhere: sharp corners, solid borders, hard 4px shadow. */
+:root:not(#_)[data-theme='neon'] :is(.kr-btn, .gk-btn, .ar-btn, .vs-entry) {
+  border-radius: 0;
+  clip-path: none;
+  box-shadow: 4px 4px 0 var(--k-shadow);
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+:root:not(#_)[data-theme='neon'] :is(.kr-btn-ghost, .gk-btn--ghost, .ar-btn--ghost) {
+  background: var(--k-navy);
+  border: 3px solid var(--k-cyan);
+  color: var(--k-cyan);
+}
+:root:not(#_)[data-theme='neon'] :is(.gk-levels, .gk-level, .gk-kbd, .ar-kbd, .kr-kbd, .shell-home) { border-radius: 0; }
+:root:not(#_)[data-theme='neon'] .gk-levels { background: var(--k-navy); border: 2px solid var(--k-steel); }
+
+/* Plates and panels: opaque navy, 3px border, hard shadow, no blur. */
+:root:not(#_)[data-theme='neon'] :is(.kr-stat, .gk-panel, .ar-panel, .ar-cluster, .ar-meter-card, .gk-topbar) {
+  border-radius: 0;
+  background: var(--k-navy);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 6px 6px 0 var(--k-shadow);
+}
+:root:not(#_)[data-theme='neon'] :is(.gk-panel, .ar-panel) { border: 3px solid var(--k-steel); }
+:root:not(#_)[data-theme='neon'] :is(.ar-cluster, .ar-meter-card, .gk-topbar) { border: 2px solid var(--k-cyan); box-shadow: 4px 4px 0 var(--k-shadow); }
+:root:not(#_)[data-theme='neon'] .kr-stat { border: 2px solid var(--k-steel); border-top: 3px solid var(--k-cyan); }
+:root:not(#_)[data-theme='neon'] .kr-hl { border-radius: 0; background: var(--k-navy); border: 2px solid var(--k-steel); box-shadow: 4px 4px 0 var(--k-shadow); }
+:root:not(#_)[data-theme='neon'] :is(.gk-badge, .ar-badge, .ar-wind) { border-radius: 0; background: var(--k-navy); border: 2px solid var(--k-amber); box-shadow: 4px 4px 0 var(--k-shadow); }
+
+/* Goalkeeper pips: square 5-kick bar. Saved cyan, goal pink, active amber, empty slate. */
+:root:not(#_)[data-theme='neon'] .gk-hud {
+  --gk-good: var(--k-cyan);
+  --gk-bad: var(--k-pink);
+  --gk-accent: var(--k-amber);
+  --gk-surface: var(--k-navy);
+}
+:root:not(#_)[data-theme='neon'] .gk-pip { width: 32px; height: 32px; border-radius: 0; background: var(--k-slate); border-color: var(--k-steel); }
+:root:not(#_)[data-theme='neon'] .gk-pip[data-state='current'] { border-color: var(--k-amber); box-shadow: none; transform: none; animation: k-pip 0.5s steps(2) infinite; }
+@keyframes k-pip { 50% { border-color: var(--k-white); } }
+
+/* Archery pips: square score boxes. Gold amber, X/hot lime, hit cyan, miss pink. */
+:root:not(#_)[data-theme='neon'] .ar-hud {
+  --ar-gold: var(--k-amber);
+  --ar-cyan: var(--k-cyan);
+  --ar-magenta: var(--k-pink);
+  --ar-lime: var(--k-lime);
+  --ar-surface: var(--k-navy);
+}
+:root:not(#_)[data-theme='neon'] .ar-pip { width: 44px; height: 36px; border-radius: 0; box-shadow: none; }
+:root:not(#_)[data-theme='neon'] .ar-pip[data-state='current'] { transform: none; box-shadow: none; animation: k-pip 0.5s steps(2) infinite; }
+:root:not(#_)[data-theme='neon'] .ar-pip[data-state='miss'] { border-color: var(--k-pink); border-style: solid; color: var(--k-pink); }
+
+/* Game hints and callouts: bare flashing text with hard shadows, never pills or glows. */
+:root:not(#_)[data-theme='neon'] .ar-hint {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font: 400 clamp(24px, 2vw, 36px)/1 'Bebas Neue', sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--k-amber);
+  text-shadow: 4px 4px 0 var(--k-void);
+}
+:root:not(#_)[data-theme='neon'] .ar-hint.ar-on { animation: bx-flash-in 0.6s ease-out both; }
+:root:not(#_)[data-theme='neon'] :is(.gk-callout, .ar-callout) {
+  -webkit-text-stroke: 0;
+  text-shadow: 6px 6px 0 var(--k-void);
+}
