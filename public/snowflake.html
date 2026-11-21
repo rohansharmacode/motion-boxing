@@ -1,0 +1,27 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kinetic Ring: How we used Snowflake</title>
+<style>body{background:#0b0f1a;color:#e6ecff;font:16px/1.6 system-ui,sans-serif;margin:0;padding:32px}pre{max-width:900px;margin:0 auto;white-space:pre-wrap;word-wrap:break-word;font:15px/1.6 ui-monospace,Menlo,Consolas,monospace}a{color:#3cc8ff}</style></head>
+<body><pre># Kinetic Ring: How we used Snowflake
+
+```
+Browser game -&gt; Express API -&gt; MOTION_EVENTS / PLAYERS / SESSIONS
+  -&gt; Dynamic Tables (PLAYER_FORM, SESSION_SUMMARY, PLAYER_PROGRESS)
+  -&gt; Streams + Tasks (T_HIGHLIGHTS, T_SCOUTING)
+  -&gt; Cortex AI (AI_COMPLETE, AI_CLASSIFY, AI_AGG, Search, Analyst)
+  -&gt; Back to game: coach card, highlights ticker, leaderboards
+```
+
+
+Every move you make becomes data. The browser batches each punch, save, arrow or roll (type, hand, speed, reaction time, accuracy) to our Express API, which writes them to `MOTION_EVENTS`, with `PLAYERS` and `SESSIONS` alongside.
+
+Inside Snowflake:
+- **Dynamic Tables** (`PLAYER_FORM`, `SESSION_SUMMARY` -&gt; `PLAYER_PROGRESS`) roll raw events into form and improvement trends (`REGR_SLOPE`).
+- **Streams + Tasks**: `T_HIGHLIGHTS` writes a live highlights feed (speed records, personal bests, milestones) and flags impossible punch speeds as anti-cheat. `T_SCOUTING` uses `AI_CLASSIFY` and `AI_COMPLETE` to label your fighting style and write a scouting report.
+- **Cortex `AI_COMPLETE` with a JSON schema** writes the post-round coach card (headline, 3 tips, drill, badge), grounded by **Cortex Search** over a drill library (RAG).
+- **VECTOR similarity** finds your &quot;style twin&quot;; **Cortex Analyst**, guarded text-to-SQL, **Time Travel** and `AI_AGG` power a **Streamlit in Snowflake** coaching dashboard.
+- Least-privilege roles, X-Small warehouse with auto-suspend, and tasks that skip when no one is playing.
+
+In the game you see it as the coach card after each round, the home-screen highlights ticker, per-sport leaderboards and stats.
+
+Honest status: all of this ran end-to-end on a real Snowflake account during the hackathon (real Cortex coach cards; screenshots in `docs/snowflake-screens/`). The public Render demo runs the server in **mock mode** (same API, in-memory data), so the live site does not spend Snowflake credits; the highlights ticker there is labelled &quot;MOCK&quot;.
+
+</pre><p style="max-width:900px;margin:24px auto"><a href="/">Play Kinetic Ring</a></p></body></html>
