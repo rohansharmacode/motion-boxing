@@ -29,6 +29,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   const [
     { createBoxingScene },
     { createBoxingHud },
+    { createKineticHud },
     { createTelemetry },
     { BOXING_FILTER, createBoxingDetector },
     { createBoxingEngine },
@@ -44,6 +45,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
+    import('./ui/KineticHud.ts'),
     import('./sports/boxing/telemetry.ts'),
     import('./sports/boxing/detector.ts'),
     import('./sports/boxing/engine.ts'),
@@ -75,7 +77,10 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     arena.remove()
     throw err
   }
-  const hud = createBoxingHud(ui)
+  // Kinetic HUD: live stats, then the post-match screen with the Cortex coach card and leaderboard.
+  // It also bridges this round's motion events to the server (src/api/boxingLink.ts, mock mode
+  // without VITE_API_URL). ?hud=classic keeps the original in-game HUD.
+  const hud = new URLSearchParams(location.search).get('hud') === 'classic' ? createBoxingHud(ui) : createKineticHud(ui, { ctx })
   const telemetry = createTelemetry()
   const detector = createBoxingDetector()
   const sfx = createBoxingSfx()
@@ -342,7 +347,10 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
 const goalkeeper = (ctx: GameContext): Promise<GameSession> =>
   import('./sports/goalkeeper/index.ts').then((m) => m.startGoalkeeper(ctx))
 
-mountShell({ launchers: { boxing: startBoxing, goalkeeper } })
+const leaderboard = (ctx: GameContext): Promise<GameSession> =>
+  import('./ui/LeaderboardScreen.ts').then((m) => m.startLeaderboard(ctx))
+
+mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
 
 // Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
 if (!document.head.querySelector('link[rel="preconnect"][href="https://cdn.jsdelivr.net"]')) {
