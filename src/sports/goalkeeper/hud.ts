@@ -9,6 +9,10 @@ import type {
   KickResult,
   ShootoutResult,
 } from './types.ts'
+import { DIFFICULTIES } from './difficulty.ts'
+import type { Difficulty } from './difficulty.ts'
+import type { SaveGrade } from './grading.ts'
+import type { ShotType } from './shots.ts'
 
 type View = 'start' | 'loading' | 'error' | 'calibration' | 'play' | 'end'
 
@@ -24,6 +28,11 @@ const CALIB_COPY: Record<CalibrationStatus, { title: string; sub: string }> = {
 const PART_LABEL: Record<KeeperPart, string> = { left: 'L glove', right: 'R glove', torso: 'Body' }
 const ROW_LABEL = ['Top', 'Mid', 'Low'] as const
 const COL_LABEL = ['left', 'centre', 'right'] as const
+
+const GRADE_WORD: Record<SaveGrade, string> = { perfect: 'PERFECT!', good: 'GOOD SAVE', fingertip: 'FINGERTIP!', miss: 'MISSED' }
+
+const GRADE_LABEL: Record<SaveGrade, string> = { perfect: 'Perfect', good: 'Good', fingertip: 'Fingertip', miss: 'Miss' }
+const SHOT_LABEL: Record<ShotType, string> = { straight: 'Straight', curl: 'Curler', dip: 'Dipper', skimmer: 'Skimmer', topCorner: 'Top corner' }
 
 const RING_R = 34
 const RING_C = 2 * Math.PI * RING_R
@@ -95,12 +104,56 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   startNote.append(
     el('span', 'gk-kbd', 'D'),
     document.createTextNode(' mouse mode  '),
+    el('span', 'gk-kbd', '← → ↑ ↓'),
+    document.createTextNode(' keyboard  '),
     el('span', 'gk-kbd', 'R'),
     document.createTextNode(' restart  '),
+    el('span', 'gk-kbd', 'P'),
+    document.createTextNode(' practice  '),
     el('span', 'gk-kbd', '`'),
     document.createTextNode(' debug'),
   )
-  start.append(startKicker, title, howTo, startActions, startNote)
+  // Difficulty picker: a radio group of three pills, shared by the start and end screens.
+  const LEVEL_LABEL: Record<Difficulty, string> = { easy: 'Easy', normal: 'Normal', hard: 'Hard' }
+  let onLevel: (level: Difficulty) => void = () => {}
+  let currentLevel: Difficulty = 'normal'
+  const levelPickers: HTMLElement[] = []
+  function levelPicker(): HTMLElement {
+    const group = el('div', 'gk-levels')
+    group.setAttribute('role', 'radiogroup')
+    group.setAttribute('aria-label', 'Difficulty')
+    for (const level of DIFFICULTIES) {
+      const b = el('button', 'gk-level', LEVEL_LABEL[level])
+      b.type = 'button'
+      b.dataset.level = level
+      b.setAttribute('role', 'radio')
+      b.addEventListener('click', () => {
+        if (level === currentLevel) return
+        markLevel(level)
+        onLevel(level)
+      })
+      group.append(b)
+    }
+    levelPickers.push(group)
+    return group
+  }
+  function markLevel(level: Difficulty): void {
+    currentLevel = level
+    levelTag.textContent = LEVEL_LABEL[level]
+    levelTag.dataset.level = level
+    for (const g of levelPickers) {
+      for (const b of g.children) {
+        if (b instanceof HTMLElement) b.setAttribute('aria-checked', String(b.dataset.level === level))
+      }
+    }
+  }
+  const practiceLabel = el('label', 'gk-practice-choice')
+  const practiceBox = el('input')
+  practiceBox.type = 'checkbox'
+  let onPracticeChoice: (on: boolean) => void = () => {}
+  practiceBox.addEventListener('change', () => onPracticeChoice(practiceBox.checked))
+  practiceLabel.append(practiceBox, document.createTextNode(' Practice first (20 s, 3 slow shots)'))
+  start.append(startKicker, title, howTo, levelPicker(), practiceLabel, startActions, startNote)
 
   // ---------- loading ----------
   const loading = el('section', 'gk-panel gk-loading')
@@ -155,10 +208,17 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   pips.setAttribute('aria-label', 'Kicks')
   const counter = el('p', 'gk-counter', 'KICK 1/5')
   counter.setAttribute('aria-live', 'polite')
-  topbar.append(pips, counter)
-  const badge = el('p', 'gk-badge', 'CAMERA')
+  // Slim corner HUD: KICK n/5 + pips, then combo, level and input mode on one small line.
+  const comboTag = el('span', 'gk-combo-tag')
+  const levelTag = el('span', 'gk-level-tag')
+  const badge = el('span', 'gk-badge', 'CAMERA')
   badge.dataset.mode = 'camera'
-  play.append(topbar, badge)
+  const metaRow = el('div', 'gk-meta')
+  metaRow.append(comboTag, levelTag, badge)
+  const kickRow = el('div', 'gk-kickrow')
+  kickRow.append(counter, pips)
+  topbar.append(kickRow, metaRow)
+  play.append(topbar)
   if (opts.onHome && opts.cornerHome !== false) {
     const corner = homeButton()
     corner.className = 'gk-home-corner'
@@ -166,6 +226,18 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
     corner.setAttribute('aria-label', 'Home')
     play.append(corner)
   }
+  // Practice prompt: one line at a time, bottom centre (clear of the webcam preview), with Skip.
+  const practiceBar = el('div', 'gk-practice')
+  practiceBar.hidden = true
+  const practiceText = el('p', 'gk-practice-text')
+  practiceText.setAttribute('aria-live', 'polite')
+  const practiceSkip = button('Skip practice', true)
+  practiceSkip.classList.add('gk-practice-skip')
+  practiceSkip.append(' ', el('span', 'gk-kbd', 'S'))
+  practiceBar.append(el('span', 'gk-practice-tag', 'PRACTICE'), practiceText, practiceSkip)
+  play.append(practiceBar)
+  let onSkip: () => void = () => {}
+  practiceSkip.addEventListener('click', () => onSkip())
   const telegraph = el('div', 'gk-telegraph')
   telegraph.setAttribute('aria-hidden', 'true')
   play.append(telegraph)
@@ -177,15 +249,24 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   const end = el('section', 'gk-panel gk-end')
   end.setAttribute('aria-labelledby', 'gk-end-title')
   const endKicker = el('p', 'gk-kicker', 'Full time')
+  // Header: big letter grade beside SAVES n/5.
+  const endHead = el('div', 'gk-end-head')
+  const endGrade = el('p', 'gk-end-grade')
+  endGrade.setAttribute('aria-label', 'Grade')
   const endSaves = el('h2', 'gk-end-saves')
   endSaves.id = 'gk-end-title'
+  endHead.append(endGrade, endSaves)
   const stats = el('dl', 'gk-stats')
   const kicksTable = el('table', 'gk-kicks')
   const endActions = el('div', 'gk-actions')
-  const again = button('Again')
+  const again = button('Rematch')
   endActions.append(again)
   if (opts.onHome) endActions.append(homeButton())
-  end.append(endKicker, endSaves, stats, kicksTable, endActions)
+  // Buttons sit right under the stats so they are visible without scrolling on a 768 px laptop;
+  // the per-kick table and level picker follow.
+  const endMore = el('div', 'gk-end-more')
+  endMore.append(levelPicker(), kicksTable)
+  end.append(endKicker, endHead, stats, endActions, endMore)
 
   // ---------- debug ----------
   const debug = el('aside', 'gk-debug')
@@ -243,6 +324,9 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
     }
     const shown = Math.min(results.length + 1, total)
     counter.textContent = `KICK ${shown}/${total}`
+    const combo = results.length > 0 ? (results[results.length - 1].combo ?? 0) : 0
+    comboTag.textContent = combo > 1 ? `x${combo} COMBO` : ''
+    comboTag.hidden = combo <= 1
   }
 
   function stat(label: string, value: string, unit?: string): HTMLElement {
@@ -301,41 +385,83 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       timers.add(id)
     },
 
+    setPracticeChoice(on: boolean, onChange: (on: boolean) => void) {
+      practiceBox.checked = on
+      onPracticeChoice = onChange
+    },
+
+    setPractice(prompt: string | null, skip?: () => void) {
+      if (skip) onSkip = skip
+      practiceBar.hidden = prompt === null
+      if (prompt !== null && practiceText.textContent !== prompt) {
+        practiceText.textContent = prompt
+        practiceText.classList.remove('gk-practice-in')
+        void practiceText.offsetWidth // restart the fade-in for each new line
+        practiceText.classList.add('gk-practice-in')
+      }
+    },
+
+    gradePopup(grade: SaveGrade, combo: number, points: number) {
+      const node = el('div', `gk-grade gk-grade--${grade}`)
+      node.append(el('span', 'gk-grade-word', GRADE_WORD[grade]))
+      if (grade !== 'miss') {
+        const sub = el('span', 'gk-grade-sub', `+${points.toLocaleString('en-US')}`)
+        if (combo > 1) sub.prepend(el('b', undefined, `x${combo} COMBO `))
+        node.append(sub)
+      }
+      callouts.replaceChildren(node)
+      const id = window.setTimeout(() => {
+        timers.delete(id)
+        node.remove()
+      }, CALLOUT_MS + 200)
+      timers.add(id)
+    },
+
     setTelegraph(on: boolean) {
       telegraph.classList.toggle('gk-on', on)
     },
 
+    setDifficulty(level: Difficulty, onChange: (level: Difficulty) => void) {
+      onLevel = onChange
+      markLevel(level)
+    },
+
     setInputMode(mode: InputMode) {
       badge.dataset.mode = mode
-      badge.textContent = mode === 'mouse' ? 'MOUSE · D' : 'CAMERA'
+      badge.textContent = mode === 'mouse' ? 'MOUSE / ARROWS' : 'CAMERA'
     },
 
     showEnd(result: ShootoutResult, againCb) {
       onAgain = againCb
       const total = result.kicks.length
       endSaves.replaceChildren('SAVES ', el('span', undefined, `${result.saves}/${total}`))
+      const grade = result.grade ?? 'C'
+      endGrade.textContent = grade
+      endGrade.dataset.grade = grade
+      const pct = result.savePct ?? (total > 0 ? Math.round((result.saves / total) * 100) : 0)
       stats.replaceChildren(
-        stat('Score', result.score.toLocaleString('en-US')),
+        stat('Save %', `${pct}`, '%'),
+        stat('Best combo', `x${result.bestCombo ?? 0}`),
         stat('Avg reaction', fmtMs(result.avgReactionMs), result.avgReactionMs === null ? undefined : 'ms'),
-        stat('Best glove', result.bestPeakVelocity.toFixed(1), 'SW/s'),
+        stat('Score', result.score.toLocaleString('en-US')),
       )
       const head = el('thead')
       const hr = el('tr')
-      for (const h of ['#', 'Result', 'Zone', 'React ms', 'SW/s']) hr.append(el('th', undefined, h))
+      for (const h of ['#', 'Result', 'Shot', 'Zone', 'React ms']) hr.append(el('th', undefined, h))
       head.append(hr)
       const body = el('tbody')
       for (const k of result.kicks) {
         const tr = el('tr')
         const outcome =
           k.outcome === 'save'
-            ? el('td', 'gk-ok', `✓ ${k.punch ? 'Punch' : k.part ? PART_LABEL[k.part] : 'Save'}`)
+            ? el('td', 'gk-ok', `✓ ${k.grade ? GRADE_LABEL[k.grade] : k.part ? PART_LABEL[k.part] : 'Wide'}`)
             : el('td', 'gk-no', '✗ Goal')
         tr.append(
           el('td', undefined, String(k.kick + 1)),
           outcome,
+          el('td', undefined, k.shot ? SHOT_LABEL[k.shot] : '—'),
           el('td', undefined, zoneLabel(k.zone)),
           el('td', undefined, fmtMs(k.reactionMs)),
-          el('td', undefined, k.peakVelocity.toFixed(1)),
         )
         body.append(tr)
       }

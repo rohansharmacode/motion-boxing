@@ -71,7 +71,7 @@ HEATMAP_MAX_BUCKETS = 18  # a round is 180 s
 CROWD_INSTRUCTION = ("These are coach summaries of recent boxing rounds by different players. "
                      "List the 3 most common weaknesses across these boxers and one drill for the whole room. "
                      "Answer in under 120 words, as a short list.")
-# Model for the SNOWFLAKE.CORTEX.COMPLETE fallback (allow-listed literal). mistral-large2 and
+# Model for the AI_COMPLETE fallback (allow-listed literal). mistral-large2 and
 # llama3.1-70b went legacy on 2026-08-12 and fail on new accounts. Alternatives: llama3.3-70b, claude-sonnet-4-6.
 CROWD_MODEL = "mistral-large3"
 

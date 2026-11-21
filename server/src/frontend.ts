@@ -6,6 +6,7 @@
 // unchanged; app.ts picks the shape per request.
 
 import { z } from 'zod';
+import { mapMultiSportFrontendEvent, sportForFrontendType } from './multisport';
 import { IdSchema } from './schemas';
 import { PUNCH_TYPES, SPORT, type CoachCard, type CoachGrounding, type CoachMeta, type LeaderboardRow, type MotionEvent, type SessionStats } from './types';
 
@@ -68,10 +69,13 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
- * Maps one front-end event to a MOTION_EVENTS row (DODGE -> 'slip' or 'duck'), or null for types
- * our boxing analytics don't model (TICK, SAVE, GOAL, ARROW_RELEASE).
+ * Maps one front-end event to a MOTION_EVENTS row (DODGE -> 'slip' or 'duck'; SAVE / GOAL ->
+ * goalkeeper 'save' / 'goal'; ARROW_RELEASE -> archery 'arrow', see src/multisport.ts), or null
+ * for types nothing models (TICK).
  */
 export function mapFrontendEvent(e: FrontendEventInput, shoulderWidthM: number): MotionEvent | null {
+  const multi = sportForFrontendType(e.event_type);
+  if (multi) return mapMultiSportFrontendEvent(e, multi, shoulderWidthM);
   const m = e.metrics ?? {};
   const type = e.event_type.toUpperCase();
   let event_type: MotionEvent['event_type'];
@@ -166,14 +170,17 @@ export function toFrontendCoach(card: CoachCard, stats: SessionStats, meta?: Coa
     drill: splitDrill(card.drill),
     badge: {
       name: card.badge,
-      description: `Earned this round: ${stats.score} points from ${stats.total_punches} punches.`,
+      description: meta?.badge_note || `Earned this round: ${stats.score} points from ${stats.total_punches} punches.`,
     },
     summary: card.summary,
     ...(meta ? { focus: meta.focus, grounding: meta.grounding, structured: meta.structured } : {}),
   };
 }
 
-/** Superset row: original fields plus the names the front end reads. */
-export function toLeaderboardRow(r: LeaderboardRow) {
-  return { ...r, display_name: r.name, sport: 'BOXING' as const, max_speed: r.fastest_punch };
+/**
+ * Superset row: original fields plus the names the front end reads. For goalkeeper/archery,
+ * fastest_punch / max_speed hold the fastest glove / release speed (m/s), same shape.
+ */
+export function toLeaderboardRow(r: LeaderboardRow, sport: string = SPORT) {
+  return { ...r, display_name: r.name, sport: sport.toUpperCase(), max_speed: r.fastest_punch };
 }

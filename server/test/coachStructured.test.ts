@@ -43,8 +43,8 @@ const AGG: SessionAggregate = {
 };
 
 const compileError = () => Object.assign(new Error("SQL compilation error:\nUnknown function AI_COMPLETE"), { code: '002140' });
-const isStructured = (sql: string) => sql.includes('AI_COMPLETE(');
-const isLegacy = (sql: string) => sql.includes('SNOWFLAKE.CORTEX.COMPLETE(');
+const isStructured = (sql: string) => sql.includes('response_format =>');
+const isLegacy = (sql: string) => sql.includes('AI_COMPLETE(?, ?)');
 
 describe('Snowflake literal builders', () => {
   it('escapes backslash and single quote in strings', () => {

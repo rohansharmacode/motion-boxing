@@ -2,8 +2,13 @@
 // reaction and velocity metrics, and MOTION_EVENTS telemetry. Research doc section 3 (Sport 2).
 // All time is driven by update(dtMs); no timers.
 
+import { DIFFICULTY_PARAMS, rampSteps, rampedSpeed } from './difficulty.ts'
+import { PRACTICE_KICKS, planPracticeShot, planShot, tellAt } from './shots.ts'
+import { gradeSave, kickPoints, nextCombo, resultGrade, scoreKicks } from './grading.ts'
+import type { ShotPlan } from './shots.ts'
+import type { Difficulty } from './difficulty.ts'
 import { OneEuroVec3 } from './filter.ts'
-import { keeperPoseFromBody, pointerPose } from './mapping.ts'
+import { keeperPoseFromBody, pointerPoseInto } from './mapping.ts'
 import {
   BALL_RADIUS,
   GLOVE_RADIUS,
@@ -25,7 +30,6 @@ import {
   RESULT_MS,
   RUNUP_MS,
   TELEGRAPH_MS,
-  planKick,
 } from './striker.ts'
 import { createKeeperTelemetry } from './telemetry.ts'
 import {
@@ -39,7 +43,6 @@ import {
   type KeeperPose,
   type KeeperScene,
   type KeeperTelemetry,
-  type KickPlan,
   type KickResult,
   type ShootoutResult,
   type StrikerPhase,
@@ -117,6 +120,20 @@ function clamp(x: number, lo: number, hi: number): number {
 function round3(x: number): number {
   return Math.round(x * 1000) / 1000
 }
+const GLOVE_PARTS = ['left', 'right'] as const
+
+function scaleInto(v: Vec3, k: number): void {
+  v.x *= k
+  v.y *= k
+  v.z *= k
+}
+
+/** Clamp a velocity's length to max, in place. */
+function capSpeed(v: Vec3, max: number): void {
+  const l = len(v)
+  if (l > max) scaleInto(v, max / l)
+}
+
 function makePose(): KeeperPose {
   return { left: v3(), right: v3(), torsoTop: v3(), torsoBottom: v3(), tracked: false }
 }
@@ -181,10 +198,16 @@ export function createKeeperEngine(opts?: {
   let stage: Stage = 'idle'
   let stageMs = 0
   let lastSceneStriker: StrikerPhase | null = null
-  let plan: KickPlan | null = null
+  let plan: ShotPlan | null = null
   let telegraphStart = -1
   let leftSaves = 0
   let rightSaves = 0
+  let difficulty: Difficulty = 'normal'
+  let practice = false
+  let kicksTotal = KICKS_PER_SHOOTOUT
+  /** Real saves this round (glove or body), for the auto-ramp. */
+  let roundSaves = 0
+  let combo = 0
 
   // ---- body pose ----
   // Doc tuning: minCutoff 1.2 Hz, beta 0.12. Poses here are in metres, where a 5 m/s lunge would raise the
@@ -299,11 +322,17 @@ export function createKeeperEngine(opts?: {
     kick = n
     stage = 'idle'
     stageMs = 0
-    plan = planKick(
-      n,
-      rng,
-      results.map((r) => r.zone),
-    )
+    plan = practice
+      ? planPracticeShot(n)
+      : planShot(
+          n,
+          rng,
+          results.map((r) => r.zone),
+          DIFFICULTY_PARAMS[difficulty],
+          rampedSpeed(difficulty, roundSaves),
+        )
+    plan.tell.kind = plan.shot
+    if (plan.fake) plan.fake.kind = plan.shot
     telegraphStart = -1
     ballLaunched = false
     resolved = false
@@ -361,12 +390,23 @@ export function createKeeperEngine(opts?: {
       accuracy: clamp(accuracy, 0, 100),
       punch,
       ballSpeed: launchSpeed,
+      difficulty,
+      rampStep: rampSteps(roundSaves),
+      shot: plan.shot,
+      fake: plan.fake !== null,
     }
+    if (outcome === 'save' && part !== null) roundSaves++
+    const grade = gradeSave({ outcome, part, accuracy: result.accuracy, reactionMs })
+    combo = nextCombo(combo, grade)
+    result.grade = grade
+    result.combo = combo
+    result.points = kickPoints(grade, combo, punch)
     results.push(result)
     stage = 'result'
     stageMs = 0
     slowMoTotal = slowMoLeft = outcome === 'save' ? SLOWMO_SAVE_MS : SLOWMO_GOAL_MS
     for (const cb of kickCbs) cb(result)
+    if (practice) return // practice never reaches the server or the leaderboard
     telemetry.emit({
       event_type: outcome === 'save' ? 'SAVE' : 'GOAL',
       peak_velocity: result.peakVelocity,
@@ -385,6 +425,13 @@ export function createKeeperEngine(opts?: {
         flightTime: round3(plan.flightTime),
         offTarget,
         source: source(),
+        difficulty,
+        saveGrade: grade,
+        combo,
+        points: result.points,
+        shot: plan.shot,
+        fake: plan.fake !== null,
+        rampStep: result.rampStep,
       },
     })
   }
@@ -400,30 +447,34 @@ export function createKeeperEngine(opts?: {
     let reactSum = 0
     let reactN = 0
     let best = 0
-    let score = 0
     for (const r of results) {
       if (r.reactionMs !== null) {
         reactSum += r.reactionMs
         reactN++
       }
       if (r.peakVelocity > best) best = r.peakVelocity
-      if (r.outcome === 'save') {
-        saves++
-        score += 1000
-        if (r.reactionMs !== null && r.reactionMs < 450) score += 250
-        if (r.punch) score += 150
-        score += r.accuracy / 2
-      } else {
-        goals++
-      }
+      if (r.outcome === 'save') saves++
+      else goals++
     }
+    const scored = scoreKicks(results.map((r) => ({ grade: r.grade ?? null, punch: r.punch })))
+    const score = scored.score
     const summary: ShootoutResult = {
       kicks: results.slice(),
       saves,
       goals,
       avgReactionMs: reactN > 0 ? reactSum / reactN : null,
       bestPeakVelocity: best,
-      score: Math.round(score),
+      score,
+      difficulty,
+      grade: resultGrade(saves, results.length, score),
+      bestCombo: scored.bestCombo,
+      savePct: results.length > 0 ? Math.round((saves / results.length) * 100) : 0,
+      perfects: scored.perfects,
+    }
+    if (practice) {
+      summary.practice = true
+      for (const cb of endCbs) cb(summary)
+      return
     }
     telemetry.flush()
     flushAcc = 0
@@ -444,6 +495,10 @@ export function createKeeperEngine(opts?: {
         bestSpeed: best,
         score: summary.score,
         avgReactionMs: summary.avgReactionMs,
+        difficulty,
+        grade: summary.grade,
+        bestCombo: summary.bestCombo,
+        perfects: summary.perfects,
         source: source(),
       },
     })
@@ -463,7 +518,7 @@ export function createKeeperEngine(opts?: {
 
 
     // Gloves: centre interpolated from the previous update's pose to the current one across substeps.
-    for (const part of ['left', 'right'] as const) {
+    for (const part of GLOVE_PARTS) {
       const cur = pose[part]
       const prev = prevValid ? (part === 'left' ? prevLeft : prevRight) : cur
       lerpInto(c0, prev, cur, f0)
@@ -598,15 +653,9 @@ export function createKeeperEngine(opts?: {
       emaInto(pointerVel.torso, pointerCur.torsoTop, pointerLast.torsoTop, dtS)
       // A mouse can jump metres in one frame; cap at a fast human hand so mouse play can't post
       // impossible glove speeds (which also feed the dashboard's best speed).
-      for (const v of [pointerVel.left, pointerVel.right, pointerVel.torso]) {
-        const l = len(v)
-        if (l > MAX_POINTER_SPEED) {
-          const k = MAX_POINTER_SPEED / l
-          v.x *= k
-          v.y *= k
-          v.z *= k
-        }
-      }
+      capSpeed(pointerVel.left, MAX_POINTER_SPEED)
+      capSpeed(pointerVel.right, MAX_POINTER_SPEED)
+      capSpeed(pointerVel.torso, MAX_POINTER_SPEED)
     }
     copyPose(pointerLast, pointerCur)
     pointerHasLast = true
@@ -659,7 +708,7 @@ export function createKeeperEngine(opts?: {
         stage = resolved ? 'result' : 'recover'
       } else if (stage === 'result') {
         ballVisible = false
-        if (kick + 1 >= KICKS_PER_SHOOTOUT) {
+        if (kick + 1 >= kicksTotal) {
           endShootout()
           return
         }
@@ -679,7 +728,7 @@ export function createKeeperEngine(opts?: {
   function pushScene(): void {
     if (!scene) return
     const sp: StrikerPhase = phase === 'playing' ? sceneStriker() : 'idle'
-    const tell = plan && phase === 'playing' ? plan.tell : NEUTRAL_TELL
+    const tell = plan && phase === 'playing' ? (sp === 'telegraph' ? tellAt(plan, strikerProgress()) : plan.tell) : NEUTRAL_TELL
     scene.setStriker(sp, strikerProgress(), tell)
     if (sp !== lastSceneStriker) {
       lastSceneStriker = sp
@@ -690,7 +739,7 @@ export function createKeeperEngine(opts?: {
   }
 
   function queueTickIfDue(dtMs: number): void {
-    if (phase !== 'playing') return
+    if (phase !== 'playing' || practice) return
     tickAcc += dtMs
     while (tickAcc >= TICK_MS) {
       tickAcc -= TICK_MS
@@ -756,10 +805,10 @@ export function createKeeperEngine(opts?: {
         filters.torsoBottom.reset()
       }
       copyPose(bodyPrev, bodyPose)
-      cp(bodyPose.left, filters.left.filter(raw.left, tS))
-      cp(bodyPose.right, filters.right.filter(raw.right, tS))
-      cp(bodyPose.torsoTop, filters.torsoTop.filter(raw.torsoTop, tS))
-      cp(bodyPose.torsoBottom, filters.torsoBottom.filter(raw.torsoBottom, tS))
+      filters.left.filterInto(bodyPose.left, raw.left, tS)
+      filters.right.filterInto(bodyPose.right, raw.right, tS)
+      filters.torsoTop.filterInto(bodyPose.torsoTop, raw.torsoTop, tS)
+      filters.torsoBottom.filterInto(bodyPose.torsoBottom, raw.torsoBottom, tS)
       bodyPose.tracked = raw.tracked
       const dtS = gapMs / 1000
       if (hasBodyPose && dtS > 0 && dtS < 0.25) {
@@ -791,16 +840,20 @@ export function createKeeperEngine(opts?: {
         zeroVel(pointerVel)
         prevValid = false
       }
-      copyPose(pointerCur, pointerPose(target))
+      pointerPoseInto(pointerCur, target)
     },
 
-    startShootout() {
+    startShootout(opts?: { practice?: boolean }) {
       if (disposed) return
+      practice = opts?.practice === true
+      kicksTotal = practice ? PRACTICE_KICKS : KICKS_PER_SHOOTOUT
       results = []
       slowMoLeft = 0
       timeScale = 1
       leftSaves = 0
       rightSaves = 0
+      roundSaves = 0
+      combo = 0
       telemetry.startRound()
       scene?.reset()
       phase = 'playing'
@@ -818,11 +871,9 @@ export function createKeeperEngine(opts?: {
 
       if (!pointerActive && !bodyTracked && dt > 0) {
         const k = Math.exp(-dt / VEL_DECAY_MS)
-        for (const v of [bodyVel.left, bodyVel.right, bodyVel.torso]) {
-          v.x *= k
-          v.y *= k
-          v.z *= k
-        }
+        scaleInto(bodyVel.left, k)
+        scaleInto(bodyVel.right, k)
+        scaleInto(bodyVel.torso, k)
       }
       updatePointerVel(dtS)
       updateMetrics()
@@ -849,6 +900,17 @@ export function createKeeperEngine(opts?: {
 
       queueTickIfDue(dt)
       pushScene()
+    },
+
+    get practice() {
+      return practice
+    },
+
+    setDifficulty(level: Difficulty) {
+      difficulty = level
+    },
+    get difficulty() {
+      return difficulty
     },
 
     flushTelemetry() {

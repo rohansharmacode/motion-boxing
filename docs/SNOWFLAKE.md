@@ -13,7 +13,7 @@ grounded in a drill library through Cortex Search. Vectors find your "style twin
 Streamlit in Snowflake app let you ask questions about your stats in plain English.
 The data never leaves Snowflake, and an idle game uses almost no compute: tasks skip and the warehouse auto-suspends.
 
-This is designed for a real Snowflake account and tested in mock mode. It has not yet been run against a live account.
+Running live on a real Snowflake account (2026-11-21): every setup, verify and deploy step passes, and a played round lands in `MOTION_EVENTS` / `SESSIONS` with a real Cortex coach card (`fallback:false`). Screenshots: `docs/snowflake-screens/`.
 
 | Snowflake feature | What it does in our game | Where to see it |
 |---|---|---|
@@ -27,6 +27,7 @@ This is designed for a real Snowflake account and tested in mock mode. It has no
 | Text-to-SQL with guards | `/api/ask`: Cortex writes SQL, a SELECT-only guard checks it, and it runs as `MOTION_READONLY_ROLE`. | `POST /api/ask`, `server/src/ask.ts`, `server/src/sqlGuard.ts` |
 | Time Travel | Rewind the leaderboard to how it looked N minutes ago (`AT(OFFSET => ...)`). | Streamlit app > Snowflake Lab page > 6. Time machine |
 | `AI_AGG` | Crowd coach: one summary of what all players need to work on, across all rows. | Streamlit app > Snowflake Lab page > 7. Crowd coach (button, spends credits only on click) |
+| Multi-sport analytics | Goalkeeper saves and goals (archery arrows next) land in the same `MOTION_EVENTS` table with their own `sport`. Views give save % per 9-grid zone, archery grouping, a leaderboard per sport, and a cross-sport decathlon rating (percentile per sport, averaged) as a dynamic table. | `V_GOALKEEPER_ZONES`, `V_LEADERBOARD_BY_SPORT`, `MULTISPORT_RATING`, `GET /api/leaderboard?sport=goalkeeper` |
 | Streamlit in Snowflake | Coach dashboard runs inside Snowflake on `MOTION_WH`. | `MOTION_DB.PUBLIC.MOTION_DASHBOARD` (Snowsight > Projects > Streamlit) |
 | Least-privilege roles | `MOTION_APP_ROLE` for the app (DML + Cortex). `MOTION_READONLY_ROLE` (SELECT only) for generated SQL. ACCOUNTADMIN only for setup. | `sql/setup.sql` |
 | Cost controls | X-Small warehouse, `AUTO_SUSPEND = 300`. Tasks have `WHEN SYSTEM$STREAM_HAS_DATA(...)`, so they skip without starting the warehouse when no one is playing. | `SHOW WAREHOUSES LIKE 'MOTION_WH'`, `SHOW TASKS` |
@@ -90,6 +91,8 @@ curl -s "localhost:3001/api/drills/search?q=guard"  # source:"cortex_search"
 
 ### If something fails
 
+- **"SNOWFLAKE.CORTEX.COMPLETE is not available on this account".** New accounts block the legacy `SNOWFLAKE.CORTEX.*` functions. The server, Streamlit app and scripts now call `AI_COMPLETE` instead, so pull the latest `main`.
+
 - **Cortex model not available in this region.** As ACCOUNTADMIN:
   `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';` then re-run `npm run sql:plus`.
   Test a model first with `cd scripts && npm run cortex:latency -- llama3.3-70b`. The default is `mistral-large3` (`mistral-large2` became legacy on 2026-08-12 and errors on new accounts). To switch, set `CORTEX_MODEL` in `server/.env` and replace `mistral-large3` in `sql/cortex.sql` (the scouting task).
@@ -131,9 +134,16 @@ curl -s "localhost:3001/api/drills/search?q=guard"  # source:"cortex_search"
 
 ## What is honest
 
-- Not yet run on a live Snowflake account. All tests so far are in mock mode.
+- Run live once on a trial account (2026-11-21). The demo round was played in keyboard mode, so its punch speeds are low; webcam play gives real speeds.
 - `PRO_BENCHMARKS` are hand-picked numbers we seeded ourselves. They are not from a published dataset.
 - The pro vector and "pro similarity" are built from those same hand-picked numbers.
 - The 32 drills in `COACH_DRILLS` are our own text, not from a coaching body.
 - No Snowflake Marketplace dataset is integrated.
 - The anti-cheat flag is a fixed threshold (punch speed over 20 m/s), not a trained model.
+
+## Live account notes (2026-11-21)
+
+- Account `QMQLCIV-ZY96645`, service user `MOTION_APP_USER` (key-pair auth, `TYPE = SERVICE`, so no MFA prompt). The private key is `server/rsa_key.p8` on Sankar's laptop and is git-ignored. Ask Sankar for `server/.env` if you need to run against live; never commit it.
+- The user holds `ACCOUNTADMIN` (for setup), `MOTION_APP_ROLE` (default, used by the server) and `MOTION_READONLY_ROLE` (for `/api/ask`).
+- Streamlit: https://app.snowflake.com/qmqlciv/zy96645/#/streamlit-apps/MOTION_DB.PUBLIC.MOTION_DASHBOARD
+- Front end: `VITE_API_URL=http://localhost:3001` in the root `.env`.

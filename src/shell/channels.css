@@ -1,0 +1,653 @@
+/* Channel-grid home, shared by every theme. Default tokens: bright "Obscura".
+   The neon skin at the bottom of this file swaps tokens and a few surfaces.
+   Performance: only transform/opacity animate; no blur filters, no backdrop-filter, no animated shadows. */
+
+.shell.shell--channels {
+  --ch-canvas: #e3f1fe;
+  --ch-card: #ffffff;
+  --ch-window: #f5f5f7;
+  --ch-accent: #ff5e24;
+  --ch-ink: #232629;
+  --ch-slate: #5c6066;
+  --ch-ash: #989ea4;
+  --ch-ring: #cfe3f5;
+  --ch-blue: #2f9bff;
+  --ch-shadow: 0 7px 7px rgba(15, 34, 52, 0.04), 0 2px 4px rgba(15, 34, 52, 0.04);
+  --ch-display: 'Jersey 10', 'Manrope', system-ui, sans-serif;
+  --ch-body: 'Manrope', 'Nunito', system-ui, sans-serif;
+  --ch-flip-ms: 420ms;
+  --bar-h: clamp(118px, 21vh, 176px);
+  --grid-aspect: 2.13;
+  display: block;
+  padding: 0;
+  font-family: var(--ch-body);
+  color: var(--ch-ink);
+}
+
+/* ---------- canvas and pixel clouds ---------- */
+
+.shell--channels .ch-bg {
+  background: var(--ch-canvas);
+}
+
+.shell--channels .ch-cloud {
+  position: absolute;
+  width: clamp(72px, 8vw, 120px);
+  opacity: 0.9;
+  will-change: transform;
+  animation: ch-drift 26s ease-in-out infinite alternate;
+}
+
+.shell--channels .ch-cloud svg { display: block; width: 100%; height: auto; }
+.shell--channels .ch-cloud--1 { top: 1.5vh; left: 1.5vw; }
+.shell--channels .ch-cloud--2 { top: 3vh; right: 3vw; width: clamp(56px, 6vw, 92px); animation-duration: 34s; animation-delay: -12s; }
+.shell--channels .ch-cloud--3 { bottom: calc(var(--bar-h) + 1vh); left: 3vw; width: clamp(48px, 5vw, 80px); opacity: 0.7; animation-duration: 30s; animation-delay: -6s; }
+
+@keyframes ch-drift {
+  to { transform: translateX(3vw); }
+}
+
+/* ---------- channel grid ---------- */
+
+.shell--channels .ch-grid {
+  position: absolute;
+  left: 50%;
+  top: calc((100% - var(--bar-h)) / 2 + 1vh);
+  translate: -50% -50%;
+  width: min(90vw, calc((100vh - var(--bar-h) - 8vh) * var(--grid-aspect)));
+  aspect-ratio: var(--grid-aspect);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: clamp(10px, 1.6vw, 22px);
+}
+
+.shell--channels .ch-tile {
+  --dwell: 0;
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  border: 3px solid #fff;
+  border-radius: 16px;
+  background: var(--ch-card);
+  box-shadow: 0 0 0 1px var(--ch-ring), var(--ch-shadow);
+  cursor: pointer;
+  outline: none;
+  transition: scale 220ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  animation: ch-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.shell--channels .ch-tile:nth-child(4n + 2) { animation-delay: 40ms; }
+.shell--channels .ch-tile:nth-child(4n + 3) { animation-delay: 80ms; }
+.shell--channels .ch-tile:nth-child(4n + 4) { animation-delay: 120ms; }
+
+@keyframes ch-in {
+  from { opacity: 0; transform: scale(0.92); }
+}
+
+/* Focus ring: orange hairline + soft blue glow on a pseudo-element; only its opacity animates. */
+.shell--channels .ch-tile::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 16px;
+  box-shadow: 0 0 0 2px var(--ch-accent), 0 0 22px 6px rgba(47, 155, 255, 0.42);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.shell--channels .ch-tile:not(.ch-tile--empty):is(:hover, :focus-visible, :focus) {
+  scale: 1.06;
+  z-index: 1;
+}
+
+.shell--channels .ch-tile:not(.ch-tile--empty):is(:hover, :focus-visible, :focus)::after { opacity: 1; }
+
+.shell--channels .ch-tile--empty {
+  cursor: default;
+  background: #eef4fa;
+  border-color: #f4f8fc;
+  box-shadow: 0 0 0 1px #dbe8f4, inset 0 2px 6px rgba(15, 34, 52, 0.06);
+}
+
+/* Art window: the top of the tile. */
+.shell--channels .ch-tile-art {
+  position: absolute;
+  inset: 0 0 26% 0;
+  overflow: hidden;
+  border-radius: 13px 13px 0 0;
+  background: #cfeefc;
+}
+
+.shell--channels .ch-tile-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  pointer-events: none;
+  animation: ch-pan 9s ease-in-out infinite alternate;
+}
+
+/* Small looping preview: slow pan/zoom, transform only. */
+@keyframes ch-pan {
+  from { transform: scale(1.04) translate(-1.5%, 0); }
+  to { transform: scale(1.14) translate(1.5%, -2%); }
+}
+
+.shell--channels .ch-tile--goalkeeper .ch-tile-img { animation-delay: -3s; }
+.shell--channels .ch-tile--archery .ch-tile-img { animation-delay: -5s; }
+.shell--channels .ch-tile--leaderboard .ch-tile-img { animation-delay: -7s; }
+
+.shell--channels .ch-tile[data-ready='false'] .ch-tile-img { opacity: 0.55; }
+
+/* Pause the little previews while the preview panel covers the grid or a game runs. */
+.shell--channels:is([data-preview='open'], [data-view='game'], [data-view='launching']) :is(.ch-tile-img, .ch-cloud) {
+  animation-play-state: paused;
+}
+
+.shell--channels .ch-tile-glyph {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: color-mix(in srgb, var(--tint, #dfe7ef) 45%, #fff);
+}
+
+.shell--channels .ch-tile-glyph svg { width: 38%; height: 70%; }
+
+.shell--channels .ch-tile-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font: 700 clamp(12px, 1.25vw, 19px) / 1 var(--ch-body);
+  color: var(--ch-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid #e8eef4;
+}
+
+.shell--channels .ch-tile-soon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 800 11px / 1.2 var(--ch-body);
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--ch-ash);
+}
+
+/* Dwell: rounded progress bar under the title. */
+.shell--channels .ch-tile .ch-tile-dwell {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 5px;
+  width: auto;
+  height: 4px;
+  border-radius: 999px;
+  box-shadow: none;
+  background: var(--ch-accent);
+  transform-origin: left;
+  transform: scaleX(var(--dwell));
+}
+
+.shell--channels .ch-tile--nope { animation: shell-nope 380ms ease; }
+
+/* Page arrow (one page only, so disabled). */
+.shell--channels .ch-page {
+  position: absolute;
+  right: 1.2vw;
+  top: calc((100% - var(--bar-h)) / 2);
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 13px;
+  color: var(--ch-ash);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--ch-ring), var(--ch-shadow);
+  opacity: 0.55;
+}
+
+/* ---------- bottom bar ---------- */
+
+.shell--channels .ch-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--bar-h);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: calc(var(--bar-h) * 0.18) clamp(20px, 5vw, 80px) 0;
+}
+
+.shell--channels .ch-bar-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  filter: none;
+}
+
+.shell--channels .ch-time {
+  display: grid;
+  justify-items: center;
+  margin-top: calc(var(--bar-h) * -0.16);
+}
+
+.shell--channels .ch-clock {
+  font-family: var(--ch-display);
+  font-size: clamp(48px, 8.5vh, 72px);
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  color: var(--ch-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell--channels .ch-colon { animation: ch-blink 1s steps(1) infinite; }
+
+@keyframes ch-blink {
+  50% { opacity: 0; }
+}
+
+.shell--channels .ch-date {
+  font: 600 clamp(14px, 2.2vh, 18px) / 1.2 var(--ch-body);
+  color: var(--ch-slate);
+}
+
+.shell--channels .ch-round {
+  --dwell: 0;
+  position: relative;
+  justify-self: start;
+  display: grid;
+  place-items: center;
+  width: clamp(64px, 11vh, 92px);
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 50%;
+  border: 4px solid var(--ch-ring);
+  background: #fff;
+  box-shadow: var(--ch-shadow);
+  cursor: pointer;
+  outline: none;
+  transition: scale 200ms cubic-bezier(0.3, 1.4, 0.5, 1), border-color 150ms;
+}
+
+.shell--channels .ch-round--records { justify-self: end; }
+.shell--channels .ch-round svg { width: 58%; height: 58%; }
+.shell--channels .ch-round:is(:hover, :focus-visible, :focus) { scale: 1.08; border-color: var(--ch-accent); }
+
+/* Dwell on round buttons and preview buttons: a ring that fills (conic, no animation, set by JS). */
+.shell--channels .ch-round::after,
+.shell--channels .ch-btn::after,
+.shell--channels .ch-chip::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 6px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ch-blue);
+  transform-origin: left;
+  transform: scaleX(var(--dwell, 0));
+  pointer-events: none;
+}
+
+/* ---------- preview panel ---------- */
+
+.shell--channels .ch-preview {
+  position: absolute;
+  inset: 3vh 4vw;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: 'art info' 'actions actions';
+  gap: clamp(14px, 2.4vw, 32px);
+  padding: clamp(16px, 2.6vw, 36px);
+  border: 3px solid #fff;
+  border-radius: 16px;
+  background: var(--ch-window);
+  box-shadow: 0 0 0 1px var(--ch-ring), 0 24px 48px rgba(15, 34, 52, 0.16);
+  transform-origin: 0 0;
+  transition: transform var(--ch-flip-ms) cubic-bezier(0.2, 0.8, 0.2, 1), opacity 260ms ease;
+  will-change: transform;
+}
+
+.shell--channels .ch-preview[hidden] { display: none; }
+
+.shell--channels .ch-preview-art {
+  grid-area: art;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 3px solid #fff;
+  background: #cfeefc;
+  box-shadow: 0 0 0 1px var(--ch-ring);
+  min-height: 0;
+}
+
+.shell--channels .ch-preview[data-id='settings'] .ch-preview-art,
+.shell--channels .ch-preview[data-id='coach'] .ch-preview-art {
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='11' fill='none' stroke='%23989ea4' stroke-width='6'/%3E%3Cpath d='M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M15 49l6-6M43 21l6-6' stroke='%23989ea4' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") center / 30% no-repeat;
+}
+
+.shell--channels .ch-preview-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: ch-pan 7s ease-in-out infinite alternate;
+}
+
+.shell--channels .ch-preview-info {
+  grid-area: info;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.shell--channels .ch-preview-title {
+  margin: 0;
+  font-family: var(--ch-display);
+  font-weight: 400;
+  font-size: clamp(56px, 9vw, 120px);
+  line-height: 0.85;
+  color: var(--ch-ink);
+}
+
+.shell--channels .ch-preview-how {
+  margin: 0;
+  font: 600 clamp(16px, 1.6vw, 22px) / 1.4 var(--ch-body);
+  color: var(--ch-slate);
+}
+
+.shell--channels .ch-preview-best {
+  margin: 0;
+  font: 800 clamp(13px, 1.1vw, 16px) / 1.3 var(--ch-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ch-ash);
+}
+
+.shell--channels .ch-preview-best:empty { display: none; }
+
+.shell--channels .ch-preview-actions {
+  grid-area: actions;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.shell--channels .ch-btn {
+  --dwell: 0;
+  position: relative;
+  min-width: clamp(140px, 16vw, 220px);
+  padding: 18px 36px;
+  border-radius: 6px;
+  font: 800 clamp(18px, 1.8vw, 24px) / 1 var(--ch-body);
+  cursor: pointer;
+  outline: none;
+  transition: scale 200ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.shell--channels .ch-btn--back {
+  color: var(--ch-ink);
+  background: #fff;
+  border: 2px solid var(--ch-ink);
+}
+
+.shell--channels .ch-btn--start {
+  min-width: clamp(200px, 24vw, 340px);
+  padding: 22px 48px;
+  border-radius: 999px;
+  font-size: clamp(22px, 2.4vw, 32px);
+  color: #fff;
+  background: var(--ch-accent);
+  border: 0;
+  box-shadow: 0 6px 0 #d94a16, var(--ch-shadow);
+}
+
+.shell--channels .ch-btn--start::after { background: #fff; }
+.shell--channels .ch-btn--start:disabled { cursor: default; background: var(--ch-ash); box-shadow: none; }
+.shell--channels .ch-btn[hidden] { display: none; }
+
+.shell--channels .ch-btn:not(:disabled):is(:hover, :focus-visible, :focus) {
+  scale: 1.05;
+  outline: 3px solid var(--ch-blue);
+  outline-offset: 4px;
+}
+
+/* Settings rows */
+.shell--channels .ch-preview-extra { display: grid; gap: 12px; }
+.shell--channels .ch-preview-extra:empty { display: none; }
+
+.shell--channels .ch-setting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shell--channels .ch-setting-label {
+  min-width: 70px;
+  font: 800 15px var(--ch-body);
+  color: var(--ch-slate);
+}
+
+.shell--channels .ch-chip {
+  --dwell: 0;
+  position: relative;
+  padding: 12px 22px;
+  border-radius: 6px;
+  font: 700 16px var(--ch-body);
+  color: var(--ch-ink);
+  background: #fff;
+  border: 2px solid var(--ch-ring);
+  cursor: pointer;
+  outline: none;
+}
+
+.shell--channels .ch-chip[aria-pressed='true'] { border-color: var(--ch-accent); color: var(--ch-accent); }
+.shell--channels .ch-chip:is(:hover, :focus-visible, :focus) { outline: 3px solid var(--ch-blue); outline-offset: 2px; }
+
+/* ---------- view transitions ---------- */
+
+.shell--channels :is(.ch-grid, .ch-bar, .ch-page) {
+  transition: opacity 300ms ease, visibility 0s;
+}
+
+.shell--channels[data-view='launching'] :is(.ch-grid, .ch-bar, .ch-page, .ch-preview) { opacity: 0; }
+
+/* In game the whole home is hidden, so none of its animations cost a frame. */
+.shell--channels[data-view='game'] :is(.ch-grid, .ch-bar, .ch-page, .ch-preview, .ch-bg) {
+  visibility: hidden;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell--channels :is(.ch-cloud, .ch-tile-img, .ch-preview-img, .ch-colon) { animation: none; }
+  .shell--channels .ch-preview { transition: none; }
+}
+
+.shell--channels .ch-preview-img[hidden] { display: none; }
+
+
+/* ======================= neon skin =======================
+   Dark retro-arcade look. Static surfaces only: no blur, no backdrop-filter,
+   no animated gradients or shadows; the focus glow is a static shadow whose opacity animates. */
+
+:root[data-theme='neon'] .shell.shell--channels {
+  --ch-canvas: #0b0c0f;
+  --ch-card: #14161c;
+  --ch-window: #14161c;
+  --ch-accent: #ff5a1f;
+  --ch-ink: #f4f4f0;
+  --ch-slate: #a6aaa2;
+  --ch-ash: #6b7078;
+  --ch-ring: rgba(56, 200, 255, 0.28);
+  --ch-blue: #38c8ff;
+  --ch-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
+  --ch-display: 'Bebas Neue', 'Outfit', system-ui, sans-serif;
+  --ch-body: 'Outfit', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+/* Static radial tint, painted once. */
+:root[data-theme='neon'] .shell--channels .ch-bg {
+  background:
+    radial-gradient(90% 70% at 50% 0%, #1a1530 0%, transparent 65%),
+    radial-gradient(60% 50% at 100% 100%, #2a0f1f 0%, transparent 70%),
+    var(--ch-canvas);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-cloud { display: none; }
+
+:root[data-theme='neon'] .shell--channels .ch-tile {
+  --a: #38c8ff;
+  border: 1.5px solid color-mix(in srgb, var(--a) 70%, transparent);
+  border-radius: 14px;
+  background: var(--ch-card);
+  box-shadow: var(--ch-shadow);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile::after {
+  inset: -2px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 2px var(--a), 0 0 26px 4px color-mix(in srgb, var(--a) 45%, transparent);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile--empty {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0f1116;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile-art {
+  border-radius: 12px 12px 0 0;
+  background: #0b1024;
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile[data-ready='false'] .ch-tile-img { opacity: 0.45; }
+
+:root[data-theme='neon'] .shell--channels .ch-tile-glyph {
+  background: color-mix(in srgb, var(--a) 12%, #0b1024);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile-glyph svg :is(circle, path) { stroke: var(--a); }
+:root[data-theme='neon'] .shell--channels .ch-tile-glyph svg [fill]:not([fill='none']) { fill: var(--a); }
+
+:root[data-theme='neon'] .shell--channels .ch-tile-title {
+  font: 400 clamp(18px, 1.9vw, 30px) / 1 var(--ch-display);
+  letter-spacing: 0.06em;
+  border-top: 1px solid color-mix(in srgb, var(--a) 35%, transparent);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile-soon {
+  color: var(--ch-slate);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: var(--ch-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+:root[data-theme='neon'] .shell--channels .ch-tile .ch-tile-dwell { background: var(--a); }
+
+:root[data-theme='neon'] .shell--channels .ch-page {
+  color: var(--ch-blue);
+  background: var(--ch-card);
+  box-shadow: 0 0 0 1px var(--ch-ring);
+}
+
+/* Bottom bar: dark surface, thin cyan top edge. */
+:root[data-theme='neon'] .shell--channels .ch-bar-shape path:first-of-type { fill: #101219; }
+:root[data-theme='neon'] .shell--channels .ch-bar-shape path:last-of-type { stroke: #38c8ff; stroke-width: 2; opacity: 0.8; }
+
+:root[data-theme='neon'] .shell--channels .ch-clock {
+  font-size: clamp(52px, 9.5vh, 80px);
+  letter-spacing: 0.05em;
+}
+
+:root[data-theme='neon'] .shell--channels .ch-date {
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: clamp(12px, 1.8vh, 15px);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-round {
+  background: var(--ch-card);
+  border: 2px solid var(--ch-ring);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-round svg :is(path, rect, circle)[stroke='#5c6066'],
+:root[data-theme='neon'] .shell--channels .ch-round svg path[stroke='#232629'] { stroke: var(--ch-ink); }
+
+/* Preview panel */
+:root[data-theme='neon'] .shell--channels .ch-preview {
+  border: 1.5px solid color-mix(in srgb, var(--a, #38c8ff) 70%, transparent);
+  background: var(--ch-window);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-preview-art {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #0b1024;
+  box-shadow: none;
+}
+
+:root[data-theme='neon'] .shell--channels .ch-preview:is([data-id='settings'], [data-id='coach']) .ch-preview-art { background-color: #0f1116; }
+
+:root[data-theme='neon'] .shell--channels .ch-preview-title { font-size: clamp(52px, 7vw, 108px); letter-spacing: 0.04em; line-height: 0.9; overflow-wrap: anywhere; }
+
+:root[data-theme='neon'] .shell--channels .ch-btn { border-radius: 8px; font-family: var(--ch-body); font-weight: 700; }
+
+:root[data-theme='neon'] .shell--channels .ch-btn--back {
+  color: var(--ch-ink);
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-btn--start {
+  border-radius: 999px;
+  color: #0b0c0f;
+  background: var(--ch-accent);
+  box-shadow: 0 6px 0 #b83d0f;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+:root[data-theme='neon'] .shell--channels .ch-btn--start::after { background: #0b0c0f; }
+
+:root[data-theme='neon'] .shell--channels .ch-chip {
+  color: var(--ch-ink);
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+
+:root[data-theme='neon'] .shell--channels .ch-chip[aria-pressed='true'] { border-color: var(--ch-accent); color: var(--ch-accent); }
+
+:root[data-theme='neon'] .shell--channels .shell-toast { bottom: calc(var(--bar-h) + 12px); }

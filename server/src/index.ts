@@ -4,6 +4,7 @@ import { createApp } from './app';
 import { createBackends } from './backends';
 import { loadConfig } from './config';
 import { createLogger } from './logger';
+import { VERSUS_PATH, attachVersusRelay } from './versus';
 
 dotenv.config({ path: path.resolve(__dirname, '..', '.env'), quiet: true });
 
@@ -20,6 +21,9 @@ async function main(): Promise<void> {
       cortexModel: repo.mode === 'mock' ? 'mock' : config.cortexModel,
     });
   });
+  // Online 1v1 boxing: WebSocket room relay on the same port (ws://host:PORT/versus).
+  const versus = attachVersusRelay(server, log);
+  log.info(`versus relay on ws://localhost:${config.port}${VERSUS_PATH}`);
 
   if (repo.mode === 'snowflake') {
     void repo.ping().then((ok) => (ok ? log.info('snowflake: connected') : log.warn('snowflake: not reachable yet (events will be queued)')));
@@ -43,6 +47,7 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     log.info(`${signal} received, shutting down`);
+    versus.close();
     server.close();
     await shutdown(5000);
     await repo.close();

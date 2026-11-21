@@ -124,8 +124,11 @@ def get_backend() -> Backend:
     if L.demo_forced(env):
         return Backend("demo", detail="MOTION_DEMO / SNOWFLAKE_MOCK is set")
     try:
+        import _snowflake  # noqa: F401 - only exists inside Streamlit in Snowflake
         from snowflake.snowpark.context import get_active_session
 
+        # Without the _snowflake check, a local run would pick up the Snowpark session
+        # another page created and wrongly report it as Streamlit in Snowflake.
         return Backend("snowflake", get_active_session(), "Streamlit in Snowflake session")
     except Exception:  # noqa: BLE001 - not running in SiS (or Snowpark missing)
         pass
@@ -264,7 +267,7 @@ class Data:
             return None
         session = self.backend.session  # captured here: the call runs in a worker thread
         model = L.choose_model(model)  # allow-listed literal; the prompt is a bind parameter
-        sql = "SELECT SNOWFLAKE.CORTEX.COMPLETE('{}', ?) AS answer".format(model)
+        sql = "SELECT AI_COMPLETE('{}', ?) AS answer".format(model)
 
         def _complete(prompt: str) -> Any:
             rows = session.sql(sql, params=[prompt]).collect()
@@ -514,7 +517,7 @@ def render_coach(data: Data, player: Dict[str, Any], form: Optional[Dict[str, An
         st.caption("DEMO mode: Cortex is not reachable, so the coach answers with a canned reply built from the stats.")
     else:
         st.caption("Your question plus this player's PLAYER_FORM row and last 5 rounds go to "
-                   "SNOWFLAKE.CORTEX.COMPLETE ({}).".format(L.choose_model(model)))
+                   "AI_COMPLETE ({}).".format(L.choose_model(model)))
     pid = player["player_id"]
     with st.form("coach_form"):
         question = st.text_area("Question", max_chars=L.MAX_QUESTION_CHARS,

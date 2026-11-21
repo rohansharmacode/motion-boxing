@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="KINETIC Archery neon retro-arcade sport illustration">
+  <defs>
+    <linearGradient id="na-sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060916" />
+      <stop offset="56%" stop-color="#111234" />
+      <stop offset="78%" stop-color="#301240" />
+      <stop offset="100%" stop-color="#080C1C" />
+    </linearGradient>
+    <radialGradient id="na-target-glow" cx="72%" cy="46%" r="44%">
+      <stop offset="0%" stop-color="#FF2E88" stop-opacity="0.34" />
+      <stop offset="55%" stop-color="#22E5FF" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#080C1C" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="na-bow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22E5FF" />
+      <stop offset="50%" stop-color="#F2F7FF" />
+      <stop offset="100%" stop-color="#FF2E88" />
+    </linearGradient>
+    <filter id="na-neon" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#na-sky)" />
+  <rect width="1280" height="720" fill="url(#na-target-glow)" />
+
+  <!-- Horizon Perspective Grid -->
+  <rect x="0" y="516" width="1280" height="204" fill="#080C1C" />
+  <g stroke="#22E5FF" stroke-opacity="0.28" stroke-width="2">
+    <line x1="0" y1="516" x2="1280" y2="516" stroke="#FF2E88" stroke-opacity="0.8" stroke-width="3" />
+    <line x1="0" y1="564" x2="1280" y2="564" />
+    <line x1="0" y1="630" x2="1280" y2="630" />
+    <line x1="640" y1="516" x2="640" y2="720" />
+    <line x1="420" y1="516" x2="210" y2="720" />
+    <line x1="860" y1="516" x2="1070" y2="720" />
+    <line x1="200" y1="516" x2="-120" y2="720" />
+    <line x1="1080" y1="516" x2="1400" y2="720" />
+  </g>
+
+  <!-- Sightline & Wind Stream Ribbons -->
+  <line x1="210" y1="340" x2="914" y2="340" stroke="#22E5FF" stroke-opacity="0.32" stroke-width="2" stroke-dasharray="14 10" />
+  <g fill="none" stroke="#22E5FF" stroke-opacity="0.52" stroke-width="3" stroke-linecap="round" stroke-dasharray="32 18">
+    <path d="M 410 176 Q 560 150 712 178" />
+    <path d="M 442 478 Q 590 502 746 472" stroke="#FF2E88" />
+  </g>
+
+  <!-- Holographic Concentric Synthwave Bullseye Target -->
+  <g transform="translate(914, 340)" filter="url(#na-neon)">
+    <!-- Stand struts -->
+    <line x1="-68" y1="158" x2="-104" y2="238" stroke="#22E5FF" stroke-width="7" stroke-linecap="round" />
+    <line x1="68" y1="158" x2="104" y2="238" stroke="#FF2E88" stroke-width="7" stroke-linecap="round" />
+    <!-- Rings -->
+    <circle cx="0" cy="0" r="196" fill="#0B1128" stroke="#22E5FF" stroke-width="7" />
+    <circle cx="0" cy="0" r="146" fill="none" stroke="#8C52FF" stroke-width="6" />
+    <circle cx="0" cy="0" r="98" fill="#FF2E88" fill-opacity="0.16" stroke="#FF2E88" stroke-width="7" />
+    <circle cx="0" cy="0" r="52" fill="#22E5FF" fill-opacity="0.22" stroke="#22E5FF" stroke-width="6" />
+    <circle cx="0" cy="0" r="18" fill="#F2F7FF" stroke="#FF2E88" stroke-width="4" />
+    <!-- HUD Target Lock Brackets -->
+    <g stroke="#22E5FF" stroke-width="4.5" fill="none" stroke-linecap="round">
+      <path d="M -226 -170 L -226 -226 L -170 -226" />
+      <path d="M 226 -170 L 226 -226 L 170 -226" stroke="#FF2E88" />
+      <path d="M -226 170 L -226 226 L -170 226" stroke="#FF2E88" />
+      <path d="M 226 170 L 226 226 L 170 226" />
+    </g>
+  </g>
+
+  <!-- Foreground Neon Recurve Energy Bow -->
+  <g transform="translate(154, 70)" filter="url(#na-neon)">
+    <!-- Drawn Bowstring -->
+    <polyline points="204,28 54,270 204,512" fill="none" stroke="#22E5FF" stroke-width="4.5" stroke-linejoin="round" />
+    <!-- Recurve Limbs -->
+    <path d="M 204 28 C 316 96, 326 178, 278 270 C 326 362, 316 444, 204 512" fill="none" stroke="url(#na-bow)" stroke-width="18" stroke-linecap="round" />
+    <path d="M 212 40 C 306 102, 316 178, 278 270 C 316 362, 306 438, 212 500" fill="none" stroke="#F2F7FF" stroke-width="4" stroke-linecap="round" />
+    <!-- Cyber Riser Handle -->
+    <rect x="254" y="220" width="44" height="100" rx="14" fill="#101A38" stroke="#22E5FF" stroke-width="5" />
+    <line x1="276" y1="238" x2="276" y2="302" stroke="#FF2E88" stroke-width="6" stroke-linecap="round" />
+  </g>
+
+  <!-- Drawn Plasma Energy Arrow -->
+  <g filter="url(#na-neon)">
+    <line x1="206" y1="340" x2="626" y2="340" stroke="#22E5FF" stroke-width="9" stroke-linecap="round" />
+    <line x1="216" y1="340" x2="612" y2="340" stroke="#F2F7FF" stroke-width="3" stroke-linecap="round" />
+    <!-- Energy Arrowhead -->
+    <polygon points="670,340 612,314 626,340 612,366" fill="#FF2E88" stroke="#F2F7FF" stroke-width="3" stroke-linejoin="round" />
+    <!-- Synth Fletching -->
+    <polygon points="204,340 264,312 246,340 264,368" fill="#FF2E88" />
+    <polygon points="244,340 294,318 280,340 294,362" fill="#22E5FF" />
+  </g>
+</svg>

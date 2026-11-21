@@ -785,3 +785,97 @@ body.gk-page {
   .gk-kicks td { padding: 4px 6px; }
   .gk-end .gk-actions { margin-top: 14px; }
 }
+
+/* ---------- difficulty picker ---------- */
+.gk-levels { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
+.gk-level {
+  min-width: 86px; padding: 8px 16px; border: 0; border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.7);
+  font: 600 14px/1 var(--gk-body); letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+}
+.gk-level:hover { color: #fff; }
+.gk-level[aria-checked='true'] { background: #22e6ff; color: #0b0c0f; }
+.gk-level[data-level='hard'][aria-checked='true'] { background: #ff3fd0; }
+.gk-level[data-level='easy'][aria-checked='true'] { background: #3dffb0; }
+.gk-level:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- save-grade popups ---------- */
+.gk-grade { grid-area: 1 / 1; margin-top: -30vh; display: flex; flex-direction: column; align-items: center; gap: 2px; animation: gk-grade-pop 1.3s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+.gk-grade-word { font: 400 clamp(56px, 8vw, 112px)/0.9 var(--gk-display); letter-spacing: 0.04em; }
+.gk-grade-sub { font: 700 clamp(16px, 1.6vw, 22px)/1.2 var(--gk-body); letter-spacing: 0.08em; color: #fff; }
+.gk-grade-sub b { color: #ffb23a; font-weight: 800; }
+.gk-grade--perfect .gk-grade-word { color: #ffe14a; text-shadow: 0 0 22px rgba(255, 225, 74, 0.7), 4px 4px 0 #ff3fd0; }
+.gk-grade--good .gk-grade-word { color: #3dffb0; text-shadow: 0 0 16px rgba(61, 255, 176, 0.5), 3px 3px 0 #0b0c0f; }
+.gk-grade--fingertip .gk-grade-word { color: #22e6ff; font-size: clamp(44px, 6vw, 84px); text-shadow: 3px 3px 0 #0b0c0f; }
+.gk-grade--miss .gk-grade-word { color: #ff2a55; font-size: clamp(44px, 6vw, 84px); text-shadow: 3px 3px 0 #0b0c0f; }
+@keyframes gk-grade-pop {
+  0% { opacity: 0; transform: scale(1.8); }
+  14% { opacity: 1; transform: scale(1); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: translateY(-18px) scale(0.96); }
+}
+@media (prefers-reduced-motion: reduce) { .gk-grade { animation: none; } }
+
+/* ---------- slim corner HUD (top-left, clear of the webcam preview at bottom-right) ---------- */
+.gk-topbar {
+  left: max(12px, env(safe-area-inset-left));
+  top: max(12px, env(safe-area-inset-top));
+  transform: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(11, 12, 15, 0.72);
+}
+.gk-kickrow { display: flex; align-items: center; gap: 10px; }
+.gk-topbar .gk-counter { font-size: 20px; }
+.gk-topbar .gk-pips { gap: 5px; }
+.gk-topbar .gk-pip { width: 14px; height: 14px; border-width: 2px; font-size: 0; }
+.gk-topbar .gk-pip[data-state='current'] { transform: none; box-shadow: 0 0 6px var(--gk-accent); }
+.gk-meta { display: flex; align-items: center; gap: 8px; font: 700 11px/1 var(--gk-body); letter-spacing: 0.14em; text-transform: uppercase; }
+.gk-combo-tag { color: #ffb23a; }
+.gk-level-tag { color: #22e6ff; }
+.gk-level-tag[data-level='easy'] { color: #3dffb0; }
+.gk-level-tag[data-level='hard'] { color: #ff3fd0; }
+.gk-topbar .gk-badge { position: static; padding: 0; border: 0; background: none; font-size: 11px; color: rgba(255, 255, 255, 0.55); }
+.gk-page .gk-webcam { opacity: 1; }
+
+/* ---------- results ---------- */
+.gk-hud .gk-end { width: min(600px, calc(100% - 32px)); padding: clamp(18px, 3vh, 30px) clamp(20px, 3vw, 32px); }
+.gk-end-head { display: flex; align-items: center; gap: 18px; margin-top: 4px; }
+.gk-end-grade {
+  display: grid; place-items: center; flex: none; width: clamp(72px, 11vh, 96px); aspect-ratio: 1; margin: 0;
+  border-radius: 16px; border: 3px solid currentColor;
+  font: 400 clamp(56px, 9vh, 80px)/1 var(--gk-display); padding-top: 6px; color: #22e6ff;
+}
+.gk-end-grade[data-grade='S'] { color: #ffe14a; box-shadow: 0 0 24px rgba(255, 225, 74, 0.45); }
+.gk-end-grade[data-grade='A'] { color: #3dffb0; }
+.gk-end-grade[data-grade='B'] { color: #22e6ff; }
+.gk-end-grade[data-grade='C'] { color: #ff3fd0; }
+.gk-end .gk-end-saves { margin: 0; font-size: clamp(48px, 9vh, 84px); }
+.gk-end .gk-stats { grid-template-columns: repeat(4, 1fr); margin-top: 14px; }
+.gk-end .gk-actions { margin-top: 14px; }
+.gk-end-more { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 16px; }
+.gk-end-more .gk-kicks { margin-top: 0; }
+@media (max-height: 760px) { .gk-end .gk-kicks { font-size: 13px; } .gk-end .gk-kicks td, .gk-end .gk-kicks th { padding-top: 4px; padding-bottom: 4px; } }
+
+/* ---------- guided practice prompt ---------- */
+.gk-practice {
+  position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px; max-width: min(760px, calc(100% - 280px));
+  padding: 10px 10px 10px 16px; border-radius: 999px; background: rgba(11, 12, 15, 0.86); border: 1px solid var(--gk-border);
+  pointer-events: auto;
+}
+.gk-practice[hidden] { display: none; }
+.gk-practice-tag { flex: none; font: 700 11px/1 var(--gk-body); letter-spacing: 0.18em; color: #3dffb0; }
+.gk-practice-text { margin: 0; font: 600 clamp(16px, 1.6vw, 22px)/1.25 var(--gk-body); color: #fff; }
+.gk-practice-in { animation: gk-practice-in 260ms ease-out both; }
+@keyframes gk-practice-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.gk-practice .gk-practice-skip { flex: none; padding: 8px 14px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .gk-practice-in { animation: none; } }
+
+.gk-practice-choice { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font: 500 15px/1.2 var(--gk-body); color: rgba(255, 255, 255, 0.8); cursor: pointer; }
+.gk-practice-choice input { width: 18px; height: 18px; accent-color: #3dffb0; }
+.gk-practice .gk-practice-text { flex: 1 1 auto; min-width: 0; }
+.gk-practice .gk-btn.gk-practice-skip { width: auto; min-width: 0; height: auto; flex: 0 0 auto; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+.gk-start .gk-levels { margin-top: 14px; }
