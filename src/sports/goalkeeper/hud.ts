@@ -59,6 +59,8 @@ export interface KeeperHudOptions {
   onHome?: () => void
   /** Called on every HUD button press (UI click sound). */
   onButton?: () => void
+  /** Also show a Home pill in the play corner. Off inside the shell, which has its own. Default true. */
+  cornerHome?: boolean
 }
 
 export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}): KeeperHud {
@@ -155,7 +157,7 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   const badge = el('p', 'gk-badge', 'CAMERA')
   badge.dataset.mode = 'camera'
   play.append(topbar, badge)
-  if (opts.onHome) {
+  if (opts.onHome && opts.cornerHome !== false) {
     const corner = homeButton()
     corner.className = 'gk-home-corner'
     corner.textContent = '⌂ Home'

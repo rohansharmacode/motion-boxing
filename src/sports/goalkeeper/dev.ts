@@ -29,7 +29,7 @@ void startGoalkeeper(
       location.reload()
     },
   },
-  { auto: auto === 'mouse' || auto === 'camera' ? auto : undefined, debug: params.has('debug') },
+  { auto: auto === 'mouse' || auto === 'camera' ? auto : undefined, debug: params.has('debug'), embedded: false },
 ).then((s) => {
   session = s
 })

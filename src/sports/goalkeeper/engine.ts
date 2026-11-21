@@ -60,6 +60,8 @@ const UNTRACKED_GRACE_MS = 400
 const REACTION_SPEED = 1.8
 /** Faster than this after the telegraph starts is anticipation, not reaction, ms. */
 const MIN_REACTION_MS = 100
+/** Mouse-mode glove speed cap, m/s (a fast human hand). */
+const MAX_POINTER_SPEED = 8
 /** Game-world speed during the save/goal slow-mo, and how long it lasts in real ms. */
 const SLOWMO_SCALE = 0.3
 const SLOWMO_SAVE_MS = 700
@@ -594,6 +596,17 @@ export function createKeeperEngine(opts?: {
       emaInto(pointerVel.left, pointerCur.left, pointerLast.left, dtS)
       emaInto(pointerVel.right, pointerCur.right, pointerLast.right, dtS)
       emaInto(pointerVel.torso, pointerCur.torsoTop, pointerLast.torsoTop, dtS)
+      // A mouse can jump metres in one frame; cap at a fast human hand so mouse play can't post
+      // impossible glove speeds (which also feed the dashboard's best speed).
+      for (const v of [pointerVel.left, pointerVel.right, pointerVel.torso]) {
+        const l = len(v)
+        if (l > MAX_POINTER_SPEED) {
+          const k = MAX_POINTER_SPEED / l
+          v.x *= k
+          v.y *= k
+          v.z *= k
+        }
+      }
     }
     copyPose(pointerLast, pointerCur)
     pointerHasLast = true

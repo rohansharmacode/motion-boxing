@@ -38,6 +38,8 @@ export interface GoalkeeperOptions {
   auto?: 'mouse' | 'camera'
   /** Open the debug panel. */
   debug?: boolean
+  /** Running inside the shell, which draws its own Home pill. Default true; goalkeeper.html passes false. */
+  embedded?: boolean
 }
 
 export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions = {}): Promise<GameSession> {
@@ -45,7 +47,8 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
 
   // ---------- DOM ----------
   const root = document.createElement('div')
-  root.className = 'gk-root gk-page'
+  const embedded = opts.embedded !== false
+  root.className = embedded ? 'gk-root gk-page gk-embedded' : 'gk-root gk-page'
   const stage = document.createElement('div')
   stage.className = 'gk-stage'
   const video = document.createElement('video')
@@ -62,6 +65,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
   const scene = createKeeperScene()
   stage.append(scene.canvas, video)
   const hud = createKeeperHud(ui, {
+    cornerHome: !embedded,
     onHome: () => {
       uiSfx.back()
       ctx.exit()
