@@ -1,6 +1,7 @@
 // Boxing rules engine: HP, round clock, drone AI, combos, counters, KO slow motion and telemetry.
 // Time comes only from dtMs, so a round can be replayed deterministically with a seeded deps.random.
 import type { BodyFrame, Calibration } from '../../pose/types.ts'
+import { createPosePredictor } from '../../pose/predict.ts'
 import type {
   AttackPattern,
   BoxingActions,
@@ -92,6 +93,8 @@ export function createBoxingEngine(deps: {
   let phase: BoxingPhase = 'idle'
   let endCallbacks: ((result: RoundResult) => void)[] = []
   let detectorDebug: Record<string, number> = {}
+  /** Gloves are drawn ~40 ms ahead of the measured pose to hide camera and tracking lag. */
+  const predictor = createPosePredictor()
 
   // Round state.
   let playerHp = MAX_HP
@@ -469,7 +472,7 @@ export function createBoxingEngine(deps: {
     onPoseFrame(body: BodyFrame | null) {
       const actions = detector.update(body)
       detectorDebug = actions.debug
-      scene?.setBody(body)
+      scene?.setBody(predictor.push(body))
       apply(actions, 'pose')
     },
 
