@@ -22,7 +22,7 @@ import './kinetic.css';
 /** Shown under the timer in keyboard mode, so nobody has to guess the keys. */
 const KEYBOARD_HINT = 'Keyboard · J jab · K cross · H hook · U uppercut · Shift guard · ← → dodge';
 
-const DRONE_NAME = 'HEX-7';
+const DRONE_NAME = new URLSearchParams(location.search).get('style') === 'mii' ? 'CHAMP' : 'HEX-7';
 const ROUND_MS = 60_000;
 const NAME_KEY = 'kr.lastName';
 

@@ -4,7 +4,7 @@ import type { AttackPattern, BoxingHud, CoachCard, PunchCounts, PunchKind, Round
 
 type View = 'start' | 'loading' | 'error' | 'calibrating' | 'fighting' | 'ended'
 
-const DRONE_NAME = 'HEX-7'
+const DRONE_NAME = new URLSearchParams(location.search).get('style') === 'mii' ? 'CHAMP' : 'HEX-7'
 
 const ERROR_COPY: Record<StartupErrorKind, { title: string; help: string }> = {
   'camera-denied': {
