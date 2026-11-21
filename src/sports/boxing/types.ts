@@ -1,5 +1,15 @@
 // Boxing contract. Change only with the orchestrator.
 import type { BodyFrame, Calibration, CalibrationStatus, Hand, StartupErrorKind } from '../../pose/types.ts'
+import type { BotStance } from './botDefence.ts'
+
+export type { BotStance }
+
+/** One fighter's guard stamina for the rings. */
+export interface GuardMeterView {
+  /** 0 to 1. */
+  fraction: number
+  broken: boolean
+}
 
 export type PunchKind = 'jab' | 'cross' | 'hook' | 'uppercut'
 export type SlipKind = 'left' | 'right' | 'duck'
@@ -131,6 +141,10 @@ export interface BoxingScene {
   /** The player was hit. blocked = sparks on the gloves instead of a red flash. */
   playerHit(blocked: boolean): void
   droneKO(): void
+  /** Guard stamina rings by each fighter's head, 0 to 1. broken: guard break stun. Called every frame. */
+  setGuardMeters?(player: GuardMeterView, bot: GuardMeterView): void
+  /** Bot guard and dodge pose, with its tell. Called every frame. */
+  setBotStance?(stance: BotStance): void
   /** Reset the drone and effects for a new round. */
   resetRound(): void
   /** Freeze scene animation for ms milliseconds (impact feel). */

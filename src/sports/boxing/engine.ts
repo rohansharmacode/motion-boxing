@@ -2,6 +2,8 @@
 // Time comes only from dtMs, so a round can be replayed deterministically with a seeded deps.random.
 import type { BodyFrame, Calibration } from '../../pose/types.ts'
 import { createPosePredictor } from '../../pose/predict.ts'
+import { createBotDefence, type BotDefenceResult } from './botDefence.ts'
+import { createGuardMeter, PLAYER_GUARD } from './guard.ts'
 import type {
   AttackPattern,
   BoxingActions,
@@ -42,6 +44,16 @@ const STRIKE_DAMAGE: Record<AttackPattern, number> = { straight: 9, hook: 11, sl
 const WRONG_DODGE: Record<AttackPattern, string> = { straight: 'HIT', hook: 'DUCK THE HOOK', slam: 'SLIP THE SLAM' }
 /** Blocking cuts damage by 80 percent. */
 const BLOCK_FACTOR = 0.2
+/** Player guard stamina each blocked drone attack costs (meter is 100): about 3 to 4 blocks break it. */
+const PLAYER_BLOCK_COST: Record<AttackPattern, number> = { straight: 24, hook: 30, slam: 38 }
+/** Share of punch damage that still gets through the bot's guard. */
+const BOT_CHIP_FACTOR = 0.15
+/** Damage bonus while the bot is stunned by a guard break. */
+const BOT_STUN_MULT = 1.25
+/** The bot will not start an attack until this long after its stun ends. */
+const BOT_STUN_ATTACK_DELAY_MS = 500
+/** Callout when a punch whiffs on a bot dodge: the punch that would have caught it. */
+const EVADED_HINT = { 'sway-left': 'MISS · TRY A HOOK', 'sway-right': 'MISS · TRY A HOOK', duck: 'MISS · TRY AN UPPERCUT' } as const
 const COUNTER_WINDOW_MS = 1500
 const COUNTER_MULT = 1.5
 /** Landed punches closer than this chain into a combo. */
@@ -141,6 +153,12 @@ export function createBoxingEngine(deps: {
   let kbSlip: SlipKind | null = null
   let guard = false
   let slip: SlipKind | null = null
+  /** Guard as the fight sees it: held and not broken. Pushed to the scene and HUD when it changes. */
+  let shownGuard = false
+
+  // Guard stamina for both fighters, and the bot's guard and dodges.
+  const playerGuard = createGuardMeter(PLAYER_GUARD)
+  const bot = createBotDefence(random)
 
   // Drone AI.
   let attack: Attack | null = null
@@ -197,6 +215,8 @@ export function createBoxingEngine(deps: {
     maxCombo = 0
     lastLandedMs = 0
     inFlight = null
+    playerGuard.reset()
+    bot.reset()
   }
 
   function buildResult(outcome: RoundOutcome): RoundResult {
@@ -246,6 +266,7 @@ export function createBoxingEngine(deps: {
   /** Drone at 0 HP: slow motion for KO_SLOWMO_MS real time, then update() ends the round. */
   function startKo(): void {
     koLeftMs = KO_SLOWMO_MS
+    bot.reset()
     stopAction()
     scene?.droneKO()
     scene?.setTimeScale(KO_TIME_SCALE)
@@ -266,21 +287,44 @@ export function createBoxingEngine(deps: {
     const nextSlip = poseSlip ?? kbSlip
     const guardOn = nextGuard && !guard
     const slipOn = nextSlip !== null && nextSlip !== slip
-    if (nextGuard !== guard) scene?.setGuard(nextGuard)
     if (nextSlip !== slip) scene?.setSlip(nextSlip)
     guard = nextGuard
     slip = nextSlip
+    syncGuard()
     if (attack && attack.reactionMs === null && (guardOn || slipOn)) {
       attack.reactionMs = Math.round(roundMs - attack.startMs)
     }
   }
 
+  /** Push the effective guard (held and not broken) to the scene when it changes. */
+  function syncGuard(): void {
+    const next = guard && !playerGuard.broken
+    if (next === shownGuard) return
+    shownGuard = next
+    scene?.setGuard(next)
+  }
+
+  function pushGuardState(): void {
+    scene?.setGuardMeters?.(
+      { fraction: playerGuard.fraction, broken: playerGuard.broken },
+      { fraction: bot.guard.fraction, broken: bot.guard.broken },
+    )
+    scene?.setBotStance?.(bot.stance)
+  }
+
   function applyPunch(punch: Punch): void {
     if (!scene) return
     scene.punch(punch.hand, punch.kind)
-    const hit = scene.resolveHit(punch.hand, punch.kind)
-    const inCounter = counterMs > 0
-    const landed = hit !== null
+    const stunned = bot.guard.broken
+    const aimed = scene.resolveHit(punch.hand, punch.kind)
+    // Online 1v1: the other fighter is a person, so the bot never defends.
+    const defence: BotDefenceResult = versus ? { kind: 'open' } : bot.onPunch(punch.kind, roundMs, aimed !== null)
+    let hit = defence.kind === 'evaded' ? null : aimed
+    // A hook into a sway or an uppercut into a duck lands even if the bot has moved off centre.
+    if (!hit && defence.kind === 'caught') hit = { target: punch.kind === 'uppercut' ? 'chest' : 'head', accuracy: 70 }
+    const blocked = hit !== null && defence.kind === 'blocked'
+    const inCounter = counterMs > 0 || defence.kind === 'caught'
+    const landed = hit !== null && !blocked
     const counter = landed && inCounter
     let damage = 0
 
@@ -306,13 +350,26 @@ export function createBoxingEngine(deps: {
         versus.sendPunch(sent)
       }
       // The HIT or MISS flash waits for the other laptop's answer (punchResolved).
+    } else if (hit && blocked && defence.kind === 'blocked') {
+      setCombo(0)
+      damage = round1(BASE_DAMAGE[punch.kind] * BOT_CHIP_FACTOR)
+      droneHp = Math.max(0, round1(droneHp - damage))
+      scene.droneHit(hit, damage, false)
+      hud.flashPunch(punch, false, false)
+      hud.setHp(playerHp, droneHp)
+      if (defence.broke) {
+        hud.callout('GUARD BREAK', 'good')
+        sfx?.combo(3)
+        nextAttackMs = Math.max(nextAttackMs, roundMs + bot.guard.brokenMs + BOT_STUN_ATTACK_DELAY_MS)
+      } else hud.callout('BLOCKED', 'info')
     } else if (hit) {
       setCombo(combo > 0 && roundMs - lastLandedMs < COMBO_GAP_MS ? combo + 1 : 1)
       lastLandedMs = roundMs
       counts.landed++
       const comboMult = Math.min(COMBO_MULT_MAX, 1 + COMBO_STEP * (combo - 1))
       const accuracyMult = 0.6 + (0.4 * hit.accuracy) / 100
-      damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult)
+      const stunMult = stunned ? BOT_STUN_MULT : 1
+      damage = round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * comboMult * stunMult)
       droneHp = Math.max(0, round1(droneHp - damage))
       scene.droneHit(hit, damage, counter)
       scene.hitstop(HITSTOP_MS)
@@ -325,6 +382,7 @@ export function createBoxingEngine(deps: {
     } else {
       setCombo(0)
       hud.flashPunch(punch, false, false)
+      if (defence.kind === 'evaded') hud.callout(EVADED_HINT[defence.dodge], 'info')
     }
     hud.setCounts({ ...counts })
     punchLog.push({
@@ -354,6 +412,8 @@ export function createBoxingEngine(deps: {
         counter,
         combo,
         source: punch.source,
+        botDefence: defence.kind,
+        botGuard: Math.round(bot.guard.value),
       },
     })
 
@@ -416,22 +476,28 @@ export function createBoxingEngine(deps: {
       counterMs = COUNTER_WINDOW_MS
       counterOpenedMs = roundMs
       counterAnnounced = false
-    } else if (guard) {
+    } else if (guard && playerGuard.canBlock) {
       outcome = 'blocked'
       const damage = round1(full * BLOCK_FACTOR)
+      const broke = playerGuard.block(PLAYER_BLOCK_COST[a.pattern]) === 'broke'
       blocks++
       playerHp = Math.max(0, round1(playerHp - damage))
-      telemetry.emit({ event_type: 'BLOCK', reaction_ms: a.reactionMs, metrics: { pattern: a.pattern, damage } })
+      telemetry.emit({
+        event_type: 'BLOCK',
+        reaction_ms: a.reactionMs,
+        metrics: { pattern: a.pattern, damage, guardLeft: Math.round(playerGuard.value), guardBreak: broke },
+      })
       scene?.playerHit(true)
-      hud.callout('BLOCKED', 'good')
+      hud.callout(broke ? 'GUARD BROKEN' : 'BLOCKED', broke ? 'bad' : 'good')
       sfx?.block()
+      syncGuard()
     } else {
       outcome = 'hit'
       hitsTaken++
       playerHp = Math.max(0, round1(playerHp - full))
       scene?.playerHit(false)
       scene?.hitstop(HITSTOP_MS)
-      hud.callout(slip ? WRONG_DODGE[a.pattern] : 'HIT', 'bad')
+      hud.callout(slip ? WRONG_DODGE[a.pattern] : guard ? 'GUARD DOWN' : 'HIT', 'bad')
       sfx?.playerHit()
       setCombo(0)
     }
@@ -442,6 +508,7 @@ export function createBoxingEngine(deps: {
   }
 
   function runDrone(): void {
+    if (bot.guard.broken) return // stunned: no new attacks
     if (attack) {
       if (roundMs >= attack.startMs + attack.telegraphMs) strike(attack)
     } else if (versus) {
@@ -458,7 +525,12 @@ export function createBoxingEngine(deps: {
     if (guard) guardMs += dt
     if (counterMs > 0) counterMs = Math.max(0, counterMs - dt)
     if (combo > 0 && roundMs - lastLandedMs >= COMBO_GAP_MS) setCombo(0)
+    playerGuard.update(dt, guard)
+    bot.setBusy(attack !== null)
+    if (!versus) bot.update(dt, roundMs)
+    syncGuard()
     runDrone()
+    bot.setBusy(attack !== null)
     if (phase !== 'fighting') return
     tickAcc += dt
     if (tickAcc >= TICK_MS) {
@@ -491,6 +563,9 @@ export function createBoxingEngine(deps: {
         counterMs: Math.round(counterMs),
         combo,
         attack: attack ? attack.pattern : '-',
+        playerGuard: Math.round(playerGuard.value),
+        botGuard: Math.round(bot.guard.value),
+        botStance: bot.stance.dodge ?? bot.stance.guard,
         shoulderWidth: calibration ? round1(calibration.shoulderWidth * 100) / 100 : 0,
       }
     },
@@ -537,8 +612,9 @@ export function createBoxingEngine(deps: {
       } else if (phase === 'fighting') {
         fight(dt)
       }
+      if (phase !== 'idle') pushGuardState()
       scene?.update(dtMs)
-      hud.setGuard(guard)
+      hud.setGuard(shownGuard)
     },
 
     flushTelemetry,
@@ -623,6 +699,7 @@ export function createBoxingEngine(deps: {
       kbGuard = false
       kbSlip = null
       guard = false
+      shownGuard = false
       slip = null
       scene = null
       calibration = null
