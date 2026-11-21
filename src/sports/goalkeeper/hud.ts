@@ -11,6 +11,7 @@ import type {
 } from './types.ts'
 import { DIFFICULTIES } from './difficulty.ts'
 import type { Difficulty } from './difficulty.ts'
+import type { SaveGrade } from './grading.ts'
 
 type View = 'start' | 'loading' | 'error' | 'calibration' | 'play' | 'end'
 
@@ -26,6 +27,8 @@ const CALIB_COPY: Record<CalibrationStatus, { title: string; sub: string }> = {
 const PART_LABEL: Record<KeeperPart, string> = { left: 'L glove', right: 'R glove', torso: 'Body' }
 const ROW_LABEL = ['Top', 'Mid', 'Low'] as const
 const COL_LABEL = ['left', 'centre', 'right'] as const
+
+const GRADE_WORD: Record<SaveGrade, string> = { perfect: 'PERFECT!', good: 'GOOD SAVE', fingertip: 'FINGERTIP!', miss: 'MISSED' }
 
 const RING_R = 34
 const RING_C = 2 * Math.PI * RING_R
@@ -332,6 +335,22 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
         timers.delete(id)
         node.remove()
       }, CALLOUT_MS)
+      timers.add(id)
+    },
+
+    gradePopup(grade: SaveGrade, combo: number, points: number) {
+      const node = el('div', `gk-grade gk-grade--${grade}`)
+      node.append(el('span', 'gk-grade-word', GRADE_WORD[grade]))
+      if (grade !== 'miss') {
+        const sub = el('span', 'gk-grade-sub', `+${points.toLocaleString('en-US')}`)
+        if (combo > 1) sub.prepend(el('b', undefined, `x${combo} COMBO `))
+        node.append(sub)
+      }
+      callouts.replaceChildren(node)
+      const id = window.setTimeout(() => {
+        timers.delete(id)
+        node.remove()
+      }, CALLOUT_MS + 200)
       timers.add(id)
     },
 

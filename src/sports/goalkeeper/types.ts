@@ -12,6 +12,7 @@
 import type { BodyFrame, Calibration, CalibrationStatus } from '../../pose/types.ts'
 import type { Difficulty } from './difficulty.ts'
 import type { ShotType } from './shots.ts'
+import type { ResultGrade, SaveGrade } from './grading.ts'
 
 export type { BodyFrame, Calibration, CalibrationStatus }
 
@@ -152,6 +153,12 @@ export interface KickResult {
   shot?: ShotType
   /** True when the wind-up arrow feinted to the other side first. */
   fake?: boolean
+  /** Save quality; null for a wide shot with no contact. */
+  grade?: SaveGrade | null
+  /** Combo count after this kick. */
+  combo?: number
+  /** Points this kick earned (grade x combo multiplier + punch bonus). */
+  points?: number
 }
 
 export interface ShootoutResult {
@@ -164,6 +171,12 @@ export interface ShootoutResult {
   /** Arcade score: saves * 1000 + bonuses (fast reaction, punch clearance). */
   score: number
   difficulty?: Difficulty
+  /** S / A / B / C. */
+  grade?: ResultGrade
+  bestCombo?: number
+  /** 0..100. */
+  savePct?: number
+  perfects?: number
 }
 
 export type KeeperPhase = 'idle' | 'playing' | 'ended'
@@ -255,6 +268,8 @@ export interface KeeperHud {
   setScoreboard(results: readonly KickResult[], total: number): void
   /** Short callout such as SAVED!, GOAL, PUNCHED CLEAR, GET READY. */
   callout(text: string, tone: 'good' | 'bad' | 'info'): void
+  /** Grade popup (PERFECT! / GOOD SAVE / FINGERTIP! / MISSED) with combo and points. */
+  gradePopup(grade: SaveGrade, combo: number, points: number): void
   setInputMode(mode: InputMode): void
   /** Easy / Normal / Hard picker on the start and end screens. onChange fires on a new pick. */
   setDifficulty(level: Difficulty, onChange: (level: Difficulty) => void): void

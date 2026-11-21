@@ -4,6 +4,7 @@
 
 import { DIFFICULTY_PARAMS, rampSteps, rampedSpeed } from './difficulty.ts'
 import { planShot, tellAt } from './shots.ts'
+import { gradeSave, kickPoints, nextCombo, resultGrade, scoreKicks } from './grading.ts'
 import type { ShotPlan } from './shots.ts'
 import type { Difficulty } from './difficulty.ts'
 import { OneEuroVec3 } from './filter.ts'
@@ -190,6 +191,7 @@ export function createKeeperEngine(opts?: {
   let difficulty: Difficulty = 'normal'
   /** Real saves this round (glove or body), for the auto-ramp. */
   let roundSaves = 0
+  let combo = 0
 
   // ---- body pose ----
   // Doc tuning: minCutoff 1.2 Hz, beta 0.12. Poses here are in metres, where a 5 m/s lunge would raise the
@@ -376,6 +378,11 @@ export function createKeeperEngine(opts?: {
       fake: plan.fake !== null,
     }
     if (outcome === 'save' && part !== null) roundSaves++
+    const grade = gradeSave({ outcome, part, accuracy: result.accuracy, reactionMs })
+    combo = nextCombo(combo, grade)
+    result.grade = grade
+    result.combo = combo
+    result.points = kickPoints(grade, combo, punch)
     results.push(result)
     stage = 'result'
     stageMs = 0
@@ -399,6 +406,13 @@ export function createKeeperEngine(opts?: {
         flightTime: round3(plan.flightTime),
         offTarget,
         source: source(),
+        difficulty,
+        saveGrade: grade,
+        combo,
+        points: result.points,
+        shot: plan.shot,
+        fake: plan.fake !== null,
+        rampStep: result.rampStep,
       },
     })
   }
@@ -414,31 +428,29 @@ export function createKeeperEngine(opts?: {
     let reactSum = 0
     let reactN = 0
     let best = 0
-    let score = 0
     for (const r of results) {
       if (r.reactionMs !== null) {
         reactSum += r.reactionMs
         reactN++
       }
       if (r.peakVelocity > best) best = r.peakVelocity
-      if (r.outcome === 'save') {
-        saves++
-        score += 1000
-        if (r.reactionMs !== null && r.reactionMs < 450) score += 250
-        if (r.punch) score += 150
-        score += r.accuracy / 2
-      } else {
-        goals++
-      }
+      if (r.outcome === 'save') saves++
+      else goals++
     }
+    const scored = scoreKicks(results.map((r) => ({ grade: r.grade ?? null, punch: r.punch })))
+    const score = scored.score
     const summary: ShootoutResult = {
       kicks: results.slice(),
       saves,
       goals,
       avgReactionMs: reactN > 0 ? reactSum / reactN : null,
       bestPeakVelocity: best,
-      score: Math.round(score),
+      score,
       difficulty,
+      grade: resultGrade(saves, results.length, score),
+      bestCombo: scored.bestCombo,
+      savePct: results.length > 0 ? Math.round((saves / results.length) * 100) : 0,
+      perfects: scored.perfects,
     }
     telemetry.flush()
     flushAcc = 0
@@ -459,6 +471,10 @@ export function createKeeperEngine(opts?: {
         bestSpeed: best,
         score: summary.score,
         avgReactionMs: summary.avgReactionMs,
+        difficulty,
+        grade: summary.grade,
+        bestCombo: summary.bestCombo,
+        perfects: summary.perfects,
         source: source(),
       },
     })
@@ -817,6 +833,7 @@ export function createKeeperEngine(opts?: {
       leftSaves = 0
       rightSaves = 0
       roundSaves = 0
+      combo = 0
       telemetry.startRound()
       scene?.reset()
       phase = 'playing'

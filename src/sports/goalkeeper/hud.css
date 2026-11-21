@@ -797,3 +797,20 @@ body.gk-page {
 .gk-level[data-level='hard'][aria-checked='true'] { background: #ff3fd0; }
 .gk-level[data-level='easy'][aria-checked='true'] { background: #3dffb0; }
 .gk-level:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- save-grade popups ---------- */
+.gk-grade { display: flex; flex-direction: column; align-items: center; gap: 2px; animation: gk-grade-pop 1.3s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+.gk-grade-word { font: 400 clamp(56px, 8vw, 112px)/0.9 var(--font-display, 'Bebas Neue', sans-serif); letter-spacing: 0.04em; }
+.gk-grade-sub { font: 700 clamp(16px, 1.6vw, 22px)/1.2 var(--font-body, 'Outfit', sans-serif); letter-spacing: 0.08em; color: #fff; }
+.gk-grade-sub b { color: #ffb23a; font-weight: 800; }
+.gk-grade--perfect .gk-grade-word { color: #ffe14a; text-shadow: 0 0 22px rgba(255, 225, 74, 0.7), 4px 4px 0 #ff3fd0; }
+.gk-grade--good .gk-grade-word { color: #3dffb0; text-shadow: 0 0 16px rgba(61, 255, 176, 0.5), 3px 3px 0 #0b0c0f; }
+.gk-grade--fingertip .gk-grade-word { color: #22e6ff; font-size: clamp(44px, 6vw, 84px); text-shadow: 3px 3px 0 #0b0c0f; }
+.gk-grade--miss .gk-grade-word { color: #ff2a55; font-size: clamp(44px, 6vw, 84px); text-shadow: 3px 3px 0 #0b0c0f; }
+@keyframes gk-grade-pop {
+  0% { opacity: 0; transform: scale(1.8); }
+  14% { opacity: 1; transform: scale(1); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: translateY(-18px) scale(0.96); }
+}
+@media (prefers-reduced-motion: reduce) { .gk-grade { animation: none; } }

@@ -133,10 +133,9 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
 
   // ---------- engine wiring ----------
   function resultCallout(r: KickResult): void {
-    if (r.outcome === 'goal') hud.callout('GOAL', 'bad')
-    else if (r.punch) hud.callout('PUNCHED CLEAR!', 'good')
-    else if (r.part === null) hud.callout('WIDE!', 'good')
-    else hud.callout('SAVED!', 'good')
+    if (r.outcome === 'save' && r.part === null) hud.callout('WIDE!', 'info')
+    else if (r.grade) hud.gradePopup(r.grade, r.combo ?? 0, r.points ?? 0)
+    else hud.callout(r.outcome === 'goal' ? 'GOAL' : 'SAVED!', r.outcome === 'goal' ? 'bad' : 'good')
   }
 
   engine.onKickResult((r) => {
@@ -149,6 +148,7 @@ export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions 
       sfx.groan()
     } else {
       if (r.part !== null) sfx.save(r.punch)
+      if (r.grade && r.grade !== 'miss') sfx.grade(r.grade, r.combo ?? 1)
       sfx.roar()
     }
   })
