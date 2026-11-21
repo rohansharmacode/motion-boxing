@@ -87,7 +87,7 @@ const VIEW = { x: 0.1, y: 0.85, z: 1.5, pitch: -0.34, yaw: 0.025 } as const
  */
 const CAM_OMEGA = 9
 /** Player robot in rig space: a little left of centre so the camera sits over its right shoulder. */
-const PLAYER_TWIN = { x: -0.24, z: 0.25 } as const
+const PLAYER_TWIN = { x: -0.5, z: 0.35 } as const
 /** Shoulder widths to metres for the mirrored body lean, and its limits. */
 const BODY_LEAN_M = 0.4
 type ShotName = 'fight' | 'wide' | 'ko'
@@ -299,8 +299,39 @@ function elbowAngle(world: Joint[], j: Glove['joints']): number | null {
 }
 
 /** Bigger gloves (display only; hit tests use the aim point, not the glove size). */
+/** The player's own body is see-through so it never blocks the opponent or the gloves. */
+function ghostPlayer(root: Object3D, cloneMats: boolean): void {
+  root.traverse((o) => {
+    const m = o as Mesh
+    if (!m.isMesh) return
+    const fix = (x: Material): Material => {
+      const c = cloneMats ? x.clone() : x
+      c.transparent = true
+      c.opacity = 0.28
+      c.depthWrite = false
+      return c
+    }
+    m.material = Array.isArray(m.material) ? m.material.map(fix) : fix(m.material)
+  })
+}
+
 function scaleGlove(parts: GloveParts): GloveParts {
   parts.group.scale.multiplyScalar(1.4)
+  // The player's gloves always draw on top: never hidden behind the body, the ring or culled at the frame edge.
+  parts.group.traverse((o) => {
+    const m = o as Mesh
+    if (!m.isMesh) return
+    m.frustumCulled = false
+    m.renderOrder = 20
+    const mats = Array.isArray(m.material) ? m.material : [m.material]
+    const own = mats.map((x) => {
+      const c = x.clone()
+      c.depthTest = false
+      c.depthWrite = false
+      return c
+    })
+    m.material = Array.isArray(m.material) ? own : own[0]
+  })
   return parts
 }
 
@@ -452,6 +483,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     if (scheme) twin.armour?.forEach((m) => m.color.setHex(scheme.armour))
     twin.root.rotation.y = Math.PI
     twin.root.position.set(PLAYER_TWIN.x, DRONE.y - EYE_Y, PLAYER_TWIN.z)
+    ghostPlayer(twin.root, true)
   }
   // Smooth glTF robot bodies (CC0) replace the built-in shapes once loaded; gloves stay separate.
   let droneRobot: RobotBody | null = null
@@ -466,7 +498,11 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     })
   if (!look) {
     useRobot(drone, 0xd0386a, (r) => (droneRobot = r))
-    if (twin) useRobot(twin, 0x1d8fae, (r) => (twinRobot = r))
+    if (twin)
+      useRobot(twin, 0x1d8fae, (r) => {
+        twinRobot = r
+        ghostPlayer(r.root, false)
+      })
   }
   let disposed = false
   const playerBase = playerModel.position.clone()
