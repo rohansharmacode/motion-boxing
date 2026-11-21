@@ -1,0 +1,260 @@
+/* Customise screen. One spacing unit (--g) between every box, one tile size (--t), one radius.
+   Calm: flat surfaces, thin borders, one accent colour, no glows or animation beyond the turntable. */
+
+.cz {
+  --t: clamp(60px, 8.5vh, 80px);
+  --g: 12px;
+  --pad: 24px;
+  --cols: 6;
+  --w: calc(var(--cols) * var(--t) + (var(--cols) - 1) * var(--g));
+  --r: 12px;
+  --bg: #0b0d12;
+  --card: #12151c;
+  --line: #262b37;
+  --text: #eef1f6;
+  --muted: #8a93a6;
+  --cz-accent: #38c8ff;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ch-body, 'Manrope', 'Outfit', system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+.cz *,
+.cz *::before,
+.cz *::after { box-sizing: border-box; }
+
+.cz-frame {
+  display: grid;
+  gap: var(--pad);
+  justify-items: center;
+  padding: 72px var(--pad) var(--pad); /* top clears the shell's Home button */
+}
+
+.cz-head { text-align: center; }
+
+.cz-title {
+  margin: 0;
+  font: 700 32px / 1.1 var(--ch-body, 'Manrope', system-ui, sans-serif);
+  letter-spacing: 0.01em;
+}
+
+.cz-sub {
+  margin: 6px 0 0;
+  font-weight: 500; font-size: 15px; line-height: 1.3;
+  color: var(--muted);
+}
+
+.cz-body {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: var(--pad);
+  align-items: stretch;
+}
+
+.cz-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--r) + 4px);
+  padding: var(--pad);
+}
+
+/* ---------- preview ---------- */
+
+.cz-stage {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: var(--g);
+  width: calc(var(--w) * 0.72 + 2 * var(--pad));
+}
+
+.cz-canvas {
+  position: relative;
+  min-height: 0;
+  border-radius: var(--r);
+  background: radial-gradient(circle at 50% 60%, #1a1f2b 0%, #0e1016 70%);
+  overflow: hidden;
+}
+
+.cz-canvas canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cz-nameplate {
+  height: var(--t);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-weight: 700; font-size: 20px; line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--cz-accent);
+  text-transform: uppercase;
+}
+
+/* ---------- options ---------- */
+
+.cz-options {
+  display: grid;
+  gap: var(--pad);
+  align-content: start;
+}
+
+.cz-group {
+  display: grid;
+  gap: var(--g);
+  width: var(--w);
+}
+
+.cz-label {
+  margin: 0;
+  font-weight: 600; font-size: 13px; line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+.cz-grid {
+  display: grid;
+  gap: var(--g);
+}
+
+.cz-grid--6 { grid-template-columns: repeat(6, 1fr); }
+.cz-grid--4 { grid-template-columns: repeat(4, 1fr); }
+
+.cz-name-row {
+  display: grid;
+  grid-template-columns: 1fr calc(2 * var(--t) + var(--g));
+  gap: var(--g);
+}
+
+.cz-name {
+  height: var(--t);
+  min-width: 0;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600; font-size: 18px; line-height: 1;
+  text-align: center;
+  outline: none;
+}
+
+.cz-name:focus { border-color: var(--cz-accent); }
+.cz-name::placeholder { color: var(--muted); }
+
+/* Buttons: one height, one border, one radius. */
+.cz-btn,
+.cz-opt {
+  position: relative;
+  height: var(--t);
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600; font-size: 15px; line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.cz-btn:hover,
+.cz-opt:hover { border-color: #3a4152; }
+
+.cz-btn:focus-visible,
+.cz-opt:focus-visible { outline: 2px solid var(--cz-accent); outline-offset: 2px; }
+
+.cz-opt {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  align-items: center;
+  padding: 10px 4px 9px;
+}
+
+.cz-opt svg { width: 30px; height: 30px; color: var(--muted); }
+.cz-opt.is-on svg { color: var(--text); }
+
+.cz-opt-label {
+  font-weight: 600; font-size: 12px; line-height: 1;
+  color: var(--muted);
+}
+
+.cz-opt.is-on {
+  border-color: var(--cz-accent);
+  background: color-mix(in srgb, var(--cz-accent) 10%, var(--bg));
+}
+
+.cz-opt.is-on .cz-opt-label { color: var(--text); }
+
+.cz-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: inset 0 0 0 5px var(--d);
+}
+
+.cz-dot--split {
+  background: linear-gradient(90deg, var(--l) 50%, var(--r) 50%);
+  box-shadow: none;
+}
+
+/* Hand cursor dwell progress (set by the hand-control layer as --dwell, 0 to 1). */
+.cz-btn::after,
+.cz-opt::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(var(--cz-accent) calc(var(--dwell, 0) * 360deg), transparent 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  padding: 2px;
+  opacity: calc(var(--dwell, 0) * 10);
+}
+
+/* ---------- footer ---------- */
+
+.cz-foot {
+  display: grid;
+  grid-template-columns: repeat(2, calc(2 * var(--t) + var(--g)));
+  gap: var(--g);
+  justify-content: center;
+}
+
+.cz-btn--primary {
+  border-color: var(--cz-accent);
+  background: var(--cz-accent);
+  color: #0b0d12;
+}
+
+.cz-btn--primary:hover { border-color: var(--cz-accent); filter: brightness(1.08); }
+
+/* ---------- narrow screens: stack ---------- */
+
+@media (max-width: 1000px) {
+  .cz-body { grid-template-columns: auto; }
+  .cz-stage { width: auto; height: 340px; }
+}
+
+@media (max-width: 640px) {
+  .cz { --t: 48px; --g: 8px; --pad: 16px; }
+  .cz-opt-label { font-size: 10px; }
+}
+
+.cz button,
+.cz input { font-family: inherit; }

@@ -43,6 +43,9 @@ import { buildArenaDressing } from './arenaDressing.ts'
 import { createGloveTrail, createShockwaves } from './sceneFx.ts'
 import { brightBoxingLook } from '../../theme/bright/boxing.ts'
 import { buildHumanoid } from '../../theme/bright/avatar.ts'
+import { gloveColors, schemeOf } from '../../custom/look.ts'
+import type { RobotLook } from '../../custom/look.ts'
+import { buildHead } from '../../custom/robot.ts'
 
 /** Bright theme look (island arena, bean opponent, cartoon gloves), null under ?theme=neon. */
 const look = brightBoxingLook()
@@ -167,7 +170,6 @@ const ACCENT = new Color(COLORS.drone)
 const RED_GLOW = hdr(COLORS.telegraph, 2.2)
 /** Dead visor glass. */
 const DEAD = new Color(0x0c0a14)
-const GLOVE_COLOR: Record<Hand, Color> = { left: new Color(COLORS.left), right: new Color(COLORS.right) }
 const SPRAY_OUT = new Vector3(0, 0.25, 0.6)
 const SPRAY_UP = new Vector3(0, 0.5, 0.2)
 /** KO burst: mostly up and out, so few sparks fly into the lens. */
@@ -284,12 +286,12 @@ function elbowAngle(world: Joint[], j: Glove['joints']): number | null {
   return (Math.acos(clamp((ax * bx + ay * by + az * bz) / (la * lb), -1, 1)) * 180) / Math.PI
 }
 
-function makeGlove(hand: Hand): Glove {
+function makeGlove(hand: Hand, robot?: RobotLook): Glove {
   const left = hand === 'left'
   return {
     hand,
     side: left ? -1 : 1,
-    parts: look ? look.buildGlove(hand) : buildGlove(hand),
+    parts: look ? look.buildGlove(hand) : buildGlove(hand, robot),
     joints: left
       ? { shoulder: LM.L_SHOULDER, elbow: LM.L_ELBOW, wrist: LM.L_WRIST }
       : { shoulder: LM.R_SHOULDER, elbow: LM.R_ELBOW, wrist: LM.R_WRIST },
@@ -303,7 +305,22 @@ function makeGlove(hand: Hand): Glove {
   }
 }
 
-export function createBoxingScene(container: HTMLElement): BoxingScene {
+export interface BoxingSceneOptions {
+  /** The player's customised robot (colours, head, gloves). Omitted: the default look. */
+  robot?: RobotLook
+}
+
+export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptions = {}): BoxingScene {
+  const { robot } = opts
+  const robotGloves = robot && !look ? gloveColors(robot) : null
+  const GLOVE_COLOR: Record<Hand, Color> = {
+    left: new Color(robotGloves?.[0] ?? COLORS.left),
+    right: new Color(robotGloves?.[1] ?? COLORS.right),
+  }
+  /** Opponent colours the drone animates from; a 1v1 friend's look replaces them. */
+  const droneAccent = NEON.accent.clone()
+  const droneCore = NEON.core.clone()
+  const droneGlow = ACCENT.clone()
   const renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
   renderer.setClearColor(COLORS.bg, 1)
   const canvas = renderer.domElement
@@ -329,6 +346,11 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   const dressing = look ? null : buildArenaDressing()
   if (dressing) scene.add(dressing.group)
   const drone = look ? look.buildDrone(glowMap) : buildDrone(glowMap)
+  /** The drone's own armour and fist colours, to restore after a 1v1. */
+  const droneArmour = drone.armour?.map((m) => m.color.getHex()) ?? []
+  const droneFist = drone.fistShell ? { color: drone.fistShell.color.clone(), emissive: drone.fistShell.emissive.clone() } : null
+  /** A 1v1 friend's head style, replacing the drone helmet. */
+  let opponentHead: Group | null = null
   scene.add(drone.root, drone.floorGlow)
   const sparks = createSparks(720, 0.065, glowMap)
   const nearSparks = createSparks(160, 0.02, glowMap)
@@ -380,11 +402,11 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   playerRing.group.position.set(PLAYER_RING.x, PLAYER_RING.y, PLAYER_RING.z)
   rig.add(playerRing.group)
 
-  const leftGlove = makeGlove('left')
-  const rightGlove = makeGlove('right')
+  const leftGlove = makeGlove('left', robot)
+  const rightGlove = makeGlove('right', robot)
   const gloves = [leftGlove, rightGlove]
   for (const g of gloves) rig.add(g.parts.group)
-  rig.add(look ? buildBrightPlayer() : buildPlayerBody([leftGlove.parts.group, rightGlove.parts.group]))
+  rig.add(look ? buildBrightPlayer() : buildPlayerBody([leftGlove.parts.group, rightGlove.parts.group], robot))
   const gloveOf = (hand: Hand): Glove => (hand === 'left' ? leftGlove : rightGlove)
   const trails = gloves.map((g) => {
     const t = createGloveTrail(GLOVE_COLOR[g.hand])
@@ -663,7 +685,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   function applyPart(part: DroneHitPart, f: number, tint: number, life: number): void {
     part.shell.emissive.setScalar(0.8 * f)
     part.halo.opacity = (HALO_OPACITY + 0.3 * f + 0.1 * tint) * (0.3 + 0.7 * life)
-    part.core.color.copy(NEON.core).lerp(RED_GLOW, tint).lerp(NEON.white, f).lerp(DEAD, 1 - life)
+    part.core.color.copy(droneCore).lerp(RED_GLOW, tint).lerp(NEON.white, f).lerp(DEAD, 1 - life)
   }
 
   // ---------- drone ----------
@@ -686,14 +708,14 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     for (const w of [knockPitch, knockRoll, knockPush]) w.x = w.v = 0
     const c = partCenter(drone.chest, tmpC)
     c.z += DRONE.chestRadius
-    sparks.burst(c, 90, ACCENT, 5, SPRAY_KO, 1.1)
+    sparks.burst(c, 90, droneGlow, 5, SPRAY_KO, 1.1)
     sparks.burst(c, 36, WHITE, 4, SPRAY_KO, 0.7)
     sparks.burst(c, 36, GOLD, 5, SPRAY_KO, 0.9)
     knockHeadOff(push)
     const h = partCenter(drone.head, tmpC)
     waves.spawn(h, GOLD, 0.75, 0.45)
     waves.spawn(h, WHITE, 0.4, 0.25)
-    waves.spawn(h, ACCENT, 1.1, 0.6)
+    waves.spawn(h, droneGlow, 1.1, 0.6)
     flashImpact(IMPACT_FLASH.ko)
     kickCam(-push * 0.6, 0.3, -2.2, -0.9, -push * 1.6)
   }
@@ -732,7 +754,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
         f.spin.multiplyScalar(0.55)
         sparks.burst(tmpC.set(o.position.x, 0.05, o.position.z), Math.round(impact * 10), WHITE, impact * 0.6, SPRAY_UP, 0.4)
         kickCam(0, -Math.min(0.5, impact * 0.08), 0, 0, 0)
-        if (impact > 2) waves.spawn(tmpC.set(o.position.x, 0.06, o.position.z), ACCENT, 0.4, 0.25)
+        if (impact > 2) waves.spawn(tmpC.set(o.position.x, 0.06, o.position.z), droneGlow, 0.4, 0.25)
         if (f.vel.y < 0.7) f.settled = true
       } else if (k.ms < 900 && k.sparkMs === 0) {
         sparks.burst(o.getWorldPosition(tmpC), 3, GOLD, 0.8, NO_BIAS, 0.3)
@@ -774,7 +796,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
         k.spinX *= -0.35
         k.spinZ *= 0.4
         k.settled = k.vel.y < 0.6
-        sparks.burst(tmpC.set(root.position.x, 0.05, root.position.z), Math.round(impact * 16), ACCENT, impact * 0.8, SPRAY_UP, 0.6)
+        sparks.burst(tmpC.set(root.position.x, 0.05, root.position.z), Math.round(impact * 16), droneGlow, impact * 0.8, SPRAY_UP, 0.6)
         kickCam(0, -Math.min(0.9, impact * 0.2), 0, -Math.min(0.3, impact * 0.06), 0)
       }
     } else {
@@ -796,7 +818,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     k.sparkMs += dt * 1000
     if (k.ms < KO.sparksUntilMs && k.sparkMs >= (k.settled ? KO.emberMs : KO.trailMs)) {
       k.sparkMs = 0
-      sparks.burst(partCenter(drone.chest, tmpC), k.settled ? 6 : 4, k.settled ? ACCENT : WHITE, 1.3, SPRAY_UP, 0.4)
+      sparks.burst(partCenter(drone.chest, tmpC), k.settled ? 6 : 4, k.settled ? droneGlow : WHITE, 1.3, SPRAY_UP, 0.4)
       // The neck stump fizzes where the head used to be.
       if (headFly && k.ms < HEAD_OFF.stumpMs) sparks.burst(partCenter(drone.head, tmpC), 8, GOLD, 2.2, SPRAY_UP, 0.45)
     }
@@ -949,10 +971,10 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     applyPart(drone.head, flash.head, charge, life)
     applyPart(drone.chest, flash.chest, charge, life)
     const trim = 0.2 + 0.8 * life
-    drone.accent.color.copy(NEON.accent).lerp(RED_GLOW, charge).multiplyScalar(trim)
+    drone.accent.color.copy(droneAccent).lerp(RED_GLOW, charge).multiplyScalar(trim)
     drone.accentSolid.color.copy(drone.accent.color)
     drone.floorGlow.position.set(root.position.x, 0.01, root.position.z)
-    drone.floorGlow.material.color.copy(ACCENT).lerp(RED, charge)
+    drone.floorGlow.material.color.copy(droneGlow).lerp(RED, charge)
     drone.floorGlow.material.opacity = 0.35 * life
   }
 
@@ -1110,6 +1132,35 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     setGuardMeters(player, bot) {
       playerMeter = player
       botMeter = bot
+    },
+
+    setOpponentLook(friend) {
+      const model = drone.headModel
+      if (look || !model) return // bright toy figures keep their own look
+      if (opponentHead) {
+        opponentHead.removeFromParent()
+        opponentHead.traverse((o) => (o as Mesh).geometry?.dispose())
+        opponentHead = null
+      }
+      const scheme = friend ? schemeOf(friend) : null
+      droneAccent.copy(scheme ? hdr(scheme.accent, 2.2) : NEON.accent)
+      droneCore.copy(scheme ? hdr(scheme.visor, 1.5) : NEON.core)
+      droneGlow.setHex(scheme?.accent ?? COLORS.drone)
+      drone.armour?.forEach((m, i) => m.color.setHex(scheme ? scheme.armour : (droneArmour[i] ?? 0x1d2132)))
+      if (drone.fistShell && droneFist) {
+        if (scheme) {
+          drone.fistShell.color.setHex(scheme.accent).multiplyScalar(0.5)
+          drone.fistShell.emissive.copy(hdr(scheme.accent, 0.7))
+        } else {
+          drone.fistShell.color.copy(droneFist.color)
+          drone.fistShell.emissive.copy(droneFist.emissive)
+        }
+      }
+      for (const c of model.children) c.visible = !friend
+      if (friend) {
+        opponentHead = buildHead(friend.head, { shell: drone.head.shell, edge: drone.accent, visor: drone.head.core }, 0.25, 1)
+        model.add(opponentHead)
+      }
     },
 
     setBotStance(stance) {

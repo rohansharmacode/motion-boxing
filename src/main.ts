@@ -73,6 +73,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./sports/boxing/versus/index.ts'),
     import('./sports/boxing/countdown.ts'),
   ])
+  const { loadLook } = await import('./custom/look.ts')
+  const robot = loadLook()
   // Nothing has been created yet, so there is nothing to dispose.
   if (ctx.signal.aborted) return NOOP_SESSION
 
@@ -86,7 +88,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   app.prepend(arena)
   let scene: ReturnType<typeof createBoxingScene>
   try {
-    scene = createBoxingScene(arena)
+    scene = createBoxingScene(arena, { robot })
   } catch (err) {
     arena.remove()
     throw err
@@ -127,6 +129,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     engine,
     playerName: () => hud.playerName,
     setOpponentName: (name) => hud.setOpponentName?.(name),
+    playerLook: () => ({ ...robot, name: hud.playerName || robot.name }),
+    setOpponentLook: (friend) => scene.setOpponentLook?.(friend),
     onChoose: (input) => (input === 'camera' ? void startCamera() : startKeyboard()),
     onLeave: () => {
       stopCamera()
@@ -488,7 +492,10 @@ async function goalkeeper(ctx: GameContext): Promise<GameSession> {
 const leaderboard = (ctx: GameContext): Promise<GameSession> =>
   import('./ui/LeaderboardScreen.ts').then((m) => m.startLeaderboard(ctx))
 
-mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
+const customise = (ctx: GameContext): Promise<GameSession> =>
+  import('./custom/screen.ts').then((m) => m.startCustomise(ctx))
+
+mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard, customise } })
 // Every menu works hands-only: point with a raised hand, hold on a button until the ring fills.
 mountHandNav({ video: el('#webcam', HTMLVideoElement) })
 

@@ -34,6 +34,9 @@ import type { Texture } from 'three'
 import type { Hand } from '../../pose/types.ts'
 import { isBright } from '../../theme/index.ts'
 import { BOXING as BRIGHT_COLORS } from '../../theme/bright/palette.ts'
+import { gloveColors, schemeOf } from '../../custom/look.ts'
+import type { RobotLook } from '../../custom/look.ts'
+import { buildHead } from '../../custom/robot.ts'
 
 const NEON_COLORS = {
   bg: 0x07080c,
@@ -327,8 +330,8 @@ export interface GloveParts {
 }
 
 /** First-person neon glove. Knuckles face -z, the cuff points back toward the camera (+z). */
-export function buildGlove(hand: Hand): GloveParts {
-  const color = new Color(hand === 'left' ? COLORS.left : COLORS.right)
+export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
+  const color = new Color(robot ? gloveColors(robot)[hand === 'left' ? 0 : 1] : hand === 'left' ? COLORS.left : COLORS.right)
   const trimColor = color.clone().lerp(new Color(0xffffff), 0.55)
   /** +1 when +x points toward the body midline (true for the left glove). */
   const inward = hand === 'left' ? 1 : -1
@@ -400,11 +403,13 @@ export function buildGlove(hand: Hand): GloveParts {
  * Solid armour with neon edges: helmet with a cyan visor, neck, shoulders and a short torso. The
  * gloves float in front on their own, so the body has no arms. Faces -z, toward the opponent.
  */
-export function buildPlayerBody(hands: readonly Object3D[] = []): Group {
+export function buildPlayerBody(hands: readonly Object3D[] = [], robot?: RobotLook): Group {
   const body = new Group()
   const shell = armour()
-  const edge = new LineBasicMaterial({ color: hdr(COLORS.left, 1.4), transparent: true, opacity: 0.7 })
-  const visorMat = new MeshBasicMaterial({ color: hdr(COLORS.left, 1.6) })
+  const scheme = robot ? schemeOf(robot) : null
+  if (scheme) shell.color.setHex(scheme.armour)
+  const edge = new LineBasicMaterial({ color: hdr(scheme?.accent ?? COLORS.left, 1.4), transparent: true, opacity: 0.7 })
+  const visorMat = new MeshBasicMaterial({ color: hdr(scheme?.accent ?? COLORS.left, 1.6) })
   const withEdges = (mesh: Mesh, geo = mesh.geometry): Mesh => {
     mesh.add(new LineSegments(new EdgesGeometry(geo, 20), edge))
     return mesh
@@ -421,6 +426,10 @@ export function buildPlayerBody(hands: readonly Object3D[] = []): Group {
   const crest = withEdges(new Mesh(new BoxGeometry(0.022, 0.05, 0.16), shell))
   crest.position.set(0, 0.12, 0.01)
   helmet.add(crest)
+  // A customised head style replaces the default helmet (face toward -z, the opponent).
+  const head =
+    robot && robot.head !== 'visor' ? buildHead(robot.head, { shell, edge, visor: visorMat }, 0.115, -1) : helmet
+  head.position.copy(helmet.position)
 
   const neck = new Mesh(new CylinderGeometry(0.04, 0.05, 0.1, 8), shell)
   neck.position.set(0, -0.25, 0.08)
@@ -430,7 +439,7 @@ export function buildPlayerBody(hands: readonly Object3D[] = []): Group {
   const chestLight = new Mesh(new BoxGeometry(0.12, 0.02, 0.01), visorMat)
   chestLight.position.set(0, 0.07, -0.17)
   torso.add(chestLight)
-  body.add(helmet, neck, torso)
+  body.add(head, neck, torso)
   const armGeo = new CylinderGeometry(0.018, 0.024, 1, 6)
   ;[-1, 1].forEach((side, i) => {
     const shoulder = withEdges(new Mesh(new IcosahedronGeometry(0.08, 0), shell))
@@ -482,6 +491,11 @@ export interface DroneParts {
   /** Neon edge lines on the armour, and the solid neon trim (neck ring, pod tips). */
   accent: LineBasicMaterial
   accentSolid: MeshBasicMaterial
+  /** Helmet, visor, crest and ears inside headRoot (not the hit sphere), so a 1v1 friend's head style can replace them. */
+  headModel?: Group
+  /** Armour materials (chest, head, limbs) and the glowing fist shell, for recolouring a 1v1 opponent. */
+  armour?: MeshStandardMaterial[]
+  fistShell?: MeshStandardMaterial
   /** Chest reactor orb: pulls back into the hull while a straight attack charges. */
   orb: Mesh
   neckRing: Mesh
@@ -587,14 +601,16 @@ export function buildDrone(glowMap: Texture): DroneParts {
   visor.position.y = 0.01
   const crest = new Mesh(new BoxGeometry(0.03, 0.08, 0.26), headShell)
   crest.position.set(0, 0.25, -0.02)
-  head.add(helmet, helmetEdges, visor, crest)
+  const headModel = new Group()
+  head.add(headModel)
+  headModel.add(helmet, helmetEdges, visor, crest)
   for (const side of [-1, 1]) {
     const ear = new Mesh(new CylinderGeometry(0.05, 0.05, 0.05, 8), limbShell)
     ear.rotation.z = Math.PI / 2
     ear.position.set(side * 0.29, 0, 0)
     const tip = new Mesh(new BoxGeometry(0.015, 0.1, 0.015), accentSolid)
     tip.position.set(side * 0.3, 0.08, 0)
-    head.add(ear, tip)
+    headModel.add(ear, tip)
   }
   const headHalo = additive(COLORS.drone, HALO_OPACITY)
   headHalo.visible = false
@@ -696,6 +712,9 @@ export function buildDrone(glowMap: Texture): DroneParts {
     chest: { center: chestCenter, radius: DRONE.chestRadius, shell: chestShell, halo: chestHalo, core: orbMat },
     accent,
     accentSolid,
+    headModel,
+    armour: [chestShell, headShell, limbShell],
+    fistShell,
     orb,
     neckRing,
     pods,
