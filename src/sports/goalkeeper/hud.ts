@@ -13,6 +13,7 @@ import { DIFFICULTIES } from './difficulty.ts'
 import type { Difficulty } from './difficulty.ts'
 import type { SaveGrade } from './grading.ts'
 import type { ShotType } from './shots.ts'
+import type { RoundMode } from './modes.ts'
 
 type View = 'start' | 'loading' | 'error' | 'calibration' | 'play' | 'end'
 
@@ -153,7 +154,48 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   let onPracticeChoice: (on: boolean) => void = () => {}
   practiceBox.addEventListener('change', () => onPracticeChoice(practiceBox.checked))
   practiceLabel.append(practiceBox, document.createTextNode(' Practice first (20 s, 3 slow shots)'))
-  start.append(startKicker, title, howTo, levelPicker(), practiceLabel, startActions, startNote)
+  // Round mode picker (Classic / Sudden death / Daily), shared by the start and end screens.
+  type PickMode = Exclude<RoundMode, 'practice'>
+  const MODE_LABEL: Record<PickMode, string> = { classic: '5 kicks', sudden: 'Sudden death', daily: 'Daily 10' }
+  let onModePick: (mode: RoundMode) => void = () => {}
+  let currentMode: PickMode = 'classic'
+  let dailyBestText = ''
+  const modePickers: HTMLElement[] = []
+  const dailyNotes: HTMLElement[] = []
+  function modePicker(): HTMLElement {
+    const wrap = el('div', 'gk-modewrap')
+    const group = el('div', 'gk-levels gk-modes')
+    group.setAttribute('role', 'radiogroup')
+    group.setAttribute('aria-label', 'Mode')
+    for (const m of ['classic', 'sudden', 'daily'] as const) {
+      const b = el('button', 'gk-level', MODE_LABEL[m])
+      b.type = 'button'
+      b.dataset.mode = m
+      b.setAttribute('role', 'radio')
+      b.addEventListener('click', () => {
+        if (m === currentMode) return
+        markMode(m)
+        onModePick(m)
+      })
+      group.append(b)
+    }
+    const note = el('p', 'gk-daily-note')
+    dailyNotes.push(note)
+    modePickers.push(group)
+    wrap.append(group, note)
+    return wrap
+  }
+  function markMode(m: PickMode): void {
+    currentMode = m
+    for (const g of modePickers) {
+      for (const b of g.children) if (b instanceof HTMLElement) b.setAttribute('aria-checked', String(b.dataset.mode === m))
+    }
+    for (const n of dailyNotes) {
+      n.textContent = m === 'daily' ? dailyBestText : m === 'sudden' ? 'One goal and it is over. Every 3 saves, faster shots.' : ''
+      n.hidden = n.textContent === ''
+    }
+  }
+  start.append(startKicker, title, howTo, modePicker(), levelPicker(), practiceLabel, startActions, startNote)
 
   // ---------- loading ----------
   const loading = el('section', 'gk-panel gk-loading')
@@ -242,6 +284,16 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   telegraph.setAttribute('aria-hidden', 'true')
   play.append(telegraph)
 
+  const countdownBox = el('div', 'gk-countdown')
+  countdownBox.setAttribute('aria-live', 'assertive')
+  const countdownText = el('span')
+  countdownBox.append(countdownText)
+  countdownBox.hidden = true
+  const flashBox = el('div', 'gk-flash')
+  flashBox.setAttribute('aria-hidden', 'true')
+  play.append(flashBox, countdownBox)
+  let roundMode: RoundMode = 'classic'
+
   const callouts = el('div', 'gk-callouts')
   callouts.setAttribute('aria-live', 'assertive')
 
@@ -256,6 +308,8 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   const endSaves = el('h2', 'gk-end-saves')
   endSaves.id = 'gk-end-title'
   endHead.append(endGrade, endSaves)
+  const endBest = el('p', 'gk-end-best')
+  endBest.hidden = true
   const stats = el('dl', 'gk-stats')
   const kicksTable = el('table', 'gk-kicks')
   const endActions = el('div', 'gk-actions')
@@ -266,7 +320,8 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
   // the per-kick table and level picker follow.
   const endMore = el('div', 'gk-end-more')
   endMore.append(levelPicker(), kicksTable)
-  end.append(endKicker, endHead, stats, endActions, endMore)
+  endMore.prepend(modePicker())
+  end.append(endKicker, endHead, endBest, stats, endActions, endMore)
 
   // ---------- debug ----------
   const debug = el('aside', 'gk-debug')
@@ -323,7 +378,13 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       pips.append(pip)
     }
     const shown = Math.min(results.length + 1, total)
-    counter.textContent = `KICK ${shown}/${total}`
+    if (roundMode === 'sudden') {
+      let streak = 0
+      for (const r of results) streak = r.outcome === 'goal' ? 0 : streak + 1
+      counter.textContent = `STREAK ${streak}`
+    } else {
+      counter.textContent = `${roundMode === 'daily' ? 'DAILY' : 'KICK'} ${shown}/${total}`
+    }
     const combo = results.length > 0 ? (results[results.length - 1].combo ?? 0) : 0
     comboTag.textContent = combo > 1 ? `x${combo} COMBO` : ''
     comboTag.hidden = combo <= 1
@@ -385,6 +446,35 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       timers.add(id)
     },
 
+    countdown(label: string | null) {
+      countdownBox.hidden = label === null
+      if (label === null) return
+      countdownText.textContent = label
+      countdownText.className = label === 'GO!' ? 'gk-go' : ''
+      // Restart the pop animation for each step (event-driven, not per frame).
+      countdownBox.classList.remove('gk-tick')
+      void countdownBox.offsetWidth
+      countdownBox.classList.add('gk-tick')
+    },
+
+    flash(tone: 'save' | 'goal') {
+      flashBox.dataset.tone = tone
+      flashBox.classList.remove('gk-on')
+      void flashBox.offsetWidth
+      flashBox.classList.add('gk-on')
+    },
+
+    setModeChoice(mode: RoundMode, onChange: (mode: RoundMode) => void, dailyBest: number | null) {
+      onModePick = onChange
+      dailyBestText = `Same 10 shots for everyone today. Your best: ${dailyBest === null ? '—' : dailyBest.toLocaleString('en-US')}`
+      markMode(mode === 'practice' ? 'classic' : mode)
+    },
+
+    setRoundMode(mode: RoundMode) {
+      roundMode = mode
+      pips.hidden = mode === 'sudden'
+    },
+
     setPracticeChoice(on: boolean, onChange: (on: boolean) => void) {
       practiceBox.checked = on
       onPracticeChoice = onChange
@@ -431,10 +521,19 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
       badge.textContent = mode === 'mouse' ? 'MOUSE / ARROWS' : 'CAMERA'
     },
 
-    showEnd(result: ShootoutResult, againCb) {
+    showEnd(result: ShootoutResult, againCb, extra) {
       onAgain = againCb
       const total = result.kicks.length
-      endSaves.replaceChildren('SAVES ', el('span', undefined, `${result.saves}/${total}`))
+      if (result.mode === 'sudden') endSaves.replaceChildren('STREAK ', el('span', undefined, String(result.saves)))
+      else endSaves.replaceChildren('SAVES ', el('span', undefined, `${result.saves}/${total}`))
+      endKicker.textContent = result.mode === 'daily' ? `Daily challenge · ${result.dailyKey ?? ''}` : result.mode === 'sudden' ? 'Sudden death' : 'Full time'
+      endBest.hidden = result.mode !== 'daily'
+      if (result.mode === 'daily') {
+        const best = extra?.dailyBest ?? null
+        endBest.replaceChildren(
+          extra?.newBest ? el('b', 'gk-newbest', 'NEW DAILY BEST!') : document.createTextNode(`Today's best: ${best === null ? '—' : best.toLocaleString('en-US')}`),
+        )
+      }
       const grade = result.grade ?? 'C'
       endGrade.textContent = grade
       endGrade.dataset.grade = grade
@@ -443,6 +542,7 @@ export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}):
         stat('Save %', `${pct}`, '%'),
         stat('Best combo', `x${result.bestCombo ?? 0}`),
         stat('Avg reaction', fmtMs(result.avgReactionMs), result.avgReactionMs === null ? undefined : 'ms'),
+        stat('Best reaction', fmtMs(result.bestReactionMs ?? null), result.bestReactionMs == null ? undefined : 'ms'),
         stat('Score', result.score.toLocaleString('en-US')),
       )
       const head = el('thead')
