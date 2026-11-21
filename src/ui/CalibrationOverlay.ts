@@ -8,7 +8,7 @@
 //   cal.destroy();                       // remove immediately (same as cancel())
 
 import type { Sport } from '../api/types';
-import { artImg, el, ensurePositioned, html, leave, prefersReducedMotion, wait } from './dom';
+import { el, ensurePositioned, html, leave, prefersReducedMotion, wait } from './dom';
 
 export type CalibrationState = 'searching' | 'holding' | 'locked';
 export type CalibrationWarning = 'too_dark' | 'too_close' | 'no_person' | 'hands_hidden' | 'shoulders_hidden';
@@ -67,18 +67,15 @@ const SILHOUETTE = `
   <svg viewBox="0 0 100 100" aria-hidden="true">
     <circle class="kr-calib-ring-bg" cx="50" cy="50" r="${R}"/>
     <circle class="kr-calib-ring" cx="50" cy="50" r="${R}" stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC}"/>
-    <path class="kr-calib-corner" d="M8 20V8h12M80 8h12v12M92 80v12H80M20 92H8V80"/>
-    <g class="kr-calib-silhouette">
+    <g class="kr-calib-silhouette" transform="translate(50 50) scale(0.74) translate(-50 -56)">
       <ellipse cx="50" cy="31" rx="8.5" ry="10.5"/>
       <path d="M45.5 41v5M54.5 41v5"/>
       <path d="M18 96V73q0-15 15-19l12-4q5 2 10 0l12 4q15 4 15 19v23"/>
       <path d="M31 56q-7 6-6 15l7-24"/>
       <path d="M69 56q7 6 6 15l-7-24"/>
-      <path d="M27.5 33a6.5 6.5 0 0 1 13 0v8a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3z"/>
-      <path d="M28.5 40h11M40.5 34q2.5 1 1.5 4"/>
-      <path d="M59.5 33a6.5 6.5 0 0 1 13 0v8a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3z"/>
-      <path d="M60.5 40h11M59.5 34q-2.5 1-1.5 4"/>
     </g>
+    <circle class="kr-calib-hand" cx="${50 - 0.74 * 16}" cy="${50 + 0.74 * (37 - 56)}" r="6.5"/>
+    <circle class="kr-calib-hand" cx="${50 + 0.74 * 16}" cy="${50 + 0.74 * (37 - 56)}" r="6.5"/>
   </svg>`;
 
 export class CalibrationOverlay {
@@ -110,23 +107,13 @@ export class CalibrationOverlay {
     this.ring = svg.querySelector<SVGCircleElement>('.kr-calib-ring')!;
     this.warnBox = el('div', { class: 'kr-calib-warn', role: 'alert', hidden: '' }, this.warnIcon, this.warnText);
 
-    // Full-frame stance guide over the (mirrored) webcam. The overlay is inset:0 like the video, so
-    // object-fit:contain keeps the whole 4:3 guide visible. Falls back to the inline line art if it fails.
-    const guide = artImg('calibration-silhouette.svg', 'kr-calib-art', () => this.element.classList.remove('kr-calib-has-art'));
-
+    // Minimal setup: a faint silhouette inside the progress ring and two circles for the gloves.
+    // Warnings (too close, hands hidden...) still appear, only when something is wrong.
     this.element = el(
       'section',
-      { class: 'kr-screen kr-calib kr-calib2 kr-calib-has-art', 'data-state': 'searching', 'aria-live': 'polite' },
-      guide,
-      el(
-        'div',
-        { class: 'kr-calib-top' },
-        el('span', { class: 'kr-live' }, el('span', {}, 'Calibrating')),
-        opts.playerName ? el('span', { class: 'kr-label' }, opts.playerName) : null,
-      ),
+      { class: 'kr-screen kr-calib kr-calib2 kr-calib-min', 'data-state': 'searching', 'aria-live': 'polite' },
       el('div', { class: 'kr-calib-frame' }, svg),
       this.warnBox,
-      el('div', { class: 'kr-calib-text', role: 'status' }, this.title, this.sub, this.chip),
     );
 
     ensurePositioned(parent);

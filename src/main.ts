@@ -121,6 +121,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     sfx,
     getPlayerName: () => hud.playerName,
     countdownBeats: 3,
+    heavyPunches: true,
     showCountdown: (n) => countdown.show(n),
   })
   const keyboard = createKeyboardFallback()
