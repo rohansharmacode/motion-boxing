@@ -20,6 +20,14 @@ const MM_PER_M = 1000
 const RESET_GAP_MS = 250
 /** Live shoulder width only updates scale when both shoulders are this visible. */
 const MIN_VISIBILITY = 0.5
+/** A joint below this visibility (or outside the image) counts as lost. */
+const LOST_VISIBILITY = 0.3
+/** A joint lost this long restarts its filters, so it snaps back when it re-enters instead of easing in. */
+const LOST_RESET_MS = 200
+/** Image margin: a landmark guessed this far past the edge is out of frame. */
+const EDGE_MARGIN = 0.02
+const inFrame = (x: number, y: number): boolean =>
+  x >= -EDGE_MARGIN && x <= 1 + EDGE_MARGIN && y >= -EDGE_MARGIN && y <= 1 + EDGE_MARGIN
 
 interface JointFilters {
   index: number
@@ -28,6 +36,8 @@ interface JointFilters {
   worldX: OneEuroFilter
   worldY: OneEuroFilter
   worldZ: OneEuroFilter
+  /** When the joint was last seen going out of frame or invisible, ms; null while visible. */
+  lostAt: number | null
 }
 
 export function createBodyTracker(calibration: Calibration, params: OneEuroParams): BodyTracker {
@@ -40,6 +50,7 @@ export function createBodyTracker(calibration: Calibration, params: OneEuroParam
     worldX: new OneEuroFilter(params),
     worldY: new OneEuroFilter(params),
     worldZ: new OneEuroFilter(params),
+    lostAt: null,
   }))
   let lastT: number | null = null
   let scale = 1
@@ -59,6 +70,7 @@ export function createBodyTracker(calibration: Calibration, params: OneEuroParam
       f.worldX.reset()
       f.worldY.reset()
       f.worldZ.reset()
+      f.lostAt = null
     }
   }
 
@@ -73,6 +85,23 @@ export function createBodyTracker(calibration: Calibration, params: OneEuroParam
       const world = frame.world.map((p): Joint => ({ x: p.x, y: p.y, z: p.z, visibility: p.visibility }))
       for (const f of filters) {
         const p = frame.image[f.index]
+        // Out of frame or barely visible: the model is guessing. Report it as invisible, and once it has
+        // been gone a moment, restart its filters so it is picked up instantly when it comes back.
+        const seen = inFrame(p.x, p.y) && (p.visibility ?? 0) >= LOST_VISIBILITY
+        if (!seen) {
+          f.lostAt ??= t
+          body[f.index] = toBody(p.x * aspect, p.y, 0)
+          world[f.index] = { ...world[f.index], visibility: 0 }
+          continue
+        }
+        if (f.lostAt !== null && t - f.lostAt > LOST_RESET_MS) {
+          f.imageX.reset()
+          f.imageY.reset()
+          f.worldX.reset()
+          f.worldY.reset()
+          f.worldZ.reset()
+        }
+        f.lostAt = null
         const xa = f.imageX.filter(p.x * aspect * FILTER_HEIGHT_PX, t) / FILTER_HEIGHT_PX
         const y = f.imageY.filter(p.y * FILTER_HEIGHT_PX, t) / FILTER_HEIGHT_PX
         body[f.index] = toBody(xa, y, p.visibility)
