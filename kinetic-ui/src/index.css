@@ -19,6 +19,18 @@
   --font-body: "Rajdhani", system-ui, sans-serif;
 
   --ease-punch: cubic-bezier(0.2, 1.4, 0.4, 1);
+  --color-wii-bg: #eef0f2;
+  --color-wii-surface: #ffffff;
+  --color-wii-ink: #535a61;
+  --color-wii-muted: #939ba3;
+  --color-wii-border: #c4ccd2;
+  --color-wii-blue: #29b6e9;
+  --color-wii-deep-blue: #1686b5;
+  --color-wii-green: #78bf7a;
+  --color-wii-red: #e76a64;
+  --color-wii-yellow: #f3d46c;
+  --color-wii-skin: #f3d4b3;
+  --color-wii-hair: #60584e;
 }
 
 html, body, #root { height: 100%; }
@@ -102,7 +114,83 @@ body {
 
 :focus-visible { outline: 3px solid var(--color-cyan); outline-offset: 3px; }
 
+/* Wii-inspired channel menu; deliberately isolated from the arena theme. */
+.wii-menu { min-height: 100%; display: flex; flex-direction: column; color: var(--color-wii-ink); font-family: Arial, sans-serif; letter-spacing: 0; background: repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--color-wii-border) 12%, transparent) 3px 4px), var(--color-wii-bg); }
+.wii-header { width: min(1120px, 90%); margin: 0 auto; padding: 36px 0 27px; display: flex; align-items: center; justify-content: space-between; }
+.wii-brand { font-size: 30px; font-weight: 700; color: var(--color-wii-ink); }
+.wii-brand > span { color: var(--color-wii-deep-blue); }
+.wii-brand small { display: block; font-size: 10px; font-weight: 400; margin-top: 6px; color: var(--color-wii-muted); }
+.wii-player { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.wii-player-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-wii-green); }
+.wii-player-number { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--color-wii-border); border-radius: 50%; color: var(--color-wii-deep-blue); background: var(--color-wii-surface); }
+.wii-channel-area { flex: 1; display: flex; align-items: center; width: min(1120px, 90%); margin: 0 auto; padding: 22px 0 44px; }
+.wii-channel-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; width: 100%; }
+.wii-button { cursor: pointer; font: inherit; color: inherit; letter-spacing: 0; }
+.wii-channel, .wii-empty-channel { aspect-ratio: 1.55; border: 3px solid var(--color-wii-border); border-radius: 8px; background: var(--color-wii-surface); box-shadow: 0 3px 0 color-mix(in srgb, var(--color-wii-border) 50%, transparent), inset 0 0 10px var(--color-wii-bg); overflow: hidden; }
+.wii-channel { padding: 0; transition: border-color 140ms, box-shadow 140ms, transform 140ms; }
+.wii-channel:hover, .wii-channel:focus-visible { border-color: var(--color-wii-blue); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-wii-blue) 20%, transparent), 0 7px 14px color-mix(in srgb, var(--color-wii-ink) 15%, transparent); transform: translateY(-3px); }
+.wii-channel:active { transform: translateY(0); }
+.wii-channel > span { display: block; width: 100%; height: 100%; }
+.wii-channel-content { height: 100%; display: flex; flex-direction: column; }
+.wii-channel-picture { flex: 1; min-height: 0; overflow: hidden; background: var(--color-wii-bg); }
+.wii-channel-boxing .wii-channel-picture, .wii-dialog-art.wii-channel-boxing { background: color-mix(in srgb, var(--color-wii-blue) 18%, var(--color-wii-surface)); }
+.wii-channel-keeper .wii-channel-picture { background: color-mix(in srgb, var(--color-wii-green) 19%, var(--color-wii-surface)); }
+.wii-channel-bow .wii-channel-picture { background: color-mix(in srgb, var(--color-wii-yellow) 17%, var(--color-wii-surface)); }
+.wii-channel-player .wii-channel-picture { background: color-mix(in srgb, var(--color-wii-blue) 8%, var(--color-wii-surface)); }
+.wii-channel-leaderboard .wii-channel-picture { background: color-mix(in srgb, var(--color-wii-yellow) 12%, var(--color-wii-surface)); }
+.wii-channel-caption { flex: 0 0 44px; display: flex; flex-direction: column; justify-content: center; border-top: 1px solid var(--color-wii-bg); background: var(--color-wii-surface); }
+.wii-channel-caption strong { font-size: 15px; font-weight: 600; }
+.wii-channel-caption small { font-size: 10px; color: var(--color-wii-muted); margin-top: 3px; }
+.wii-empty-channel { display: grid; place-items: center; background: repeating-linear-gradient(0deg, var(--color-wii-bg) 0 3px, var(--color-wii-surface) 3px 4px); box-shadow: inset 0 0 22px var(--color-wii-border); }
+.wii-empty-channel span { font-size: 42px; color: color-mix(in srgb, var(--color-wii-border) 70%, var(--color-wii-surface)); }
+.wii-footer { border-top: 3px solid var(--color-wii-blue); background: var(--color-wii-surface); border-radius: 50% 50% 0 0 / 15px 15px 0 0; }
+.wii-footer-inner { width: min(1120px, 90%); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 20px 0 14px; }
+.wii-round-button { display: grid; place-items: center; width: 82px; height: 60px; border: 2px solid var(--color-wii-border); border-radius: 50%; background: linear-gradient(var(--color-wii-surface), var(--color-wii-bg)); box-shadow: 0 3px 0 var(--color-wii-border); }
+.wii-round-button:hover, .wii-pill:hover { border-color: var(--color-wii-blue); color: var(--color-wii-deep-blue); }
+.wii-system-button { font-size: 28px; color: var(--color-wii-muted); }
+.wii-round-button svg { width: 35px; fill: none; stroke: var(--color-wii-muted); stroke-width: 2; }
+.wii-date { text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.wii-time { font-size: 38px; font-variant-numeric: tabular-nums; color: var(--color-wii-muted); }
+.wii-date > span { font-size: 16px; }
+.wii-status { display: flex; justify-content: space-between; width: min(1120px, 90%); margin: 0 auto; padding: 15px 0 18px; color: var(--color-wii-muted); font-size: 10px; }
+.wii-dialog { width: min(520px, calc(100% - 32px)); padding: 0; border: 3px solid var(--color-wii-border); border-radius: 8px; color: var(--color-wii-ink); background: var(--color-wii-surface); box-shadow: 0 15px 80px color-mix(in srgb, var(--color-wii-ink) 30%, transparent); }
+.wii-dialog::backdrop { background: color-mix(in srgb, var(--color-wii-ink) 40%, transparent); }
+.wii-dialog-art { height: 210px; background: var(--color-wii-bg); border-bottom: 1px solid var(--color-wii-border); }
+.wii-dialog form { padding: 24px; }
+.wii-dialog h2 { font-size: 25px; text-align: center; margin: 0 0 22px; }
+.wii-dialog p { text-align: center; margin: 20px 0 30px; }
+.wii-dialog label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.wii-dialog input { width: 100%; border: 1px solid var(--color-wii-border); border-radius: 4px; padding: 12px; background: var(--color-wii-bg); color: var(--color-wii-ink); font: inherit; font-size: 18px; }
+.wii-dialog-actions { display: flex; gap: 16px; justify-content: center; margin-top: 26px; }
+.wii-pill { border: 2px solid var(--color-wii-border); border-radius: 28px; background: linear-gradient(var(--color-wii-surface), var(--color-wii-bg)); padding: 10px 28px; min-width: 130px; font-size: 17px; }
+.wii-pill-primary { border-color: var(--color-wii-blue); color: var(--color-wii-deep-blue); }
+.wii-art { width: 100%; height: 100%; }
+.wii-art .disc-shadow { fill: var(--color-wii-border); }
+.wii-art .disc-body { fill: var(--color-wii-surface); stroke: var(--color-wii-border); stroke-width: 2; }
+.wii-art .disc-shine { stroke: var(--color-wii-bg); stroke-width: 13; }
+.wii-art .disc-hole { fill: var(--color-wii-border); }
+.wii-art .disc-center { fill: var(--color-wii-surface); }
+.wii-art .sport-burst { fill: var(--color-wii-surface); }
+.wii-art .glove { fill: var(--color-wii-red); stroke: color-mix(in srgb, var(--color-wii-red) 70%, var(--color-wii-ink)); stroke-width: 3; stroke-linejoin: round; }
+.wii-art .glove-right { fill: var(--color-wii-blue); stroke: var(--color-wii-deep-blue); }
+.wii-art .glove-cuff { fill: var(--color-wii-surface); }
+.wii-art .art-highlight { fill: none; stroke: var(--color-wii-surface); stroke-width: 5; stroke-linecap: round; opacity: .6; }
+.wii-art .goal-net { stroke: var(--color-wii-green); fill: none; opacity: .35; stroke-width: 2; }
+.wii-art .football { fill: var(--color-wii-surface); stroke: var(--color-wii-border); stroke-width: 2; }
+.wii-art .football-patch { fill: var(--color-wii-ink); }
+.wii-art .target-outer { fill: var(--color-wii-surface); stroke: var(--color-wii-border); stroke-width: 2; }
+.wii-art .target-blue { fill: var(--color-wii-blue); }.wii-art .target-red { fill: var(--color-wii-red); }.wii-art .target-yellow { fill: var(--color-wii-yellow); }
+.wii-art .arrow-shaft, .wii-art .arrow-feather { fill: none; stroke: var(--color-wii-ink); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.wii-art .mii-shirt { fill: var(--color-wii-blue); }.wii-art .mii-face { fill: var(--color-wii-skin); }.wii-art .mii-hair { fill: var(--color-wii-hair); }
+.wii-art .mii-eyes { fill: none; stroke: var(--color-wii-hair); stroke-width: 4; stroke-linecap: round; }.wii-art .mii-collar { fill: none; stroke: var(--color-wii-deep-blue); stroke-width: 3; }
+.wii-art .podium-first { fill: var(--color-wii-blue); }.wii-art .podium-second { fill: var(--color-wii-border); }.wii-art .podium-third { fill: var(--color-wii-green); }
+.wii-art .trophy { fill: var(--color-wii-yellow); stroke: var(--color-wii-yellow); stroke-width: 6; stroke-linejoin: round; }
+.wii-art .podium-number, .wii-art .podium-small { fill: var(--color-wii-surface); font: bold 38px Arial, sans-serif; }.wii-art .podium-small { font-size: 25px; }
+@media (min-width: 1000px) and (min-height: 1000px) { .wii-channel-area { flex: 0 0 auto; padding-top: 55px; padding-bottom: 70px; }.wii-footer { margin-top: auto; } }
+@media (max-width: 700px) { .wii-header { padding: 24px 0 16px; }.wii-brand { font-size: 24px; }.wii-channel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.wii-channel-area { padding: 16px 0 32px; }.wii-channel-caption { flex-basis: 40px; }.wii-channel-caption strong { font-size: 13px; }.wii-empty-channel span { font-size: 32px; }.wii-time { font-size: 30px; }.wii-round-button { width: 65px; height: 50px; }.wii-player { max-width: 40%; overflow-wrap: anywhere; }.wii-player-number, .wii-player-dot { flex-shrink: 0; }.wii-dialog-actions { gap: 10px; }.wii-pill { min-width: 0; flex: 1; padding: 10px 16px; } }
+
 @media (prefers-reduced-motion: reduce) {
+  .wii-channel { transition: none; }
   .shake, .grid-floor, .live-dot, .timer-pulse, .eq-bar, .ticker, .skeleton, .flash-lime, .vignette-hit { animation: none !important; }
   .flash-lime, .vignette-hit { opacity: 0; }
   .pop-in, .pop-text, .rise, .screen-in, .new-flash { animation-duration: 1ms !important; }
