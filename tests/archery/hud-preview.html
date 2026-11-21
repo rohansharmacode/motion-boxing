@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Dev-only Aero Bow HUD preview (served by Vite at /tests/archery/hud-preview.html).
+     ?view=start|loading|error|calibration|play|play-wind|shot|shot-miss|end|end-low  (+ &embedded, &mouse, &debug)
+     Builds the host DOM with a gradient stage and a fake webcam feed instead of the real game. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Aero Bow HUD preview</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;800&display=swap" />
+    <style>
+      .ar-root .ar-stage { background: linear-gradient(180deg, #121a3a 0%, #1a1628 55%, #22170c 56%, #0c1124 100%); }
+      .fake-target { position: absolute; left: 50%; top: 40%; width: 180px; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%;
+        background: radial-gradient(circle, #ffb800 0 10%, #ff2a85 10% 30%, #00f0ff 30% 50%, #1a1628 50% 70%, #b6c2e2 70% 100%); opacity: 0.7; }
+    </style>
+  </head>
+  <body class="ar-page">
+    <script type="module" src="./hud-preview.js"></script>
+  </body>
+</html>
