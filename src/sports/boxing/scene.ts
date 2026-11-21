@@ -37,6 +37,7 @@ import {
 import type { DroneHitPart, GloveParts } from './sceneParts.ts'
 import { STRIKE_TIMING, WIND_MS, blendAttackPose, createPose } from './sceneAttack.ts'
 import { createRenderPipeline } from './scenePost.ts'
+import { buildArenaDressing } from './arenaDressing.ts'
 import { brightBoxingLook } from '../../theme/bright/boxing.ts'
 import { buildHumanoid } from '../../theme/bright/avatar.ts'
 
@@ -273,7 +274,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   if (look) look.setup(scene, renderer)
   else {
     scene.background = new Color(COLORS.bg)
-    scene.fog = new Fog(COLORS.bg, 7, 18)
+    scene.fog = new Fog(COLORS.bg, 12, 34)
     const key = new DirectionalLight(0xffffff, 2.5)
     key.position.set(1.5, 4, 3)
     const rim = new DirectionalLight(COLORS.drone, 1.6)
@@ -284,6 +285,9 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   const glowMap = createGlowTexture()
   const vignetteMap = createVignetteTexture()
   scene.add(look ? look.buildArena() : buildArena())
+  /** Neon only: stands, crowd, LED boards, beams and skyline around the ring. */
+  const dressing = look ? null : buildArenaDressing()
+  if (dressing) scene.add(dressing.group)
   const drone = look ? look.buildDrone(glowMap) : buildDrone(glowMap)
   scene.add(drone.root, drone.floorGlow)
   const sparks = createSparks(720, 0.065, glowMap)
@@ -923,6 +927,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       nearSparks.update(dt)
       updateCamera(realMs / 1000)
       look?.update(realMs / 1000)
+      dressing?.update(realTime)
     },
 
     render() {
@@ -945,6 +950,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
       vignetteMap.dispose()
       pending.length = 0
       look?.dispose()
+      dressing?.dispose()
       post.dispose()
       renderer.dispose()
       renderer.forceContextLoss() // free the GL context so the dashboard can start other games
