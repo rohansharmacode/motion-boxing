@@ -321,6 +321,8 @@ function closeEngine(e: Engine): void {
   }
 }
 
+/** Width of the frames sent to the worker, px. */
+const INFER_WIDTH = 480
 /** A worker frame that never comes back (crash, hang) must not stall tracking forever, ms. */
 const WORKER_FRAME_TIMEOUT_MS = 2000
 
@@ -448,7 +450,13 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
       busySince = null
     }
     busySince = now
-    createImageBitmap(video).then(
+    // Inference size: the model works on 256x256 internally, so 480x360 loses nothing and halves conversion.
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    const scale = vw > 0 && vh > 0 ? Math.min(1, INFER_WIDTH / vw) : 1
+    const resize: ImageBitmapOptions =
+      scale < 1 ? { resizeWidth: Math.round(vw * scale), resizeHeight: Math.round(vh * scale), resizeQuality: 'low' } : {}
+    createImageBitmap(video, resize).then(
       (bitmap) => {
         if (!running || engine.kind !== 'worker' || engine.worker !== w) {
           bitmap.close()
