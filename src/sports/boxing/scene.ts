@@ -425,6 +425,16 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   rig.position.set(0, EYE_Y, 0)
   stage.add(rig)
   const camera = new PerspectiveCamera(50, 1, 0.03, 60)
+  let baseFov = 50
+  let fovKick = 0
+  // Camera view: third person (default) or first person (?view=fp, or press V to toggle).
+  let firstPerson = new URLSearchParams(window.location.search).get('view') === 'fp'
+  const onViewKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'v' && e.key !== 'V') return
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+    firstPerson = !firstPerson
+  }
+  window.addEventListener('keydown', onViewKey)
   camera.rotation.order = 'YXZ'
   camera.position.set(VIEW.x, EYE_Y + VIEW.y, VIEW.z)
   camera.rotation.set(VIEW.pitch, VIEW.yaw, 0)
@@ -763,6 +773,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     flashImpact(counter ? IMPACT_FLASH.counter : IMPACT_FLASH.hit)
     // Camera kick toward the punch: a small dip forward, nudged the way the glove travelled.
     const dirX = hand === 'left' ? 1 : -1
+    if (kind !== 'jab' || counter) fovKick = Math.max(fovKick, counter ? 4.5 : 3.5) // heavy-hit FOV punch-in
     kickCam(dirX * 0.4 * strength, -0.3 * strength, -1.4 * strength, -0.35 * strength, dirX * (kind === 'hook' ? 0.6 : 0.25) * strength)
   }
 
@@ -770,6 +781,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     const rollSign = Math.random() < 0.5 ? -1 : 1
     if (!blocked) {
       redFlash = 1
+      fovKick = Math.max(fovKick, 3)
       // Rocked back: the camera snaps back and tilts, then springs home.
       kickCam(rollSign * 0.4, 0.5, 2.6, 1.3, rollSign * 2.4)
       return
@@ -1143,10 +1155,20 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     shotLook.lerp(tmpB, 1 - Math.exp(-real * 5))
     // Smooth follow: part of the lean, on a spring, no roll. Kicks ride on top and settle in ~150 ms.
     const follow = shot === 'fight' ? 1 : 0
-    camTarget.set(shotPos.x + lean.x * CAM_FOLLOW.x * follow, shotPos.y + lean.y * CAM_FOLLOW.y * follow, shotPos.z)
-    springStep(camPos, camVel, camTarget, CAM_OMEGA, real)
+    const fp = firstPerson && shot === 'fight'
+    playerModel.visible = !fp
+    if (fp) {
+      // First person: the camera is the player's eyes (the rig), looking at the opponent's head.
+      camTarget.set(rig.position.x, rig.position.y, rig.position.z)
+      camPos.copy(camTarget)
+      camVel.set(0, 0, 0)
+      shotLook.set(drone.root.position.x * 0.6 + rig.position.x * 0.4, rig.position.y - 0.15, drone.root.position.z)
+    } else {
+      camTarget.set(shotPos.x + lean.x * CAM_FOLLOW.x * follow, shotPos.y + lean.y * CAM_FOLLOW.y * follow, shotPos.z)
+      springStep(camPos, camVel, camTarget, CAM_OMEGA, real)
+    }
     for (const w of [kick.x, kick.y, kick.z, kick.pitch, kick.roll]) wobble(w, KICK_OMEGA, KICK_ZETA, real)
-    const s = SHAKE / 0.45 // kick size follows the calm-fight SHAKE setting
+    const s = (SHAKE / 0.45) * (fp ? 0.35 : 1) // kick size follows SHAKE; much calmer in first person
     stage.updateMatrixWorld()
     camera.position.copy(
       stage.localToWorld(
@@ -1160,6 +1182,12 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     camera.lookAt(stage.localToWorld(tmpC.copy(shotLook)))
     camera.rotateX(clamp(kick.pitch.x, -0.05, 0.05) * s)
     camera.rotateZ(clamp(kick.roll.x, -0.07, 0.07) * s)
+    if (fovKick > 0) {
+      // Snaps out with the hit, eases back over about 220 ms.
+      fovKick = Math.max(0, fovKick - real * 16)
+      camera.fov = baseFov + fovKick
+      camera.updateProjectionMatrix()
+    }
     redFlash = Math.max(0, redFlash - real / 0.35)
     vignetteMat.opacity = redFlash * HIT_VIGNETTE[post.quality]
     vignette.visible = redFlash > 0
@@ -1189,7 +1217,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     resize(width, height) {
       post.setSize(width, height)
       camera.aspect = Math.max(1, width) / Math.max(1, height)
-      camera.fov = camera.aspect < 0.9 ? 62 : 50 // portrait screens need more height to fit the drone
+      baseFov = camera.aspect < 0.9 ? 62 : 50 // portrait screens need more height to fit the drone
+      camera.fov = baseFov + fovKick
       camera.updateProjectionMatrix()
       const halfH = Math.tan((camera.fov * Math.PI) / 360) * -vignette.position.z * 1.08
       vignette.scale.set(halfH * camera.aspect, halfH, 1)
@@ -1443,6 +1472,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
 
     dispose() {
       disposed = true
+      window.removeEventListener('keydown', onViewKey)
       const geometries = new Set<BufferGeometry>()
       const materials = new Set<Material>()
       scene.traverse((obj) => {

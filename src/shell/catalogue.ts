@@ -38,6 +38,11 @@ const PIN = svg(`
   <circle cx="20" cy="46" r="12"/>
   <path d="M16 42h.01M22 41h.01M19 47h.01" stroke-width="4"/>`)
 
+const PADDLE = svg(`
+  <circle cx="26" cy="26" r="16"/>
+  <path d="M37 37l13 13" stroke-width="5"/>
+  <circle cx="48" cy="16" r="4"/>`)
+
 const VERSUS = svg(`
   <circle cx="18" cy="26" r="10"/>
   <circle cx="46" cy="26" r="10"/>
@@ -96,6 +101,16 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#22e5ff', '#2f9bff'),
     icon: PIN,
     art: `${import.meta.env.BASE_URL}art/tile-bowling.svg`,
+  },
+  {
+    id: 'tabletennis',
+    title: 'Table Tennis',
+    tagline: 'Flick, spin, rally',
+    howTo: 'Move your hand to the ball and swing as it reaches you. First to 7 beats the robot.',
+    accent: pick('#22e5ff', '#2f9bff'),
+    accent2: pick('#ff2e88', '#ff6b6b'),
+    icon: PADDLE,
+    art: `${import.meta.env.BASE_URL}art/tile-tabletennis.svg`,
   },
   {
     id: 'customise',
