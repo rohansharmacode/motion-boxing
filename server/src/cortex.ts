@@ -63,7 +63,7 @@ export function structuredCompleteSql(): string {
   ].join('\n');
 }
 
-/** SNOWFLAKE.CORTEX.COMPLETE(model, prompt) with both arguments bound. */
+/** AI_COMPLETE(model, prompt) with both arguments bound. New accounts block the legacy SNOWFLAKE.CORTEX.COMPLETE. */
 export class SnowflakeCortex implements Cortex {
   private completeState: CortexHealth['complete'] = { status: 'unknown' };
   private structuredState: CortexHealth['structured'];
@@ -83,13 +83,13 @@ export class SnowflakeCortex implements Cortex {
     // (covers time spent waiting for a pooled connection).
     try {
       const { rows } = await withTimeout(
-        this.db.query('SELECT SNOWFLAKE.CORTEX.COMPLETE(?, ?) AS response', [this.model, prompt], { timeoutMs: opts.timeoutMs }),
+        this.db.query('SELECT AI_COMPLETE(?, ?) AS response', [this.model, prompt], { timeoutMs: opts.timeoutMs }),
         opts.timeoutMs,
         `cortex ${opts.purpose}`,
       );
       const v = rows[0]?.response;
       if (typeof v !== 'string') throw new Error('Cortex returned no text');
-      this.completeState = { status: 'up', detail: `SNOWFLAKE.CORTEX.COMPLETE ok (${this.model})` };
+      this.completeState = { status: 'up', detail: `AI_COMPLETE ok (${this.model})` };
       return v;
     } catch (err) {
       // A timeout says nothing about availability; keep the last known state.
