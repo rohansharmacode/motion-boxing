@@ -473,7 +473,10 @@ async function goalkeeper(ctx: GameContext): Promise<GameSession> {
 const leaderboard = (ctx: GameContext): Promise<GameSession> =>
   import('./ui/LeaderboardScreen.ts').then((m) => m.startLeaderboard(ctx))
 
-mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
+const shell = mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
+// Deep link from the Wii-style menu (kinetic-ui): /?play=boxing opens that sport straight away.
+const play = new URLSearchParams(location.search).get('play')
+if (play === 'boxing' || play === 'goalkeeper' || play === 'leaderboard') void shell.launch(play)
 
 // Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
 const prefetch = (): void => {

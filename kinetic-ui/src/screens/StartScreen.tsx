@@ -14,7 +14,7 @@ type Channel = 'boxing' | 'keeper' | 'bow' | 'player' | 'disc';
 const channels: { id: Channel | 'leaderboard'; label: string; sub: string }[] = [
   { id: 'disc', label: 'Disc Channel', sub: 'Kinetic Ring' },
   { id: 'boxing', label: 'Boxing', sub: 'Kinetic Sports' },
-  { id: 'keeper', label: 'Reflex Keeper', sub: 'Coming soon' },
+  { id: 'keeper', label: 'Reflex Keeper', sub: 'Kinetic Sports' },
   { id: 'bow', label: 'Aero Bow', sub: 'Coming soon' },
   { id: 'player', label: 'Fighter Channel', sub: 'Your player' },
   { id: 'leaderboard', label: 'Leaderboard', sub: 'Kinetic rankings' },
@@ -31,8 +31,8 @@ export function StartScreen({ defaultName = '', mockData = true, onStart, onLead
     else dialog.current?.close();
   }, [selected]);
   const activeChannel = channels.find((c) => c.id === selected);
-  const playable = selected === 'boxing' || selected === 'disc';
-  const upcoming = selected === 'keeper' || selected === 'bow';
+  const playable = selected === 'boxing' || selected === 'disc' || selected === 'keeper';
+  const upcoming = selected === 'bow';
 
   return (
     <main className="wii-menu">
@@ -67,7 +67,7 @@ export function StartScreen({ defaultName = '', mockData = true, onStart, onLead
       <dialog ref={dialog} className="wii-dialog" onCancel={() => setSelected(null)} onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }} onClose={() => setSelected(null)}>
         {selected && <>
           <div className={`wii-dialog-art wii-channel-${selected}`}><ChannelArt kind={selected} /></div>
-          <form onSubmit={(e) => { e.preventDefault(); if (playable) onStart(name.trim() || 'PLAYER', 'boxing'); else setSelected(null); }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (playable) onStart(name.trim() || 'PLAYER', selected === 'keeper' ? 'keeper' : 'boxing'); else setSelected(null); }}>
             <h2>{activeChannel?.label}</h2>
             {upcoming ? <p>Coming soon</p> : <label>Fighter name<input aria-label="Fighter name" maxLength={20} placeholder="PLAYER" value={name} onChange={(e) => setName(e.target.value.toUpperCase())} /></label>}
             <div className="wii-dialog-actions"><Button variant="wii" className="wii-pill" onClick={() => setSelected(null)}>Wii Menu</Button>{!upcoming && <Button variant="wii" className="wii-pill wii-pill-primary" type="submit">{playable ? 'Start' : 'Save'}</Button>}</div>
