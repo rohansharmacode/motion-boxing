@@ -48,6 +48,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     { createBoxingTutorial, tutorialNeeded },
     { createTrackingHint },
     { createQualityGovernor },
+    { createVersus },
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
@@ -67,6 +68,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./sports/boxing/tutorial.ts'),
     import('./pose/trackingHint.ts'),
     import('./pose/qualityGovernor.ts'),
+    import('./sports/boxing/versus/index.ts'),
   ])
   // Nothing has been created yet, so there is nothing to dispose.
   if (ctx.signal.aborted) return NOOP_SESSION
@@ -108,6 +110,19 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   const sfx = createBoxingSfx()
   const engine = createBoxingEngine({ hud, telemetry, detector, sfx, getPlayerName: () => hud.playerName })
   const keyboard = createKeyboardFallback()
+  // Online 1v1 across two laptops: lobby button on the start screen, room relay in server/src/versus.ts.
+  const versus = createVersus(ui, {
+    engine,
+    playerName: () => hud.playerName,
+    setOpponentName: (name) => hud.setOpponentName?.(name),
+    onChoose: (input) => (input === 'camera' ? void startCamera() : startKeyboard()),
+    onLeave: () => {
+      stopCamera()
+      keyboard.setEnabled(false)
+      hud.setKeyboardMode(false)
+      showStart()
+    },
+  })
   // Bind the scene now so the drone idles on the start screen; beginFight rebinds with the real calibration.
   engine.init(scene, defaultCalibration(16 / 9))
 
@@ -136,6 +151,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     overlay.setGuide(next === 'calibrating' && classicHud)
     trackingHint.setActive((next === 'fighting' || next === 'tutorial') && pipeline !== null)
     if (next !== 'tutorial') endTutorial()
+    versus.setEntryVisible(next === 'start')
   }
 
   function endTutorial(): void {
@@ -188,10 +204,12 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function beginFight(c: Calibration): void {
     calibration = c
     engine.init(scene, c)
-    engine.startRound()
+    // Online: the round starts when both laptops are ready (versus.ready), not straight away.
+    if (!versus.active) engine.startRound()
     hud.setCameraActive(pipeline !== null)
     hud.showFight()
     setState('fighting')
+    if (versus.active) versus.ready()
   }
 
   function again(): void {
@@ -234,7 +252,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
       if (p.status === 'done' && p.calibration) {
         calibrator = null
         bodyTracker = createBodyTracker(p.calibration, BOXING_FILTER)
-        if (tutorialNeeded()) beginTutorial(p.calibration)
+        if (tutorialNeeded() && !versus.active) beginTutorial(p.calibration)
         else beginFight(p.calibration)
       }
     } else if (state === 'tutorial' && bodyTracker && tutorial) {
@@ -307,7 +325,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
       hud.toggleDebug()
     } else if (e.code === 'KeyR' && state === 'ended') {
       again()
-    } else if (e.code === 'KeyM') {
+    } else if (e.code === 'KeyM' && !versus.active) {
       startDemo()
     }
   }
@@ -402,6 +420,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     window.removeEventListener('motion-event', onMotionEvent)
     window.removeEventListener('resize', onResize)
     keyboard.dispose()
+    versus.dispose()
     engine.dispose()
     scene.dispose()
     sfx.dispose()
