@@ -17,6 +17,9 @@ const BLOOM = { strength: 0.6, radius: 0.2, threshold: 0.62 } as const
 /** Auto-drop when the mean frame time over the last WINDOW_MS is above this. */
 const SLOW_FRAME_MS = 24
 const WINDOW_MS = 2000
+/** Highest render resolution scale on high quality. */
+const MAX_PIXEL_RATIO = 1.5
+
 /** Ignore the first frames (shader compiles) and the frames right after a resize or quality change. */
 const WARMUP_MS = 1500
 
@@ -39,7 +42,8 @@ export function createRenderPipeline(
   onChange: (level: QualityLevel) => void,
 ): RenderPipeline {
   // MSAA target: the canvas antialias flag does not apply to render targets.
-  const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: 4 })
+  // Fewer samples on dense screens: the higher pixel ratio already smooths the edges.
+  const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: (window.devicePixelRatio || 1) > 1 ? 2 : 4 })
   const composer = new EffectComposer(renderer, target)
   const renderPass = new RenderPass(scene, camera)
   const bloom = new UnrealBloomPass(new Vector2(1, 1), BLOOM.strength, BLOOM.radius, BLOOM.threshold)
@@ -64,7 +68,8 @@ export function createRenderPipeline(
 
   function applySize(): void {
     const high = quality === 'high'
-    const ratio = high ? Math.min(window.devicePixelRatio || 1, 2) : 1
+    // Capped at 1.5: on 2x laptop screens full resolution costs 1.8x the pixels for little visible gain.
+    const ratio = high ? Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO) : 1
     renderer.setPixelRatio(ratio)
     renderer.setSize(width, height)
     // On low the composer shrinks to 1 px so its buffers give their memory back.

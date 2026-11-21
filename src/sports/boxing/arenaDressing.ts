@@ -1,17 +1,14 @@
 // Neon arena around the boxing ring: tiered stands with a silhouette crowd and glow sticks,
-// scrolling LED boards, sweeping spotlight beams, a synthwave horizon and a city skyline.
+// scrolling LED boards, and a back wall.
 // Built for speed: instanced crowd and skyline, one canvas texture per board type, no lights,
 // no shadows, about 25 draw calls in total.
 import {
-  AdditiveBlending,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
   CylinderGeometry,
   Color,
-  ConeGeometry,
-  DoubleSide,
   Group,
   InstancedMesh,
   Mesh,
@@ -80,19 +77,6 @@ function ledTexture(): CanvasTexture {
   return tex
 }
 
-/** Sky behind everything: deep navy fading to a pink horizon band. */
-function horizonTexture(): CanvasTexture {
-  return canvasTexture(512, 256, (ctx) => {
-    const sky = ctx.createLinearGradient(0, 0, 0, 256)
-    sky.addColorStop(0, '#07080c')
-    sky.addColorStop(0.55, '#1a0f33')
-    sky.addColorStop(0.86, '#5a1850')
-    sky.addColorStop(1, '#ff3d9a')
-    ctx.fillStyle = sky
-    ctx.fillRect(0, 0, 512, 256)
-  })
-}
-
 export interface ArenaDressing {
   group: Group
   /** Animates boards, beams and glow sticks. t in seconds. */
@@ -112,7 +96,7 @@ interface Tier {
   to: number
 }
 
-const ROWS = 6
+const ROWS = 5
 const RISE = 0.45
 const DEPTH = 0.75
 const SEAT_GAP = 0.62
@@ -156,7 +140,7 @@ export function buildArenaDressing(): ArenaDressing {
       const facing = s.along === 'x' ? 0 : s.stepX < 0 ? Math.PI / 2 : -Math.PI / 2
       const lo = Math.min(s.from, s.to)
       for (let p = lo + SEAT_GAP / 2; p < lo + span; p += SEAT_GAP) {
-        if (r() < 0.12) continue // empty seats keep the rows from looking stamped
+        if (r() < 0.25) continue // empty seats keep the rows from looking stamped
         const jitter = (r() - 0.5) * 0.18
         const back = DEPTH * 0.45
         seats.push(
@@ -261,50 +245,10 @@ export function buildArenaDressing(): ArenaDressing {
     group.add(line)
   }
 
-  // ---------- spotlight beams ----------
-  const beamGeo = new ConeGeometry(0.9, 8, 10, 1, true)
-  beamGeo.translate(0, -4, 0) // apex at the origin, so rotation sweeps the beam around the lamp
-  const beams = [
-    { x: -3.2, z: -9.5, color: CYAN, phase: 0 },
-    { x: 3.2, z: -9.5, color: PINK, phase: 1.7 },
-  ].map((b) => {
-    const mat = new MeshBasicMaterial({
-      color: b.color,
-      transparent: true,
-      opacity: 0.035,
-      blending: AdditiveBlending,
-      depthWrite: false,
-      side: DoubleSide,
-      fog: false,
-    })
-    const beam = new Mesh(beamGeo, mat)
-    beam.position.set(b.x, 7.5, b.z)
-    group.add(beam)
-    return { beam, ...b }
-  })
-
-  // ---------- horizon and skyline ----------
-  const sky = horizonTexture()
-  textures.push(sky)
-  const horizon = new Mesh(new PlaneGeometry(110, 16), new MeshBasicMaterial({ map: sky, fog: false, depthWrite: false }))
-  horizon.position.set(0, 6, -45)
-  horizon.renderOrder = -1
-  group.add(horizon)
-
-  const towerGeo = new BoxGeometry(1, 1, 1)
-  towerGeo.translate(0, 0.5, 0)
-  const towers = new InstancedMesh(towerGeo, new MeshBasicMaterial({ color: 0x0b0a18, fog: false }), 46)
-  for (let i = 0; i < 46; i++) {
-    const x = -48 + i * 2.1 + (r() - 0.5) * 0.8
-    const w = 1.4 + r() * 1.6
-    const h = 3 + r() * r() * 11
-    dummy.position.set(x, 0, -38 - r() * 4)
-    dummy.rotation.set(0, 0, 0)
-    dummy.scale.set(w, h, 1.5)
-    dummy.updateMatrix()
-    towers.setMatrixAt(i, dummy.matrix)
-  }
-  group.add(towers)
+  // ---------- back wall ----------
+  const wall = new Mesh(new PlaneGeometry(26, 9), tierMat)
+  wall.position.set(0, 4.5, -8.2 - DEPTH * ROWS - 0.05)
+  group.add(wall)
 
   return {
     group,
@@ -314,10 +258,6 @@ export function buildArenaDressing(): ArenaDressing {
       }
       stickSets[0].opacity = 0.55 + 0.45 * Math.sin(t * 2.1)
       stickSets[1].opacity = 0.55 + 0.45 * Math.sin(t * 2.1 + Math.PI)
-      for (const b of beams) {
-        b.beam.rotation.set(0.35 + 0.15 * Math.sin(t * 0.5 + b.phase), 0, 0.3 * Math.sin(t * 0.37 + b.phase))
-        b.beam.rotation.x *= -1 // lean in toward the ring from behind the back stand
-      }
     },
     dispose() {
       for (const tex of textures) tex.dispose()
