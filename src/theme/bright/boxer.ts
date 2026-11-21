@@ -1,4 +1,4 @@
-// Bright theme boxing models: an original chunky gummy-bean sparring partner and cartoon first-person gloves.
+// Bright theme boxing models: an original toy-figure sparring partner and cartoon first-person gloves.
 // Both satisfy the neon builders' contracts (DroneParts / GloveParts) so the boxing scene animates them as is.
 import {
   BackSide,
@@ -23,7 +23,7 @@ import type { Material, Object3D, Texture } from 'three'
 import type { DroneParts, GloveParts } from '../../sports/boxing/sceneParts.ts'
 import { DRONE } from '../../sports/boxing/sceneParts.ts'
 import type { Hand } from '../../pose/types.ts'
-import { glossy, beanGeometry, beanRadius, beanU, buildFace, onSurface, splitByHeight, toy } from './avatar.ts'
+import { armGeometry, BODY, buildFigure, glossy, SHOULDER, stretchArm, toy } from './avatar.ts'
 import { BOXING, SKIN } from './palette.ts'
 
 /** Opponent look. Original local colours on top of the shared palette. */
@@ -132,30 +132,24 @@ export function buildBrightGlove(hand: Hand): GloveParts {
 
 // ---------- opponent ----------
 
-/** Rim ring along a bean band edge (foot space y), drawn with the accent line material. */
-function hemLoop(y: number, offset: number, mat: LineBasicMaterial, segments = 48): LineLoop {
-  const r = beanRadius(y) + offset
+/** Horizontal ring of accent line at height y (body space), radius r. */
+function hemLoop(y: number, r: number, mat: LineBasicMaterial, zScale = 1, segments = 48): LineLoop {
   const pts: Vector3[] = []
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2
-    pts.push(new Vector3(Math.sin(a) * r, y, Math.cos(a) * r))
+    pts.push(new Vector3(Math.sin(a) * r, y, Math.cos(a) * r * zScale))
   }
   return new LineLoop(new BufferGeometry().setFromPoints(pts), mat)
 }
 
-/** Chunky gummy-bean boxer: headband (head core), waistband (chest core), big glossy gloves on the pods. */
+/** Friendly toy-figure boxer: round head with headband (head core), belt (chest core), gloves on the pods. */
 export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const root = new Group()
   root.position.set(0, DRONE.y, DRONE.z)
   const body = new Group()
   root.add(body)
-  // Figure in foot space (feet at y=0): feet land on the floor when root is at DRONE.y.
-  const fig = new Group()
-  fig.position.y = -DRONE.y
-  body.add(fig)
 
-  const skinRest = (): MeshStandardMaterial =>
-    glossy({ color: LOOK.skin, emissive: 0x000000, emissiveIntensity: 1 })
+  const skinRest = (): MeshStandardMaterial => glossy({ color: LOOK.skin, emissive: 0x000000, emissiveIntensity: 1 })
   const headShell = skinRest()
   const chestShell = skinRest()
   const limbSkin = toy(LOOK.skin)
@@ -163,64 +157,58 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const chestCore = new MeshBasicMaterial({ color: BOXING.droneCore })
   const accent = new LineBasicMaterial({ color: BOXING.drone })
   const accentSolid = new MeshBasicMaterial({ color: BOXING.drone })
-
-  // One bean for head and torso: the upper part flashes on head hits, the lower part on body hits.
-  const beanGeo = splitByHeight(beanGeometry(40, 36), 1.3)
-  const bean = new Mesh(beanGeo, [chestShell, headShell])
-  fig.add(bean)
-
-  // Face, a little determined.
-  fig.add(buildFace('determined'))
-
-  // Headband with two tails at the back.
-  const bandGeo = beanGeometry(40, 4, 0.014, beanU(1.6), beanU(1.665))
-  const band = new Mesh(bandGeo, headCore)
-  fig.add(band)
-  const tailGeo = new CapsuleGeometry(0.03, 0.13, 3, 8)
-  for (const side of [-1, 1]) {
-    const tail = onSurface(new Mesh(tailGeo, headCore), 1.62, Math.PI + side * 0.18, 0.02)
-    tail.rotateX(-0.9)
-    tail.rotateZ(side * 0.5)
-    tail.translateY(-0.06)
-    tail.scale.set(1, 1, 0.45)
-    fig.add(tail)
-  }
-  const knot = onSurface(new Mesh(new SphereGeometry(0.045, 12, 8), headCore), 1.63, Math.PI, 0.01)
-  knot.scale.set(1, 1, 0.6)
-  fig.add(knot)
-
-  // Boxing shorts: puffy band over the bottom of the bean, white waistband, accent hem lines, leg cuffs.
   const shortsMat = toy(LOOK.shorts)
-  const shorts = new Mesh(beanGeometry(40, 10, 0.02, -1, beanU(0.86)), shortsMat)
-  const waist = new Mesh(beanGeometry(40, 3, 0.03, beanU(0.84), beanU(0.92)), chestCore)
-  fig.add(shorts, waist)
-  fig.add(hemLoop(0.84, 0.032, accent), hemLoop(0.92, 0.032, accent))
 
-  // Stubby legs, shorts leg cuffs and little shoes; feet rest on y=0.
-  const legGeo = new CapsuleGeometry(0.11, 0.26, 4, 14)
-  const cuffGeo = new CylinderGeometry(0.14, 0.155, 0.16, 20)
-  const hemGeo = new TorusGeometry(0.153, 0.018, 6, 24)
-  const shoeGeo = new SphereGeometry(0.12, 20, 12)
-  const soleGeo = new CylinderGeometry(0.118, 0.118, 0.035, 20)
+  // Humanoid in foot space (feet at y=0) so the feet touch the floor when root is at DRONE.y.
+  // Head centre lands at body (0, 0.52, 0.02) with radius 0.2: the head hit zone.
+  const figure = buildFigure(
+    { skin: limbSkin, head: headShell, shirt: chestShell, shorts: shortsMat, shoes: toy(LOOK.shoes) },
+    { hair: 'spiky', hairColor: 0x3b2a20, brows: 'determined', hands: false },
+  )
+  const fig = figure.fig
+  fig.position.y = -DRONE.y
+  body.add(fig)
+
+  // Headband over the hair, tipped back like the hair cap, with a knot and two tails.
+  const band = new Mesh(new SphereGeometry(BODY.headR * 1.11, 40, 3, 0, Math.PI * 2, 0.82, 0.3), headCore)
+  band.rotation.x = -0.3
+  const knot = new Mesh(new SphereGeometry(0.04, 12, 8), headCore)
+  knot.position.set(0, 0.09, -0.21)
+  knot.scale.set(1, 1, 0.6)
+  figure.head.add(band, knot)
+  const tailGeo = new CapsuleGeometry(0.026, 0.12, 3, 8)
   for (const side of [-1, 1]) {
-    const leg = new Mesh(legGeo, limbSkin)
-    leg.position.set(side * 0.155, 0.33, 0)
+    const tail = new Mesh(tailGeo, headCore)
+    tail.position.set(side * 0.045, 0.02, -0.23)
+    tail.rotation.set(0.5, 0, side * 0.55)
+    tail.scale.set(1, 1, 0.45)
+    figure.head.add(tail)
+  }
+
+  // Belt with accent trim lines; leg cuffs with accent hems; orange soles.
+  const beltY = 0.775
+  const belt = new Mesh(new CylinderGeometry(0.232, 0.232, 0.075, 40, 1, true), chestCore)
+  belt.position.y = beltY
+  belt.scale.z = 0.95
+  fig.add(belt, hemLoop(beltY + 0.038, 0.235, accent, 0.95), hemLoop(beltY - 0.038, 0.235, accent, 0.95))
+  const cuffGeo = new CylinderGeometry(0.112, 0.12, 0.12, 20)
+  const hemGeo = new TorusGeometry(0.118, 0.014, 6, 24)
+  const soleGeo = new CylinderGeometry(0.097, 0.097, 0.03, 20)
+  for (const side of [-1, 1]) {
+    const x = side * BODY.legX
     const cuff = new Mesh(cuffGeo, shortsMat)
-    cuff.position.set(side * 0.16, 0.54, 0)
+    cuff.position.set(x * 1.08, 0.53, 0)
     const hem = new Mesh(hemGeo, accentSolid)
     hem.rotation.x = Math.PI / 2
-    hem.position.set(side * 0.16, 0.465, 0)
-    const shoe = new Mesh(shoeGeo, toy(LOOK.shoes))
-    shoe.scale.set(1, 0.6, 1.4)
-    shoe.position.set(side * 0.16, 0.085, 0.05)
+    hem.position.set(x * 1.08, 0.472, 0)
     const sole = new Mesh(soleGeo, toy(LOOK.sole))
-    sole.scale.set(1, 1, 1.4)
-    sole.position.set(side * 0.16, 0.02, 0.05)
-    fig.add(leg, cuff, hem, shoe, sole)
+    sole.scale.set(1, 1, 1.45)
+    sole.position.set(x, 0.015, 0.035)
+    fig.add(cuff, hem, sole)
   }
 
   // Gloves ride the pods ([left, right]); the scene sets each pod's full position every frame (guard bob,
-  // wind-ups, hooks, overhead slams). Noodle arms stretch from fixed shoulders to the moving gloves.
+  // wind-ups, hooks, overhead slams). Stubby arms stretch from fixed shoulders to the moving gloves.
   const gloveShell = glossy({ color: LOOK.gloves, roughness: 0.2, metalness: 0 })
   const gloveMats: GloveMats = {
     shell: gloveShell,
@@ -228,32 +216,29 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
     stripe: toy(LOOK.shorts, 0.35),
     lace: toy(0xffffff, 0.5),
   }
-  const armGeo = new CylinderGeometry(0.075, 0.075, 1, 14, 1, true)
-  const shoulderGeo = new SphereGeometry(0.09, 16, 10)
-  const up = new Vector3(0, 1, 0)
+  const armGeo = armGeometry()
+  const shoulderGeo = new SphereGeometry(0.08, 16, 10)
   const pods = [-1, 1].map((side) => {
     const pod = new Group()
     pod.position.set(side * DRONE.podX, DRONE.podY, DRONE.podZ)
-    const glove = gloveModel(0.125, side, gloveMats)
+    const glove = gloveModel(0.12, side, gloveMats)
     glove.rotation.y = Math.PI // knuckles toward the player
     glove.rotation.x = 0.25
-    glove.position.set(-side * 0.22, 0.28, 0.33)
+    glove.position.set(-side * 0.22, 0.22, 0.33)
     pod.add(glove)
     body.add(pod)
 
-    const shoulderAt = new Vector3(side * 0.3, 0.13, 0)
+    const shoulderAt = new Vector3(side * SHOULDER.x, SHOULDER.y - DRONE.y, 0)
     const shoulder = new Mesh(shoulderGeo, limbSkin)
     shoulder.position.copy(shoulderAt)
-    const wristOff = new Vector3(-side * 0.22, 0.24, 0.2)
+    const wristOff = new Vector3(-side * 0.22, 0.2, 0.2)
     const arm = new Mesh(armGeo, limbSkin)
+    arm.scale.x = arm.scale.z = 1.25
     arm.frustumCulled = false
     const wrist = new Vector3()
     const aim = (): void => {
-      wrist.copy(pod.position).add(wristOff).sub(shoulderAt)
-      const len = Math.max(0.05, wrist.length())
-      arm.position.copy(shoulderAt).addScaledVector(wrist, 0.5)
-      arm.quaternion.setFromUnitVectors(up, wrist.multiplyScalar(1 / len))
-      arm.scale.set(1, len, 1)
+      stretchArm(arm, shoulderAt, wrist.copy(pod.position).add(wristOff))
+      arm.scale.x = arm.scale.z = 1.25
       arm.updateMatrixWorld()
     }
     aim()
@@ -265,9 +250,9 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
 
   // Belt buckle = the chest "orb": the scene sets orb.position.z (pulls in while a straight charges).
   const buckleHolder = new Group()
-  buckleHolder.position.set(0, 0.88 - DRONE.y, beanRadius(0.88) + 0.035 - DRONE.orbZ)
-  const orb = new Mesh(new SphereGeometry(0.075, 20, 12), chestCore)
-  orb.scale.set(1.25, 0.85, 0.4)
+  buckleHolder.position.set(0, beltY - DRONE.y, 0.232 * 0.95 + 0.012 - DRONE.orbZ)
+  const orb = new Mesh(new SphereGeometry(0.06, 20, 12), chestCore)
+  orb.scale.set(1.3, 0.9, 0.4)
   orb.position.z = DRONE.orbZ
   buckleHolder.add(orb)
   body.add(buckleHolder)
@@ -294,12 +279,12 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
     new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, side: BackSide, depthWrite: false })
   const headHalo = rim()
   const chestHalo = rim()
-  const headPop = new Mesh(new SphereGeometry(0.315, 24, 16), headHalo)
-  headPop.position.set(0, DRONE.headY + 0.04, 0)
-  headPop.scale.set(1.02, 1.06, 1)
-  const chestPop = new Mesh(new SphereGeometry(0.37, 24, 16), chestHalo)
-  chestPop.position.set(0, -0.08, 0)
-  chestPop.scale.set(1.02, 1.12, 1)
+  const headPop = new Mesh(new SphereGeometry(0.255, 24, 16), headHalo)
+  headPop.position.set(0, DRONE.headY + 0.01, 0.02)
+  headPop.scale.set(1.05, 1.08, 1)
+  const chestPop = new Mesh(new SphereGeometry(0.29, 24, 16), chestHalo)
+  chestPop.position.set(0, -0.05, 0)
+  chestPop.scale.set(1, 1.3, 0.95)
   body.add(headPop, chestPop)
 
   // Telegraph: solid red rings that read on a bright background.
