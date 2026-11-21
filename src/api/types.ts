@@ -160,3 +160,41 @@ export interface ApiStatus {
   /** Events waiting to be sent (memory + localStorage outbox). */
   queued: number;
 }
+
+// ---- live Snowflake counter + highlights feed ----
+
+/** Snapshot of event uploads since page load. */
+export interface UploadStats {
+  /** 'live': talking to the API; 'offline': API failing, rows wait in the outbox; 'mock': no API configured. */
+  mode: ApiStatus['mode'];
+  /** Rows the server accepted (2xx) since page load. */
+  sent: number;
+  /** Rows captured by the game since page load (sent + waiting, or all of them in mock mode). */
+  captured: number;
+  /** Rows waiting in the outbox. */
+  queued: number;
+  /** Size of the last accepted batch, 0 if none yet. */
+  lastBatch: number;
+  /** Date.now() of the last accepted batch, 0 if none yet. */
+  lastSentAt: number;
+}
+
+/** One row of GET /api/highlights (Snowflake Streams + Tasks: T_HIGHLIGHTS). */
+export interface Highlight {
+  highlight_id: string;
+  created_at: string;
+  kind: string;
+  player_id: string;
+  name: string;
+  session_id: string;
+  value: number | null;
+  unit: string;
+  message: string;
+}
+
+export interface HighlightsResponse {
+  /** False when the server has no highlights table yet. */
+  available: boolean;
+  highlights: Highlight[];
+  source?: ApiSource;
+}

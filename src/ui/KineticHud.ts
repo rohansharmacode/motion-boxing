@@ -14,6 +14,7 @@ import { BoxingHUD } from './BoxingHUD';
 import { CalibrationOverlay } from './CalibrationOverlay';
 import { artImg, el } from './dom';
 import { PostMatchScreen } from './PostMatchScreen';
+import { SnowflakeCounter } from './SnowflakeCounter';
 import type { GameContext } from './shellTypes';
 import './styles.css';
 import './components.css';
@@ -66,6 +67,12 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
   let guardSamples = 0;
   let guardHits = 0;
   let endTimer = 0;
+  /** Live rows-into-Snowflake counter, shown during the fight only. */
+  let sfCounter: SnowflakeCounter | null = null;
+  const dropCounter = () => {
+    sfCounter?.destroy();
+    sfCounter = null;
+  };
   const telegraph = el('div', { class: 'kr-telegraph', 'aria-hidden': 'true' });
   const debug = el('pre', { class: 'kr-debug', hidden: '' });
   layer.append(telegraph, debug);
@@ -81,6 +88,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
   };
   const showPanel = (node: HTMLElement) => {
     clear();
+    dropCounter();
     hud?.destroy();
     hud = null;
     telegraph.classList.remove('kr-on');
@@ -151,6 +159,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
     showCalibration(progress: number, status: CalibrationStatus) {
       if (phase !== 'calibrating' || !calib) {
         clear();
+        dropCounter();
         hud?.destroy();
         hud = null;
         phase = 'calibrating';
@@ -189,6 +198,9 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       hud.element.classList.add('kr-big');
       hud.update({ playerHp: 100, opponentHp: 100, timeLeftMs: ROUND_MS, round: 1, combo: 0 });
       hud.setMode(keyboardMode ? KEYBOARD_HINT : null);
+      dropCounter();
+      sfCounter = new SnowflakeCounter(layer);
+      sfCounter.resetRound();
       combo = 0;
       guardSamples = 0;
       guardHits = 0;
@@ -250,6 +262,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       else hud?.banner(result.outcome === 'ko-loss' ? 'Knocked down' : 'Time!', result.outcome === 'ko-loss' ? 'bad' : 'good');
 
       endTimer = window.setTimeout(() => {
+        dropCounter();
         hud?.destroy();
         hud = null;
         post = new PostMatchScreen(layer, {
@@ -303,6 +316,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
 
     dispose() {
       clear();
+      dropCounter();
       hud?.destroy();
       link.dispose();
       layer.remove();

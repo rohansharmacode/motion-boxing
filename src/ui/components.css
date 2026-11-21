@@ -390,3 +390,27 @@
 .kr-calib-min[data-state='locked'] .kr-calib-hand { stroke: var(--lime); fill: rgba(170, 255, 80, 0.25); }
 .kr-calib-min .kr-calib-ring-bg { stroke: rgba(255, 255, 255, 0.08); stroke-width: 2; }
 .kr-calib-min .kr-calib-ring { stroke-width: 3; }
+
+/* ---------- "Live from Snowflake" highlights ticker ---------- */
+.kr-hl {
+  display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%;
+  padding: 8px 14px; border-radius: 999px; background: rgba(11, 16, 38, 0.78); border: 1px solid rgba(41, 181, 232, 0.35);
+  color: var(--white); font: 500 15px/1.2 var(--body);
+}
+.kr-hl[hidden] { display: none; }
+.kr-hl-icon { flex: none; width: 16px; height: 16px; color: #ffe14a; }
+.kr-hl-icon svg { width: 100%; height: 100%; }
+.kr-hl-chip { flex: none; font: 700 11px/1 var(--display); letter-spacing: 0.18em; text-transform: uppercase; color: #29b5e8; }
+.kr-hl[data-source='mock'] .kr-hl-chip { color: var(--muted); }
+.kr-hl-body { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.kr-hl-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.kr-hl-when { flex: none; font-size: 13px; color: var(--muted); }
+.kr-hl.kr-hl-mine { border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.kr-hl-in { animation: kr-hl-in 0.35s ease-out both; }
+@keyframes kr-hl-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.kr-board-ticker { display: flex; justify-content: center; margin: 2px 0 10px; }
+.kr-board-ticker .kr-hl { max-width: min(760px, 100%); }
+/* Post-match: the ticker rides in the chip row at the top, so it is visible without scrolling. */
+.kr-post-chips:has(.kr-post-ticker) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kr-post-ticker { display: flex; min-width: 0; flex: 0 1 auto; }
+.kr-post-ticker .kr-hl { max-width: min(560px, 60vw); padding: 5px 12px; font-size: 14px; }
