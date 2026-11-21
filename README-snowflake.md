@@ -77,12 +77,32 @@ How front-end events map to `MOTION_EVENTS` (`server/src/frontend.ts`):
 - The original event (`round_ms`, `peak_velocity`, `accuracy_score`, `symmetry_ratio`, `metrics`) is kept in `MOTION_EVENTS.payload`, so nothing is lost.
 - `form_score` = the player's mean percentile vs `PRO_BENCHMARKS` (0 to 100).
 
+## Going live (one-time, about 10 minutes)
+
+All commands run from the repo root. `server/.env` is git-ignored; never commit it.
+
+1. `cp server/.env.example server/.env`. Set `SNOWFLAKE_MOCK=0`, `SNOWFLAKE_ACCOUNT` (`orgname-accountname`), `SNOWFLAKE_USER` and `SNOWFLAKE_PASSWORD`, or use `SNOWFLAKE_PRIVATE_KEY_PATH` instead of the password. For the first run, use a user that has `ACCOUNTADMIN`.
+2. `cd scripts && npm ci && npm run sql:setup`. This runs `sql/setup.sql` and `sql/analytics.sql`, statement by statement, as ACCOUNTADMIN.
+3. `npm run seed` (in `scripts/`) loads 20 players × 3 sessions. Then run `npm run sql:verify`.
+4. `npm run cortex:latency` (in `scripts/`) times a cold and a warm Cortex COMPLETE.
+5. `npm run server` (repo root) starts the API on http://localhost:3001. Check `GET /api/health` → `mode:"snowflake", snowflake:"up"`.
+6. `scripts/test-api.sh` runs the end-to-end check against the live server.
+7. `cd scripts && npm run streamlit:deploy` creates `MOTION_DB.PUBLIC.MOTION_DASHBOARD` and prints its Snowsight URL.
+
+**Coach card latency.**
+- `/api/session/end` always answers within `COACH_FAST_MS` (5 s).
+- If Cortex is slower, the reply has `warming_up: true` and a provisional card. The real card is stored when it arrives; get it by polling `GET /api/session/:id/coach` until `ready: true`. That reply also includes `coach_card` in the front-end shape.
+- At startup the server sends one tiny Cortex call (`CORTEX_WARMUP=1`).
+- During the demo, set `WAREHOUSE_KEEPWARM_MS=240000` so `MOTION_WH` never auto-suspends. The warehouse is billed while it is resumed.
+
+**Front end:** set `VITE_API_URL=http://localhost:3001` in the root `.env`. CORS allows `http://localhost:5173`.
+
 ## 3. Mock mode (no credentials)
 
 Set `SNOWFLAKE_MOCK=1` (e.g. in `server/.env` or the shell). The server uses an in-memory repository and a canned Cortex reply, so every endpoint works offline. `GET /api/health` reports `mode:'mock'`.
 
 ```
-cd server && npm install && SNOWFLAKE_MOCK=1 npm run dev
+npm run server:mock          # from the repo root (installs server deps on first run)
 scripts/test-api.sh
 ```
 

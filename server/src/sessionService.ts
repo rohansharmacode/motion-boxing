@@ -1,4 +1,4 @@
-import { fallbackCard, generateCoachCard, normalizeCard } from './coach';
+import { fallbackCard, generateCoachCard, normalizeCard, type CoachResult } from './coach';
 import type { Cortex } from './cortex';
 import { HttpError, db } from './errors';
 import type { EventQueue } from './eventQueue';
@@ -7,7 +7,7 @@ import { sessionMetrics } from './metrics';
 import { computePercentiles } from './percentile';
 import type { Repo } from './repo/types';
 import type { Benchmark, CoachCard, Percentiles, SessionEndResult, SessionRecord, StoredCoach } from './types';
-import { errorMessage } from './util';
+import { errorMessage, raceTimeout } from './util';
 
 /** PRO_BENCHMARKS rarely change; cache them and keep serving the last good copy on errors. */
 export class BenchmarkCache {
@@ -53,7 +53,13 @@ export interface SessionServiceDeps {
   log: Logger;
   coachTimeoutMs: number;
   flushWaitMs: number;
+  /** See AppConfig.coachFastMs. Only used when 0 < coachFastMs < coachTimeoutMs. */
+  coachFastMs?: number;
 }
+
+export type CoachStatus =
+  | ({ ready: true } & SessionEndResult)
+  | { ready: false; session_id: string; warming_up: boolean };
 
 /**
  * POST /api/session/end. Idempotent: once a session has a stored coach card, every later call
@@ -62,16 +68,29 @@ export interface SessionServiceDeps {
  */
 export class SessionService {
   private inflight = new Map<string, Promise<SessionEndResult>>();
+  /** Sessions whose Cortex card is still being generated after we answered with a provisional card. */
+  private warming = new Map<string, SessionEndResult>();
 
   constructor(private readonly d: SessionServiceDeps) {}
 
   /** `client`: optional front-end round summary, stored inside SESSIONS.ai_coach_json. */
   end(sessionId: string, client?: Record<string, unknown>): Promise<SessionEndResult> {
+    const provisional = this.warming.get(sessionId);
+    if (provisional) return Promise.resolve(provisional);
     const running = this.inflight.get(sessionId);
     if (running) return running;
     const p = this.doEnd(sessionId, client).finally(() => this.inflight.delete(sessionId));
     this.inflight.set(sessionId, p);
     return p;
+  }
+
+  /** GET /api/session/:id/coach: the stored card once ready, else whether it is still warming up. */
+  async coachStatus(sessionId: string): Promise<CoachStatus> {
+    if (this.warming.has(sessionId)) return { ready: false, session_id: sessionId, warming_up: true };
+    const session = await db(this.d.repo.getSession(sessionId));
+    if (!session) throw new HttpError(404, 'session_not_found', `Unknown session_id ${sessionId}`);
+    const stored = fromStored(session);
+    return stored ? { ready: true, ...stored } : { ready: false, session_id: sessionId, warming_up: false };
   }
 
   private async doEnd(sessionId: string, client?: Record<string, unknown>): Promise<SessionEndResult> {
@@ -94,11 +113,39 @@ export class SessionService {
       log.warn('session end: percentiles unavailable', { error: errorMessage(err) });
     }
 
-    const { card, fallback, reason } = await generateCoachCard(
-      { cortex: this.d.cortex, timeoutMs: this.d.coachTimeoutMs, log },
-      agg,
-      percentiles,
-    );
+    const full = generateCoachCard({ cortex: this.d.cortex, timeoutMs: this.d.coachTimeoutMs, log }, agg, percentiles);
+    const fastMs = this.d.coachFastMs ?? 0;
+    if (fastMs > 0 && fastMs < this.d.coachTimeoutMs) {
+      const early = await raceTimeout(full, fastMs, 'slow' as const);
+      if (early === 'slow') {
+        // Cortex is warming up: answer now with a provisional card, finish and store the real one in the background.
+        const provisional: SessionEndResult = {
+          session_id: sessionId,
+          stats: agg.stats,
+          coach: publicCard(fallbackCard(agg.stats)),
+          fallback: true,
+          warming_up: true,
+        };
+        this.warming.set(sessionId, provisional);
+        log.info('session end: Cortex slower than COACH_FAST_MS, answered with provisional card', { sessionId, fastMs });
+        void full
+          .then((r) => this.finish(sessionId, agg, r, client))
+          .catch((err) => log.error('session end: background coach failed', { sessionId, error: errorMessage(err) }))
+          .finally(() => this.warming.delete(sessionId));
+        return provisional;
+      }
+      return this.finish(sessionId, agg, early, client);
+    }
+    return this.finish(sessionId, agg, await full, client);
+  }
+
+  private async finish(
+    sessionId: string,
+    agg: Awaited<ReturnType<Repo['aggregateSession']>>,
+    { card, fallback, reason }: CoachResult,
+    client?: Record<string, unknown>,
+  ): Promise<SessionEndResult> {
+    const { repo, log } = this.d;
     const coach: StoredCoach = {
       ...card,
       fallback,

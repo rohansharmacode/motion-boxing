@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "(test -d server/node_modules || npm --prefix server ci --no-audit --no-fund) && npm --prefix server run dev",
+    "server:mock": "(test -d server/node_modules || npm --prefix server ci --no-audit --no-fund) && SNOWFLAKE_MOCK=1 npm --prefix server run dev"
   },
   "devDependencies": {
     "@types/three": "0.187.0",

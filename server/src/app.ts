@@ -82,6 +82,7 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
     log,
     coachTimeoutMs: config.coachTimeoutMs,
     flushWaitMs: config.sessionEndFlushWaitMs,
+    coachFastMs: config.coachFastMs,
   });
 
   // --- Front-end flow (client-generated ids, see src/frontend.ts) ----------------------------
@@ -288,6 +289,14 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
       }),
     ]);
     res.json({ ...result, coach: toFrontendCoach(result.coach, result.stats), leaderboard, form_score });
+  });
+
+  /** Poll after a session end answered warming_up:true. */
+  app.get('/api/session/:id/coach', async (req, res) => {
+    const id = IdSchema.safeParse(req.params.id);
+    if (!id.success) throw new HttpError(400, 'validation_error', 'Invalid session id', zodDetails(id.error));
+    const status = await sessions.coachStatus(id.data);
+    res.json(status.ready ? { ...status, coach_card: toFrontendCoach(status.coach, status.stats) } : status);
   });
 
   app.get('/api/leaderboard', async (_req, res) => {

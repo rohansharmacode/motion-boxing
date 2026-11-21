@@ -31,6 +31,9 @@ const EVENT_COLUMNS = 13;
 export const SQL = {
   ping: `SELECT 1 AS ok`,
 
+  /** Needs the warehouse (filter + CURRENT_TIMESTAMP defeats metadata answers and the result cache). */
+  warm: `SELECT COUNT(*) AS n FROM MOTION_EVENTS WHERE event_ts > DATEADD(minute, -1, CURRENT_TIMESTAMP()::TIMESTAMP_NTZ)`,
+
   insertPlayer: `INSERT INTO PLAYERS (player_id, name, created_at) SELECT ?, ?, TO_TIMESTAMP_NTZ(?)`,
 
   /** Insert-if-missing; a non-NULL name also renames (front end sends display_name at round end). */
@@ -315,6 +318,10 @@ export class SnowflakeRepo implements Repo {
       this.log.warn('snowflake ping failed', { error: errorMessage(err) });
       return false;
     }
+  }
+
+  async warm(): Promise<void> {
+    await this.db.query(SQL.warm, [], { timeoutMs: 30_000 });
   }
 
   async createPlayer(name: string): Promise<string> {

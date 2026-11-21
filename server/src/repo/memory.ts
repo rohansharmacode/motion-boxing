@@ -48,6 +48,8 @@ export class MemoryRepo implements Repo {
     return true;
   }
 
+  async warm(): Promise<void> {}
+
   async createPlayer(name: string): Promise<string> {
     const player_id = randomUUID();
     this.players.set(player_id, { player_id, name, created_at: new Date().toISOString() });

@@ -142,4 +142,6 @@ export interface SessionEndResult {
   stats: SessionStats;
   coach: CoachCard;
   fallback: boolean;
+  /** Cortex was slower than COACH_FAST_MS: `coach` is provisional; poll GET /api/session/:id/coach. */
+  warming_up?: boolean;
 }
