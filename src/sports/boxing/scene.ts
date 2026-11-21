@@ -346,7 +346,10 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     key.position.set(1.5, 4, 3)
     const rim = new DirectionalLight(COLORS.drone, 1.6)
     rim.position.set(-2, 3, -7)
-    scene.add(new HemisphereLight(0x9fb2ff, 0x0c0e16, 1.5), key, rim)
+    // Subtle rim light from behind each fighter so smooth shapes read with a bright edge.
+    const rimFront = new DirectionalLight(0x9fe8ff, 1.1)
+    rimFront.position.set(2.5, 2.5, 6)
+    scene.add(new HemisphereLight(0x9fb2ff, 0x0c0e16, 1.5), key, rim, rimFront)
   }
 
   const glowMap = createGlowTexture()

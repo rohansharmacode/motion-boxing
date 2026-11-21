@@ -343,7 +343,6 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
     emissiveIntensity: 0.5,
     roughness: 0.35,
     metalness: 0.2,
-    flatShading: true,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
@@ -361,7 +360,8 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
     visible: false, // solid gloves read cleaner than a see-through glow shell
   })
 
-  const fistGeo = new IcosahedronGeometry(0.085, 1)
+  // Smooth glove: high-segment sphere, smooth normals, no facet lines.
+  const fistGeo = new SphereGeometry(0.085, 40, 28)
   const fist = new Mesh(fistGeo, shell)
   fist.scale.set(1, 0.88, 1.15)
   const facets = new LineSegments(
@@ -369,8 +369,9 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
     new LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.6 }),
   )
   facets.scale.copy(fist.scale)
+  facets.visible = false
 
-  const thumb = new Mesh(new IcosahedronGeometry(0.034, 0), shell)
+  const thumb = new Mesh(new SphereGeometry(0.034, 24, 16), shell)
   thumb.position.set(inward * 0.068, 0.018, -0.03)
   thumb.scale.set(0.9, 1, 1.5)
 
@@ -378,12 +379,11 @@ export function buildGlove(hand: Hand, robot?: RobotLook): GloveParts {
     color: color.clone().multiplyScalar(0.25),
     emissive: color.clone().multiplyScalar(0.12),
     roughness: 0.5,
-    flatShading: true,
   })
-  const cuff = new Mesh(new CylinderGeometry(0.056, 0.062, 0.06, 8), cuffMat)
+  const cuff = new Mesh(new CylinderGeometry(0.056, 0.062, 0.06, 32), cuffMat)
   cuff.rotation.x = Math.PI / 2
   cuff.position.z = 0.1
-  const band = new Mesh(new TorusGeometry(0.062, 0.008, 6, 20), trim)
+  const band = new Mesh(new TorusGeometry(0.062, 0.008, 12, 48), trim)
   band.position.z = 0.078
 
   const halo = new Mesh(new IcosahedronGeometry(0.11, 2), glow)
@@ -540,7 +540,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
     [0.0, -0.3], [0.13, -0.3], [0.15, -0.24], [0.13, -0.14], [0.15, -0.06], [0.2, 0.04],
     [0.245, 0.13], [0.25, 0.19], [0.21, 0.25], [0.12, 0.29], [0.0, 0.3],
   ].map(([x, y]) => new Vector2(x, y))
-  const torso = new Mesh(new LatheGeometry(torsoProfile, 48), chestShell)
+  const torso = new Mesh(new LatheGeometry(torsoProfile, 72), chestShell)
   torso.scale.z = 0.62
   // Pecs and abs: soft plates that give the chest a sculpted, human read.
   const plateGeo = new SphereGeometry(0.1, 32, 20)
@@ -651,14 +651,16 @@ export function buildDrone(glowMap: Texture): DroneParts {
 
   // Arms: upper arm and forearm capsules from the shoulder through a bent elbow to the glove cuff,
   // re-aimed every frame because the scene moves the gloves.
-  const upperGeo = new CapsuleGeometry(0.048, 1, 8, 20)
-  const foreGeo = new CapsuleGeometry(0.052, 1, 8, 20)
+  const upperGeo = new CylinderGeometry(0.046, 0.05, 1, 32, 1, true)
+  const foreGeo = new CylinderGeometry(0.05, 0.056, 1, 32, 1, true)
   const elbowGeo = new SphereGeometry(0.055, 24, 16)
   ;[-1, 1].forEach((side, i) => {
     const upper = new Mesh(upperGeo, limbShell)
     const fore = new Mesh(foreGeo, chestShell)
     const elbow = new Mesh(elbowGeo, limbShell)
-    for (const m of [upper, fore, elbow]) m.frustumCulled = false
+    const wristBall = new Mesh(elbowGeo, limbShell)
+    wristBall.scale.setScalar(0.9)
+    for (const m of [upper, fore, elbow, wristBall]) m.frustumCulled = false
     const wrist = new Vector3()
     const joint = new Vector3()
     const aim = (): void => {
@@ -672,10 +674,11 @@ export function buildDrone(glowMap: Texture): DroneParts {
       stretchCapsule(upper, sh, joint)
       stretchCapsule(fore, joint, wrist)
       elbow.position.copy(joint)
+      wristBall.position.copy(wrist)
     }
     aim()
     upper.onBeforeRender = aim
-    body.add(upper, fore, elbow)
+    body.add(upper, fore, elbow, wristBall)
   })
 
   // Hips and legs, standing on the floor (body origin sits DRONE.y above it).
@@ -683,8 +686,8 @@ export function buildDrone(glowMap: Texture): DroneParts {
   hips.scale.set(1, 0.6, 0.75)
   hips.position.y = -0.33
   body.add(hips)
-  const thighGeo = new CapsuleGeometry(0.065, 1, 8, 20)
-  const shinGeo = new CapsuleGeometry(0.055, 1, 8, 20)
+  const thighGeo = new CylinderGeometry(0.052, 0.068, 1, 32, 1, true)
+  const shinGeo = new CylinderGeometry(0.045, 0.056, 1, 32, 1, true)
   const kneeGeo = new SphereGeometry(0.06, 24, 16)
   const footGeo = new CapsuleGeometry(0.045, 0.13, 6, 16)
   footGeo.rotateX(Math.PI / 2)
@@ -700,7 +703,9 @@ export function buildDrone(glowMap: Texture): DroneParts {
     kneePad.position.copy(knee)
     const foot = new Mesh(footGeo, limbShell)
     foot.position.set(ankle.x, ankle.y - 0.04, ankle.z + 0.05)
-    body.add(thigh, shin, kneePad, foot)
+    const hipBall = new Mesh(kneeGeo, limbShell)
+    hipBall.position.copy(hip)
+    body.add(thigh, shin, kneePad, foot, hipBall)
   }
 
   // Small back thruster (kept for the hover flicker), tucked behind the torso.
