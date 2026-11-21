@@ -61,7 +61,7 @@ const MAX_DT_MS = 250
 const BASE_DAMAGE: Record<PunchKind, number> = { jab: 3, cross: 5, hook: 6, uppercut: 7 }
 
 /** Online 1v1: a punch telegraphs this long on the other laptop, so it can be read and slipped. */
-const VERSUS_TELEGRAPH_MS = 750
+const VERSUS_TELEGRAPH_MS = 1000
 /** Online 1v1: landed damage scale (a round of player punches is much slower than drone attacks). */
 const VERSUS_DAMAGE_SCALE = 1.6
 /** Online 1v1: one punch in flight at a time; forget it after this long without an answer. */

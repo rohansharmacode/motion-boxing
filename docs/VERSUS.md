@@ -15,7 +15,7 @@ Venue Wi-Fi often blocks laptop-to-laptop traffic. If "Could not reach the game 
 ## How a punch works
 
 - Your punch lands on the opponent figure on your screen and is sent to the other laptop (one punch in flight at a time, so spamming does nothing).
-- Their screen telegraphs it for 750 ms: straights (jab, cross) can be slipped or ducked, hooks ducked, uppercuts slipped. Guard cuts damage by 80 percent.
+- Their screen telegraphs it for 1 s: straights (jab, cross) can be slipped or ducked, hooks ducked, uppercuts slipped. Guard cuts damage by 80 percent.
 - Their laptop decides blocked, dodged or hit, takes the damage and sends back its health. Each laptop owns its own health, so the two screens never disagree.
 - Health 0 is a KO for both screens. At the bell, more health wins.
 

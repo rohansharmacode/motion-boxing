@@ -75,9 +75,9 @@ describe('online 1v1 engine', () => {
   test('an undefended punch lands after the telegraph and both screens agree on health', () => {
     const { a, b, tick } = pair()
     a.engine.onActions(punch('cross'))
-    tick(300)
-    expect(b.hp.player).toBe(100) // still telegraphing
     tick(700)
+    expect(b.hp.player).toBe(100) // still telegraphing (1 s wind-up)
+    tick(500)
     expect(b.hp.player).toBe(92)
     expect(a.hp.drone).toBe(92)
   })
@@ -86,11 +86,11 @@ describe('online 1v1 engine', () => {
     const { a, b, tick } = pair()
     b.engine.onActions(hold(false, 'left'))
     a.engine.onActions(punch('jab'))
-    tick(1000)
+    tick(1300)
     expect(b.hp.player).toBe(100)
     b.engine.onActions(hold(true, null))
     a.engine.onActions(punch('cross'))
-    tick(1000)
+    tick(1300)
     expect(b.hp.player).toBeCloseTo(98.4, 5)
     expect(a.hp.drone).toBeCloseTo(98.4, 5)
   })
@@ -100,7 +100,7 @@ describe('online 1v1 engine', () => {
     a.engine.onActions(punch())
     a.engine.onActions(punch())
     a.engine.onActions(punch())
-    tick(1000)
+    tick(1300)
     expect(b.hp.player).toBe(92)
   })
 
@@ -108,7 +108,7 @@ describe('online 1v1 engine', () => {
     const { a, b, tick } = pair()
     for (let i = 0; i < 13 && b.ends.length === 0; i++) {
       a.engine.onActions(punch('uppercut'))
-      tick(1000)
+      tick(1300)
     }
     tick(2000)
     expect(b.ends[0]?.outcome).toBe('ko-loss')
