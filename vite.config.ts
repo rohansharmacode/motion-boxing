@@ -18,6 +18,20 @@ function recordingsEndpoint(): Plugin {
     apply: 'serve',
     configureServer(server) {
       const dir = join(server.config.root, 'recordings')
+      // Latest calibration diagnostics from /record.html (numbers only), for reading from a terminal while helping.
+      server.middlewares.use('/__lab-status', (req, res) => {
+        const file = join(server.config.root, 'node_modules', '.cache', 'motion-lab-status.json')
+        if (req.method === 'GET') {
+          res.setHeader('content-type', 'application/json')
+          try { return res.end(readFileSync(file)) } catch { return res.end('{}') }
+        }
+        let body = ''
+        req.on('data', (c: Buffer) => { if (body.length < 10_000) body += c.toString('utf8') })
+        req.on('end', () => {
+          try { JSON.parse(body); mkdirSync(join(server.config.root, 'node_modules', '.cache'), { recursive: true }); writeFileSync(file, body) } catch { /* ignore */ }
+          res.end('ok')
+        })
+      })
       server.middlewares.use('/__recordings', (req, res) => {
         const fail = (code: number, msg: string): void => {
           res.statusCode = code
