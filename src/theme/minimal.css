@@ -22,8 +22,8 @@
   --mh-warn-bg: #ff8a3d;
   --mh-warn-fg: #0b1026;
   --mh-name-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
-  --mh-font-num: 'Bebas Neue', 'Outfit', system-ui, sans-serif;
-  --mh-font-text: 'Outfit', system-ui, sans-serif;
+  --mh-font-num: 'Geist Sans', system-ui, sans-serif;
+  --mh-font-text: 'Geist Sans', system-ui, sans-serif;
   --mh-num-size: 22px;
   --mh-num-weight: 400;
   --mh-pop-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
@@ -325,3 +325,14 @@
 /* ---------- start / end screens: calmer, fewer badges ---------- */
 
 :root:not(#_) .kr-k-start :is(.kr-live, .kr-chip) { display: none; }
+
+/* Neon, quieter: no glowing text anywhere, crisp antialiased Geist type with tabular numbers. */
+:root[data-theme='neon'] *,
+:root[data-theme='neon'] *::before,
+:root[data-theme='neon'] *::after {
+  text-shadow: none !important;
+}
+:root[data-theme='neon'] body {
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}

@@ -25,12 +25,6 @@ import type { Texture } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 const CYAN = 0x38c8ff
-const PINK = 0xff3d9a
-const PURPLE = 0xa47bff
-const AMBER = 0xffc83a
-
-/** Pushes a colour above 1 so the bloom pass picks it up (neon theme only uses this module). */
-const glow = (hex: number, k: number): Color => new Color(hex).multiplyScalar(k)
 
 /** Small deterministic PRNG so the crowd looks the same every match. */
 function rng(seed: number): () => number {
@@ -57,21 +51,21 @@ function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2
 
 /** Scrolling LED board text: original arcade copy, cyan and pink on black. */
 function ledTexture(): CanvasTexture {
-  const words = ['KINETIC RING', 'FIGHT', 'ROUND 1', 'NO CONTROLLER NEEDED', 'KO']
+  const words = ['Kinetic Ring', 'Round 1', 'No controller needed', 'Webcam boxing']
   const tex = canvasTexture(1024, 64, (ctx) => {
-    ctx.fillStyle = '#05060a'
+    ctx.fillStyle = '#0b0c0f'
     ctx.fillRect(0, 0, 1024, 64)
-    ctx.font = '700 40px "Bebas Neue", "Outfit", system-ui, sans-serif'
+    ctx.font = '500 30px "Geist Sans", system-ui, sans-serif'
     ctx.textBaseline = 'middle'
-    let x = 16
-    words.forEach((word, i) => {
-      ctx.fillStyle = i % 2 === 0 ? '#38c8ff' : '#ff3d9a'
-      ctx.fillText(word, x, 34)
-      x += ctx.measureText(word).width + 26
-      ctx.fillStyle = '#ffc83a'
-      ctx.fillText('◆', x, 34)
-      x += 46
-    })
+    let x = 24
+    for (const word of words) {
+      ctx.fillStyle = '#d6d6db'
+      ctx.fillText(word, x, 33)
+      x += ctx.measureText(word).width + 30
+      ctx.fillStyle = '#4a4e58'
+      ctx.fillRect(x, 28, 6, 6) // small square divider
+      x += 36
+    }
   })
   tex.wrapS = RepeatWrapping
   return tex
@@ -115,7 +109,7 @@ export function buildArenaDressing(): ArenaDressing {
 
   // ---------- stands ----------
   const tierMat = new MeshBasicMaterial({ color: 0x0d0f1a })
-  const stripMats = [new MeshBasicMaterial({ color: glow(CYAN, 1.15) }), new MeshBasicMaterial({ color: glow(PINK, 1.15) })]
+  const stripMats = [new MeshBasicMaterial({ color: 0x343844 }), new MeshBasicMaterial({ color: 0x2a2d36 })]
   const seats: { x: number; y: number; z: number; facing: number }[] = []
   // Static stand pieces are merged into three meshes: steps, cyan nosing, pink nosing.
   const stepGeos: BufferGeometry[] = []
@@ -193,7 +187,7 @@ export function buildArenaDressing(): ArenaDressing {
     seats.forEach((seat, i) => {
       if (i % 3 !== set) return
       pos.push(seat.x + (r() - 0.5) * 0.3, seat.y + 0.95 + r() * 0.25, seat.z)
-      c.set([CYAN, PINK, AMBER, PURPLE][Math.floor(r() * 4)]).multiplyScalar(1.4)
+      c.set(r() < 0.7 ? 0xf2f2f5 : CYAN).multiplyScalar(0.55)
       col.push(c.r, c.g, c.b)
     })
     const geo = new BufferGeometry()
@@ -220,7 +214,7 @@ export function buildArenaDressing(): ArenaDressing {
     map.repeat.set(len / 6.5, 1)
     map.needsUpdate = true
     textures.push(map)
-    const mat = new MeshBasicMaterial({ map, color: glow(0xffffff, 1.05) })
+    const mat = new MeshBasicMaterial({ map, color: 0xd0d0d6 })
     boardMats.push(mat)
     const board = new Mesh(new PlaneGeometry(len, 0.42), mat)
     board.position.set(x, 0.32, z)
@@ -233,7 +227,7 @@ export function buildArenaDressing(): ArenaDressing {
 
   // ---------- floor ----------
   // Pink outer grid lines and a cyan apron rectangle around the ring.
-  const apronMat = new MeshBasicMaterial({ color: glow(PINK, 1.2) })
+  const apronMat = new MeshBasicMaterial({ color: 0x2a2d36 })
   for (const [w, d, x, z] of [
     [7.8, 0.03, 0, 1.6],
     [7.8, 0.03, 0, -6.2],

@@ -17,8 +17,8 @@ body.ar-page {
   --ar-magenta: #ff2a85;
   --ar-pale: #b6c2e2;
   --ar-bad: #ff2a85;
-  --ar-display: 'Bebas Neue', 'Impact', sans-serif;
-  --ar-body: 'Outfit', system-ui, sans-serif;
+  --ar-display: 'Geist Sans', 'Impact', sans-serif;
+  --ar-body: 'Geist Sans', system-ui, sans-serif;
 }
 
 /* ---------- page (standalone archery page only) ---------- */

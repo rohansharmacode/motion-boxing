@@ -510,8 +510,8 @@
   --ch-ring: rgba(56, 200, 255, 0.28);
   --ch-blue: #38c8ff;
   --ch-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
-  --ch-display: 'Bebas Neue', 'Outfit', system-ui, sans-serif;
-  --ch-body: 'Outfit', system-ui, sans-serif;
+  --ch-display: 'Geist Sans', system-ui, sans-serif;
+  --ch-body: 'Geist Sans', system-ui, sans-serif;
   color-scheme: dark;
 }
 
