@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Archery dashboard tile artwork">
+  <defs>
+    <linearGradient id="ar-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0C1124" />
+      <stop offset="60%" stop-color="#1A1628" />
+      <stop offset="100%" stop-color="#22170C" />
+    </linearGradient>
+    <radialGradient id="ar-aura" cx="68%" cy="46%" r="50%">
+      <stop offset="0%" stop-color="#FFB800" stop-opacity="0.3" />
+      <stop offset="55%" stop-color="#C8FF00" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#070913" stop-opacity="0" />
+    </radialGradient>
+    <filter id="ar-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .target { animation: ar-drift 4s ease-in-out infinite; transform-origin: 446px 190px; }
+    .arrow { animation: ar-draw 3.2s ease-in-out infinite; }
+    .wind { stroke-dasharray: 18 14; animation: ar-wind 1.6s linear infinite; }
+    .reticle { animation: ar-lock 3.2s ease-in-out infinite; transform-origin: 446px 190px; }
+    @keyframes ar-drift { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    @keyframes ar-draw { 0%,100% { transform: translateX(0); } 55% { transform: translateX(-18px); } 72% { transform: translateX(6px); } }
+    @keyframes ar-wind { to { stroke-dashoffset: -64; } }
+    @keyframes ar-lock { 0%,100% { transform: scale(1.08) rotate(0deg); opacity: 0.7; } 55% { transform: scale(0.92) rotate(45deg); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .target, .arrow, .wind, .reticle { animation: none; } }
+  </style>
+
+  <rect width="640" height="400" fill="url(#ar-bg)" />
+  <rect width="640" height="400" fill="url(#ar-aura)" />
+
+  <!-- Subtle Range Grid -->
+  <g stroke="#FFB800" stroke-opacity="0.1" stroke-width="1">
+    <line x1="0" y1="190" x2="640" y2="190" />
+    <line x1="446" y1="0" x2="446" y2="400" />
+    <line x1="0" y1="336" x2="640" y2="336" />
+  </g>
+
+  <!-- Wind Stream Chevrons -->
+  <g class="wind" fill="none" stroke="#00F0FF" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round">
+    <path d="M 220 96 Q 300 84 372 96" />
+    <path d="M 248 294 Q 332 308 408 292" />
+  </g>
+
+  <!-- Holographic 10-Ring Bullseye Target -->
+  <g class="target" filter="url(#ar-glow)">
+    <circle cx="446" cy="190" r="106" fill="#0F1426" stroke="#00F0FF" stroke-opacity="0.55" stroke-width="3" />
+    <circle cx="446" cy="190" r="80" fill="none" stroke="#B6C2E2" stroke-opacity="0.45" stroke-width="2.5" />
+    <circle cx="446" cy="190" r="54" fill="none" stroke="#FF2A85" stroke-width="3.5" />
+    <circle cx="446" cy="190" r="28" fill="#FFB800" fill-opacity="0.22" stroke="#FFB800" stroke-width="3.5" />
+    <circle cx="446" cy="190" r="10" fill="#C8FF00" />
+  </g>
+
+  <!-- Rotating Aim Reticle -->
+  <g class="reticle" stroke="#C8FF00" stroke-width="2.5" fill="none">
+    <path d="M 412 156 L 424 156 M 412 156 L 412 168" />
+    <path d="M 480 156 L 468 156 M 480 156 L 480 168" />
+    <path d="M 412 224 L 424 224 M 412 224 L 412 212" />
+    <path d="M 480 224 L 468 224 M 480 224 L 480 212" />
+  </g>
+
+  <!-- Cyber Recurve Energy Bow Silhouette -->
+  <g filter="url(#ar-glow)">
+    <!-- Bowstring -->
+    <polyline points="178,74 114,190 178,306" fill="none" stroke="#00F0FF" stroke-opacity="0.8" stroke-width="2.2" />
+    <!-- Recurve Limbs -->
+    <path d="M 178 74 C 228 110, 232 146, 212 190 C 232 234, 228 270, 178 306" fill="none" stroke="#FFB800" stroke-width="9" stroke-linecap="round" />
+    <path d="M 184 82 C 224 114, 226 146, 212 190 C 226 234, 224 266, 184 298" fill="none" stroke="#FFF2B2" stroke-width="2.2" stroke-linecap="round" />
+    <!-- Riser Grip -->
+    <rect x="200" y="168" width="20" height="44" rx="6" fill="#18213A" stroke="#C8FF00" stroke-width="2.5" />
+  </g>
+
+  <!-- Drawn Plasma Arrow -->
+  <g class="arrow" filter="url(#ar-glow)">
+    <line x1="118" y1="190" x2="314" y2="190" stroke="#C8FF00" stroke-width="4.5" stroke-linecap="round" />
+    <!-- Arrowhead -->
+    <polygon points="334,190 306,178 312,190 306,202" fill="#FFFFFF" stroke="#C8FF00" stroke-width="2" />
+    <!-- Energy fletching -->
+    <polygon points="116,190 144,176 136,190 144,204" fill="#00F0FF" />
+  </g>
+
+  <!-- Bottom Edge Accent Strip -->
+  <rect x="24" y="372" width="96" height="4" rx="2" fill="#FFB800" />
+  <rect x="128" y="372" width="54" height="4" rx="2" fill="#C8FF00" />
+</svg>

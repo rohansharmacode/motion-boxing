@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Coming soon sport dashboard tile artwork">
+  <defs>
+    <linearGradient id="cs-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070913" />
+      <stop offset="100%" stop-color="#11172D" />
+    </linearGradient>
+    <linearGradient id="cs-sweep" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF" stop-opacity="0" />
+      <stop offset="50%" stop-color="#00F0FF" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#00F0FF" stop-opacity="0" />
+    </linearGradient>
+    <pattern id="cs-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#00F0FF" stroke-opacity="0.09" stroke-width="1" />
+    </pattern>
+  </defs>
+  <style>
+    .outer-ring { animation: cs-rot 16s linear infinite; transform-origin: 320px 180px; }
+    .inner-ring { animation: cs-rot-rev 10s linear infinite; transform-origin: 320px 180px; }
+    .scan { animation: cs-scan 3.6s ease-in-out infinite; }
+    .blink { animation: cs-blink 2.2s ease-in-out infinite; }
+    @keyframes cs-rot { to { transform: rotate(360deg); } }
+    @keyframes cs-rot-rev { to { transform: rotate(-360deg); } }
+    @keyframes cs-scan { 0%,100% { transform: translateY(-130px); } 50% { transform: translateY(140px); } }
+    @keyframes cs-blink { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .outer-ring, .inner-ring, .scan, .blink { animation: none; } }
+  </style>
+
+  <rect width="640" height="400" fill="url(#cs-bg)" />
+  <rect width="640" height="400" fill="url(#cs-grid)" />
+
+  <!-- Diagonal Lab Caution Stripe Corners -->
+  <g stroke="#7987AD" stroke-opacity="0.35" stroke-width="2">
+    <path d="M 28 58 L 28 28 L 58 28" fill="none" />
+    <path d="M 612 58 L 612 28 L 582 28" fill="none" />
+    <path d="M 28 342 L 28 372 L 58 372" fill="none" />
+    <path d="M 612 342 L 612 372 L 582 372" fill="none" />
+  </g>
+
+  <!-- Scanning Beam -->
+  <rect class="scan" x="0" y="160" width="640" height="64" fill="url(#cs-sweep)" />
+
+  <!-- Holographic Rotating Kinetic Ring Emblem -->
+  <g class="outer-ring">
+    <polygon
+      points="286,96 354,96 404,146 404,214 354,264 286,264 236,214 236,146"
+      fill="none"
+      stroke="#00F0FF"
+      stroke-opacity="0.45"
+      stroke-width="3"
+      stroke-dasharray="22 12"
+    />
+  </g>
+  <g class="inner-ring">
+    <circle cx="320" cy="180" r="56" fill="#0B1124" fill-opacity="0.85" stroke="#A47BFF" stroke-opacity="0.65" stroke-width="2.5" stroke-dasharray="10 8" />
+  </g>
+
+  <!-- Center Geometric Lock / Blueprint Mark -->
+  <g stroke="#B6C2E2" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 304 176 V 164 A 16 16 0 0 1 336 164 V 176" stroke="#00F0FF" />
+    <rect x="296" y="176" width="48" height="34" rx="8" fill="#121A34" stroke="#B6C2E2" />
+    <circle cx="320" cy="191" r="4" fill="#C8FF00" stroke="none" />
+    <line x1="320" y1="195" x2="320" y2="202" stroke="#C8FF00" stroke-width="2.5" />
+  </g>
+
+  <!-- Blueprint Pill Label -->
+  <g class="blink">
+    <rect x="206" y="294" width="228" height="34" rx="17" fill="rgba(13,18,36,0.88)" stroke="#00F0FF" stroke-opacity="0.55" />
+    <text x="320" y="316" text-anchor="middle" fill="#00F0FF" font-family="'JetBrains Mono', monospace" font-size="12.5" font-weight="700" letter-spacing="2">ARENA CALIBRATING</text>
+  </g>
+</svg>

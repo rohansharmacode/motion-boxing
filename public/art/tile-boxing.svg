@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Boxing dashboard tile artwork">
+  <defs>
+    <linearGradient id="bx-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B1024" />
+      <stop offset="55%" stop-color="#14112E" />
+      <stop offset="100%" stop-color="#220C22" />
+    </linearGradient>
+    <radialGradient id="bx-aura" cx="52%" cy="46%" r="54%">
+      <stop offset="0%" stop-color="#FF2A85" stop-opacity="0.34" />
+      <stop offset="55%" stop-color="#FF5A1F" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#070913" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="bx-glove-l" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="100%" stop-color="#008CFF" />
+    </linearGradient>
+    <linearGradient id="bx-glove-r" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF7A2F" />
+      <stop offset="100%" stop-color="#FF2A85" />
+    </linearGradient>
+    <filter id="bx-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="4" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .drone { animation: bx-bob 3.2s ease-in-out infinite; transform-origin: 320px 155px; }
+    .glove-l { animation: bx-jab-l 2.8s ease-in-out infinite; transform-origin: 185px 255px; }
+    .glove-r { animation: bx-jab-r 2.8s ease-in-out infinite; transform-origin: 455px 255px; }
+    .spark { animation: bx-pulse 2.8s ease-in-out infinite; transform-origin: 320px 214px; }
+    .ring-pulse { animation: bx-ring 2.8s ease-out infinite; transform-origin: 320px 150px; }
+    @keyframes bx-bob { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-9px); } }
+    @keyframes bx-jab-l { 0%,100% { transform: translate(0,0) rotate(-6deg); } 50% { transform: translate(16px,-10px) rotate(2deg); } }
+    @keyframes bx-jab-r { 0%,100% { transform: translate(0,0) rotate(6deg); } 50% { transform: translate(-16px,-10px) rotate(-2deg); } }
+    @keyframes bx-pulse { 0%,100% { opacity: 0.45; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.18); } }
+    @keyframes bx-ring { 0% { opacity: 0.65; transform: scale(0.84); } 100% { opacity: 0; transform: scale(1.38); } }
+    @media (prefers-reduced-motion: reduce) { .drone, .glove-l, .glove-r, .spark, .ring-pulse { animation: none; } }
+  </style>
+
+  <!-- Canvas & Arena Perspective -->
+  <rect width="640" height="400" fill="url(#bx-bg)" />
+  <rect width="640" height="400" fill="url(#bx-aura)" />
+  <g stroke="#00F0FF" stroke-opacity="0.14" stroke-width="1.2">
+    <line x1="0" y1="310" x2="640" y2="310" />
+    <line x1="0" y1="348" x2="640" y2="348" />
+    <line x1="120" y1="278" x2="20" y2="400" />
+    <line x1="250" y1="278" x2="195" y2="400" />
+    <line x1="390" y1="278" x2="445" y2="400" />
+    <line x1="520" y1="278" x2="620" y2="400" />
+  </g>
+
+  <!-- 3-Tier Neon Ring Ropes -->
+  <line x1="0" y1="168" x2="640" y2="168" stroke="#FF2A85" stroke-opacity="0.45" stroke-width="2.5" />
+  <line x1="0" y1="214" x2="640" y2="214" stroke="#A47BFF" stroke-opacity="0.4" stroke-width="2.5" />
+  <line x1="0" y1="260" x2="640" y2="260" stroke="#00F0FF" stroke-opacity="0.45" stroke-width="2.5" />
+
+  <!-- Telegraph Pulse Halo -->
+  <circle class="ring-pulse" cx="320" cy="150" r="78" fill="none" stroke="#FFB800" stroke-width="2.5" stroke-dasharray="14 10" />
+
+  <!-- HEX-7 Visor-Drone Silhouette -->
+  <g class="drone" filter="url(#bx-glow)">
+    <!-- Side pods -->
+    <rect x="218" y="138" width="26" height="46" rx="13" fill="#181F36" stroke="#A47BFF" stroke-width="2.5" />
+    <rect x="396" y="138" width="26" height="46" rx="13" fill="#181F36" stroke="#A47BFF" stroke-width="2.5" />
+    <line x1="244" y1="161" x2="268" y2="161" stroke="#A47BFF" stroke-width="4" />
+    <line x1="372" y1="161" x2="396" y2="161" stroke="#A47BFF" stroke-width="4" />
+    <!-- Faceted Chest -->
+    <polygon points="274,126 366,126 382,170 350,218 290,218 258,170" fill="#141A30" stroke="#A47BFF" stroke-width="3" stroke-linejoin="round" />
+    <polygon points="320,152 336,172 320,192 304,172" fill="#E2D4FF" />
+    <!-- Ion Thruster -->
+    <polygon points="304,222 336,222 320,256" fill="#00F0FF" fill-opacity="0.7" />
+    <!-- Helmet + Arc Visor -->
+    <polygon points="284,74 356,74 370,100 354,118 286,118 270,100" fill="#181F36" stroke="#A47BFF" stroke-width="3" stroke-linejoin="round" />
+    <rect x="315" y="54" width="10" height="20" rx="3" fill="#A47BFF" />
+    <path d="M 284 96 Q 320 110 356 96" fill="none" stroke="#FF2A85" stroke-width="9" stroke-linecap="round" />
+    <path d="M 290 96 Q 320 107 350 96" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Central Kinetic Spark -->
+  <g class="spark" filter="url(#bx-glow)">
+    <polygon points="320,188 330,214 320,240 310,214" fill="#C8FF00" />
+    <line x1="294" y1="214" x2="346" y2="214" stroke="#C8FF00" stroke-width="3" stroke-linecap="round" />
+  </g>
+
+  <!-- Left Low-Poly Cyber Glove (Cyan) -->
+  <g class="glove-l" filter="url(#bx-glow)">
+    <polygon points="104,228 164,196 238,214 252,262 210,308 132,300 94,264" fill="#13223C" stroke="url(#bx-glove-l)" stroke-width="4" stroke-linejoin="round" />
+    <polygon points="164,196 238,214 218,244 150,230" fill="#00F0FF" fill-opacity="0.28" />
+    <rect x="164" y="218" width="56" height="12" rx="6" transform="rotate(14 192 224)" fill="#00F0FF" />
+    <rect x="92" y="294" width="84" height="24" rx="10" transform="rotate(14 134 306)" fill="#0E1529" stroke="#00F0FF" stroke-width="3" />
+  </g>
+
+  <!-- Right Low-Poly Cyber Glove (Ember-Magenta) -->
+  <g class="glove-r" filter="url(#bx-glow)">
+    <polygon points="536,228 476,196 402,214 388,262 430,308 508,300 546,264" fill="#2A1228" stroke="url(#bx-glove-r)" stroke-width="4" stroke-linejoin="round" />
+    <polygon points="476,196 402,214 422,244 490,230" fill="#FF5A1F" fill-opacity="0.3" />
+    <rect x="420" y="218" width="56" height="12" rx="6" transform="rotate(-14 448 224)" fill="#FF5A1F" />
+    <rect x="464" y="294" width="84" height="24" rx="10" transform="rotate(-14 506 306)" fill="#180E22" stroke="#FF2A85" stroke-width="3" />
+  </g>
+
+  <!-- Bottom Edge Accent Strip -->
+  <rect x="24" y="372" width="96" height="4" rx="2" fill="#00F0FF" />
+  <rect x="128" y="372" width="54" height="4" rx="2" fill="#FF2A85" />
+</svg>
