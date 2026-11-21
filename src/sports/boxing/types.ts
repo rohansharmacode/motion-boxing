@@ -175,6 +175,8 @@ export interface BoxingHud {
   setCoachCard(card: CoachCard | null): void
   /** false hides the webcam preview box (keyboard-only play). */
   setCameraActive(on: boolean): void
+  /** Online 1v1: name on the opponent's health bar from the next showFight. null = the drone. Optional. */
+  setOpponentName?(name: string | null): void
   /** Name typed on the start screen (persisted in localStorage "motion-sports.player-name"), "" if none. */
   readonly playerName: string
   /** Remove everything the HUD added to the page and all its listeners. */
@@ -246,6 +248,30 @@ export interface SportEngine<TScene> {
 
 export type BoxingPhase = 'idle' | 'fighting' | 'ended'
 
+/** A punch this player landed on the opponent avatar in an online 1v1 (sent to the other laptop). */
+export interface VersusPunch {
+  id: number
+  kind: PunchKind
+  hand: Hand
+  /** Damage if the opponent fails to block or dodge. */
+  damage: number
+  counter: boolean
+}
+
+/** How the other laptop defended one of our punches, and its health afterwards. */
+export interface VersusDefence {
+  id: number
+  outcome: 'blocked' | 'dodged' | 'hit'
+  damage: number
+  hp: number
+}
+
+/** Online 1v1 hooks. With a link set the drone AI is off and the drone stands in for the remote player. */
+export interface VersusLink {
+  sendPunch(p: VersusPunch): void
+  sendDefence(d: VersusDefence): void
+}
+
 export interface BoxingEngine extends SportEngine<BoxingScene> {
   readonly phase: BoxingPhase
   /** Keyboard path. Same rules as pose actions. */
@@ -259,4 +285,10 @@ export interface BoxingEngine extends SportEngine<BoxingScene> {
   getRoundLog(): RoundLog
   /** Stop the current round at once with no result, no callbacks and no telemetry (demo mode). */
   abortRound(): void
+  /** Online 1v1: null goes back to the drone AI. */
+  setVersus(link: VersusLink | null): void
+  /** Online 1v1: the opponent threw a punch. It telegraphs, then strikes; this player blocks or dodges it. */
+  incomingPunch(p: VersusPunch): void
+  /** Online 1v1: the opponent reported how it defended one of our punches. */
+  punchResolved(d: VersusDefence): void
 }

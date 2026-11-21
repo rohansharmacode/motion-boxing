@@ -12,10 +12,16 @@ export interface TrackerAttempt {
   lite: string
 }
 
+/** MediaPipe WasmFileset paths (absolute URLs when sent to the worker). */
+export interface WasmFiles {
+  classic: { wasmLoaderPath: string; wasmBinaryPath: string }
+  module: { wasmLoaderPath: string; wasmBinaryPath: string }
+}
+
 export type WorkerRequest =
   | {
       type: 'init'
-      wasmBase: string
+      wasm: WasmFiles
       attempts: TrackerAttempt[]
       options: { detection: number; presence: number; tracking: number }
     }

@@ -7,10 +7,26 @@ import type { Landmark as RawLandmark, NormalizedLandmark, PoseLandmarker } from
 import { StartupError } from './types.ts'
 import type { Joint, PoseFrame, StartupErrorKind } from './types.ts'
 import { LANDMARKS, STRIDE } from './workerProtocol.ts'
+import { createFrameClock } from './frameClock.ts'
+import type { FrameMeta } from './frameClock.ts'
 import type { TrackerAttempt, WorkerRequest, WorkerResponse } from './workerProtocol.ts'
 
-/** WASM runtime. The version in this URL must match @mediapipe/tasks-vision in package.json. */
-const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
+// WASM runtime, bundled from the installed @mediapipe/tasks-vision package so camera play needs no internet
+// (venue wifi). Classic loader for the main thread and classic workers, module loader for module workers.
+import wasmLoaderUrl from '@mediapipe/tasks-vision/vision_wasm_internal.js?url'
+import wasmBinaryUrl from '@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'
+import wasmModuleLoaderUrl from '@mediapipe/tasks-vision/vision_wasm_module_internal.js?url'
+import wasmModuleBinaryUrl from '@mediapipe/tasks-vision/vision_wasm_module_internal.wasm?url'
+import type { WasmFiles } from './workerProtocol.ts'
+
+const WASM: WasmFiles = {
+  classic: { wasmLoaderPath: wasmLoaderUrl, wasmBinaryPath: wasmBinaryUrl },
+  module: { wasmLoaderPath: wasmModuleLoaderUrl, wasmBinaryPath: wasmModuleBinaryUrl },
+}
+const absoluteWasm = (): WasmFiles => ({
+  classic: { wasmLoaderPath: absolute(WASM.classic.wasmLoaderPath), wasmBinaryPath: absolute(WASM.classic.wasmBinaryPath) },
+  module: { wasmLoaderPath: absolute(WASM.module.wasmLoaderPath), wasmBinaryPath: absolute(WASM.module.wasmBinaryPath) },
+})
 const MODEL_LITE = import.meta.env.BASE_URL + 'models/pose_landmarker_lite.task'
 /** The full model tracks arms far better (fewer flipped elbows and lost wrists) and is fast enough on a GPU. */
 const MODEL_FULL = import.meta.env.BASE_URL + 'models/pose_landmarker_full.task'
@@ -73,7 +89,7 @@ export function prefetchPoseAssets(): void {
   if (prefetched) return
   prefetched = true
   const model = modelOverride() === 'lite' ? MODEL_LITE : MODEL_FULL
-  const urls = [model, `${WASM_BASE}/vision_wasm_internal.js`, `${WASM_BASE}/vision_wasm_internal.wasm`]
+  const urls = [model, WASM.classic.wasmLoaderPath, WASM.classic.wasmBinaryPath]
   for (const url of urls) {
     // MediaPipe later loads these with CORS and no credentials, so match that to share the cache entry.
     fetch(url, { priority: 'low', mode: 'cors', credentials: 'omit' })
@@ -183,7 +199,7 @@ function startWorker(): Promise<WorkerTracker> {
     const attempts: TrackerAttempt[] = trackerAttempts().map((a) => ({ ...a, model: absolute(a.model), lite }))
     const init: WorkerRequest = {
       type: 'init',
-      wasmBase: WASM_BASE,
+      wasm: absoluteWasm(),
       attempts,
       options: { detection: MIN_DETECTION_CONFIDENCE, presence: MIN_PRESENCE_CONFIDENCE, tracking: MIN_TRACKING_CONFIDENCE },
     }
@@ -208,8 +224,8 @@ export function unpackJoints(packed: Float32Array, mirror: 'image' | 'world', ou
 
 async function buildLandmarker(): Promise<Tracker> {
   try {
-    const { FilesetResolver, PoseLandmarker } = await loadVision()
-    const fileset = await FilesetResolver.forVisionTasks(WASM_BASE)
+    const { PoseLandmarker } = await loadVision()
+    const fileset = WASM.classic
     for (const { delegate, model } of trackerAttempts()) {
       try {
         const landmarker = await PoseLandmarker.createFromOptions(fileset, {
@@ -319,6 +335,8 @@ function closeEngine(e: Engine): void {
   }
 }
 
+/** Width of the frames sent to the worker, px. */
+const INFER_WIDTH = 480
 /** A worker frame that never comes back (crash, hang) must not stall tracking forever, ms. */
 const WORKER_FRAME_TIMEOUT_MS = 2000
 
@@ -352,7 +370,6 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
 
   const subscribers = new Set<(frame: PoseFrame | null) => void>()
   let running = true
-  let lastT = -Infinity
   let lastVideoTime = -1
   let inferenceMs = 0
   let warnedFrame = false
@@ -375,15 +392,11 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     inferenceMs = inferenceMs === 0 ? ms : inferenceMs + INFERENCE_EMA * (ms - inferenceMs)
   }
 
-  const nextT = (now: number): number => {
-    const t = now > lastT ? now : lastT + 1
-    lastT = t
-    return t
-  }
+  /** Frames are stamped with the camera's capture time, so wrist speeds do not jitter with load. */
+  const clock = createFrameClock()
 
-  const detectOnMain = (landmarker: PoseLandmarker): void => {
+  const detectOnMain = (landmarker: PoseLandmarker, t: number): void => {
     const now = performance.now()
-    const t = nextT(now)
     try {
       const result = landmarker.detectForVideo(video, t)
       noteInference(performance.now() - now)
@@ -443,7 +456,7 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
   }
   if (engine.kind === 'worker') wireWorker(engine.worker)
 
-  const sendToWorker = (w: Worker): void => {
+  const sendToWorker = (w: Worker, t: number): void => {
     const now = performance.now()
     if (busySince !== null) {
       // Skip frames while the worker is busy; recover if one never comes back.
@@ -451,14 +464,19 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
       busySince = null
     }
     busySince = now
-    const t = nextT(now)
-    createImageBitmap(video).then(
+    // Inference size: the model works on 256x256 internally, so 480x360 loses nothing and halves conversion.
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    const scale = vw > 0 && vh > 0 ? Math.min(1, INFER_WIDTH / vw) : 1
+    const resize: ImageBitmapOptions =
+      scale < 1 ? { resizeWidth: Math.round(vw * scale), resizeHeight: Math.round(vh * scale), resizeQuality: 'low' } : {}
+    createImageBitmap(video, resize).then(
       (bitmap) => {
         if (!running || engine.kind !== 'worker' || engine.worker !== w) {
           bitmap.close()
           return
         }
-        const msg: WorkerRequest = { type: 'frame', bitmap, t, captureT: now }
+        const msg: WorkerRequest = { type: 'frame', bitmap, t, captureT: t }
         w.postMessage(msg, [bitmap])
       },
       () => {
@@ -473,7 +491,7 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
     if (useVfc) video.requestVideoFrameCallback(tick)
     else requestAnimationFrame(tick)
   }
-  const tick = (): void => {
+  const tick = (now: number, meta?: FrameMeta): void => {
     if (!running) return
     schedule()
     if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
@@ -481,8 +499,8 @@ async function launch(video: HTMLVideoElement, onStop: () => void): Promise<Pose
       if (video.currentTime === lastVideoTime) return
       lastVideoTime = video.currentTime
     }
-    if (engine.kind === 'worker') sendToWorker(engine.worker)
-    else if (engine.kind === 'main') detectOnMain(engine.landmarker)
+    if (engine.kind === 'worker') sendToWorker(engine.worker, clock.stamp(now, meta))
+    else if (engine.kind === 'main') detectOnMain(engine.landmarker, clock.stamp(now, meta))
   }
   schedule()
 

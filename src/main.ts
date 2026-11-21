@@ -1,5 +1,6 @@
 // Motion Sports entry: mounts the home dashboard. Each sport loads lazily on launch so the dashboard paints fast.
 import './style.css'
+import './fonts/index.ts'
 import { mountShell } from './shell/index.ts'
 import type { GameContext, GameSession } from './shell/index.ts'
 import type { BodyTracker } from './pose/body.ts'
@@ -12,6 +13,8 @@ type BoxingState = 'start' | 'loading' | 'calibrating' | 'tutorial' | 'fighting'
 
 /** Longest frame step fed to the game, ms (a hidden tab must not jump the round). */
 const MAX_DT_MS = 50
+/** Fixed game logic step, ms (120 Hz). */
+const STEP_MS = 1000 / 120
 const DEBUG_INTERVAL_MS = 100
 const NOOP_SESSION: GameSession = { dispose() {} }
 
@@ -45,6 +48,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     { createBoxingTutorial, tutorialNeeded },
     { createTrackingHint },
     { createQualityGovernor },
+    { createVersus },
   ] = await Promise.all([
     import('./sports/boxing/scene.ts'),
     import('./sports/boxing/hud.ts'),
@@ -64,6 +68,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     import('./sports/boxing/tutorial.ts'),
     import('./pose/trackingHint.ts'),
     import('./pose/qualityGovernor.ts'),
+    import('./sports/boxing/versus/index.ts'),
   ])
   // Nothing has been created yet, so there is nothing to dispose.
   if (ctx.signal.aborted) return NOOP_SESSION
@@ -86,7 +91,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   // Kinetic HUD: live stats, then the post-match screen with the Cortex coach card and leaderboard.
   // It also bridges this round's motion events to the server (src/api/boxingLink.ts, mock mode
   // without VITE_API_URL). ?hud=classic keeps the original in-game HUD.
-  const hud = new URLSearchParams(location.search).get('hud') === 'classic' ? createBoxingHud(ui) : createKineticHud(ui, { ctx })
+  const classicHud = new URLSearchParams(location.search).get('hud') === 'classic'
+  const hud = classicHud ? createBoxingHud(ui) : createKineticHud(ui, { ctx })
   const telemetry = createTelemetry()
   const overlay = createPoseOverlay(overlayCanvas)
   const trackingHint = createTrackingHint(ui)
@@ -104,6 +110,19 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   const sfx = createBoxingSfx()
   const engine = createBoxingEngine({ hud, telemetry, detector, sfx, getPlayerName: () => hud.playerName })
   const keyboard = createKeyboardFallback()
+  // Online 1v1 across two laptops: lobby button on the start screen, room relay in server/src/versus.ts.
+  const versus = createVersus(ui, {
+    engine,
+    playerName: () => hud.playerName,
+    setOpponentName: (name) => hud.setOpponentName?.(name),
+    onChoose: (input) => (input === 'camera' ? void startCamera() : startKeyboard()),
+    onLeave: () => {
+      stopCamera()
+      keyboard.setEnabled(false)
+      hud.setKeyboardMode(false)
+      showStart()
+    },
+  })
   // Bind the scene now so the drone idles on the start screen; beginFight rebinds with the real calibration.
   engine.init(scene, defaultCalibration(16 / 9))
 
@@ -128,9 +147,11 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function setState(next: BoxingState): void {
     state = next
     document.body.dataset.state = next
-    overlay.setGuide(next === 'calibrating')
+    // The Kinetic HUD draws its own stance guide; two guides on top of each other only confuse.
+    overlay.setGuide(next === 'calibrating' && classicHud)
     trackingHint.setActive((next === 'fighting' || next === 'tutorial') && pipeline !== null)
     if (next !== 'tutorial') endTutorial()
+    versus.setEntryVisible(next === 'start')
   }
 
   function endTutorial(): void {
@@ -183,10 +204,12 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
   function beginFight(c: Calibration): void {
     calibration = c
     engine.init(scene, c)
-    engine.startRound()
+    // Online: the round starts when both laptops are ready (versus.ready), not straight away.
+    if (!versus.active) engine.startRound()
     hud.setCameraActive(pipeline !== null)
     hud.showFight()
     setState('fighting')
+    if (versus.active) versus.ready()
   }
 
   function again(): void {
@@ -220,6 +243,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
 
   function onFrame(frame: PoseFrame | null): void {
     frames++
+    if (frame) lastPoseT = frame.t
     overlay.draw(frame, state === 'fighting' && engine.debug.guard === 1)
     trackingHint.push(frame)
     if (state === 'calibrating' && calibrator) {
@@ -228,7 +252,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
       if (p.status === 'done' && p.calibration) {
         calibrator = null
         bodyTracker = createBodyTracker(p.calibration, BOXING_FILTER)
-        if (tutorialNeeded()) beginTutorial(p.calibration)
+        if (tutorialNeeded() && !versus.active) beginTutorial(p.calibration)
         else beginFight(p.calibration)
       }
     } else if (state === 'tutorial' && bodyTracker && tutorial) {
@@ -301,7 +325,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
       hud.toggleDebug()
     } else if (e.code === 'KeyR' && state === 'ended') {
       again()
-    } else if (e.code === 'KeyM') {
+    } else if (e.code === 'KeyM' && !versus.active) {
       startDemo()
     }
   }
@@ -329,6 +353,10 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
 
   // ---------- one animation loop per session ----------
   let last = performance.now()
+  let stepAcc = 0
+  /** Capture time of the newest pose frame, for the latency readout. */
+  let lastPoseT: number | null = null
+  let latencyMs = 0
   let fps = 0
   let statAcc = 0
   let statFrames = 0
@@ -343,8 +371,19 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     const nextQuality = governor.update(rawDt, pipeline ? pipeline.inferenceMs : 0)
     if (nextQuality) scene.setQuality(nextQuality)
     if (keyboard.enabled) engine.onActions(keyboard.poll())
-    engine.update(dt)
+    // Fixed 120 Hz game logic ("Fix Your Timestep"): drone timing, telegraph windows and hit-stop run the
+    // same on every laptop whatever its frame rate. MAX_DT_MS bounds the steps after a hitch.
+    stepAcc += dt
+    while (stepAcc >= STEP_MS) {
+      engine.update(STEP_MS)
+      stepAcc -= STEP_MS
+    }
     scene.render()
+    // Movement-to-screen latency: age of the newest pose (camera capture time) when this frame was drawn.
+    if (lastPoseT !== null) {
+      const age = performance.now() - lastPoseT
+      if (age >= 0 && age < 1000) latencyMs = latencyMs === 0 ? age : latencyMs + 0.1 * (age - latencyMs)
+    }
 
     statFrames++
     statAcc += dt
@@ -361,6 +400,8 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
         ...engine.debug,
         fps,
         inferenceMs: pipeline ? Math.round(pipeline.inferenceMs * 10) / 10 : 0,
+        latencyMs: Math.round(latencyMs),
+        poseMode: pipeline ? pipeline.mode : 'none',
         delegate: pipeline ? pipeline.delegate : 'none',
         quality: scene.quality,
       })
@@ -379,6 +420,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     window.removeEventListener('motion-event', onMotionEvent)
     window.removeEventListener('resize', onResize)
     keyboard.dispose()
+    versus.dispose()
     engine.dispose()
     scene.dispose()
     sfx.dispose()
@@ -434,15 +476,10 @@ const leaderboard = (ctx: GameContext): Promise<GameSession> =>
 mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
 
 // Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
-if (!document.head.querySelector('link[rel="preconnect"][href="https://cdn.jsdelivr.net"]')) {
-  const link = document.createElement('link')
-  link.rel = 'preconnect'
-  link.href = 'https://cdn.jsdelivr.net'
-  link.crossOrigin = ''
-  document.head.append(link)
-}
 const prefetch = (): void => {
   import('./pose/pipeline.ts').then((m) => m.prefetchPoseAssets()).catch(() => {})
+  // Three.js is the biggest chunk (about 590 kB): fetch and parse it while the player browses the dashboard.
+  import('three').catch(() => {})
 }
 if (typeof requestIdleCallback === 'function') requestIdleCallback(prefetch, { timeout: 3000 })
 else setTimeout(prefetch, 1500)

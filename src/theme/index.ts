@@ -2,6 +2,7 @@
 // Importing this module applies the theme to <html data-theme> and loads its fonts and CSS.
 import './bright/theme.css'
 import './minimal.css'
+import '../fonts/index.ts'
 import { DEFAULT_THEME, THEME_IDS } from './types.ts'
 import type { ThemeId } from './types.ts'
 
@@ -10,7 +11,6 @@ export { DEFAULT_THEME, THEME_IDS } from './types.ts'
 
 /** v2: the default moved back to neon, so choices stored under the old key are dropped. */
 const STORAGE_KEY = 'kinetic.theme.v2'
-const BRIGHT_FONTS = 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&family=Jersey+10&family=Manrope:wght@400;500;600;700;800&display=swap'
 
 const isThemeId = (v: unknown): v is ThemeId => typeof v === 'string' && (THEME_IDS as readonly string[]).includes(v)
 
@@ -47,13 +47,7 @@ export function applyTheme(): ThemeId {
   html.dataset.theme = theme
   if (theme === 'bright') {
     html.style.colorScheme = 'light'
-    if (!document.querySelector('link[data-theme-fonts]')) {
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = BRIGHT_FONTS
-      link.dataset.themeFonts = 'bright'
-      document.head.append(link)
-    }
+    // Fonts are self-hosted (src/fonts), bundled with this module: nothing to fetch from the internet.
     let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
     if (!meta) {
       meta = document.createElement('meta')
