@@ -1663,3 +1663,32 @@ body.ar-page {
     transition: none;
   }
 }
+
+/* ---------- neon arcade skin: boxing palette (cyan #22E5FF, pink #FF2E88, dark #070A17) ---------- */
+.ar-root.ar-root, .ar-hud.ar-hud, body.ar-page.ar-page {
+  --ar-bg: #070a17;
+  --ar-surface: rgba(7, 10, 23, 0.86);
+  --ar-surface-2: rgba(7, 10, 23, 0.9);
+  --ar-border: rgba(34, 229, 255, 0.28);
+  --ar-text: #f3f6ff;
+  --ar-muted: #8b96c9;
+  --ar-pale: #8b96c9;
+  --ar-cyan: #22e5ff;
+  --ar-magenta: #ff2e88;
+  --ar-bad: #ff2e88;
+  --ar-lime: #22e5ff;
+}
+/* Big arcade popups: cyan words with a pink drop, gold only for the bullseye. */
+.ar-hud .ar-shot--hot .ar-shot-main, .ar-hud .ar-shot--cool .ar-shot-main { color: #22e5ff; text-shadow: 0 0 22px rgba(34, 229, 255, 0.6), 4px 4px 0 #ff2e88; }
+.ar-hud .ar-shot--low .ar-shot-main { color: #f3f6ff; text-shadow: 3px 3px 0 #ff2e88; }
+.ar-hud .ar-shot--miss .ar-shot-main { color: #ff2e88; text-shadow: 0 0 24px rgba(255, 46, 136, 0.6), 4px 4px 0 #070a17; }
+.ar-hud .ar-shot-sub { color: #f3f6ff; letter-spacing: 0.08em; }
+/* Primary buttons and the end heading on the boxing palette (cyan, pink drop), not gold. */
+.ar-hud .ar-btn:not(.ar-btn--ghost) { background: #22e5ff; color: #070a17; box-shadow: 0 0 18px rgba(34, 229, 255, 0.45); }
+.ar-hud .ar-btn--ghost { border-color: rgba(255, 46, 136, 0.7); }
+.ar-hud .ar-end-heading, .ar-hud .ar-end-heading--win { color: #22e5ff; text-shadow: 0 0 18px rgba(34, 229, 255, 0.5), 3px 3px 0 #ff2e88; }
+.ar-hud .ar-end-num { color: #f3f6ff; text-shadow: 0 0 22px rgba(34, 229, 255, 0.55), 4px 4px 0 #ff2e88; }
+.ar-hud .ar-end { border-color: rgba(34, 229, 255, 0.35); box-shadow: 0 0 48px rgba(34, 229, 255, 0.12), 0 24px 60px rgba(0, 0, 0, 0.55); }
+/* Hide the draw meter while a shot popup plays (it sat over the arrow-cam replay). */
+.ar-meter { transition: opacity 0.2s; }
+.ar-hud:has(.ar-shot) .ar-meter { opacity: 0; }
