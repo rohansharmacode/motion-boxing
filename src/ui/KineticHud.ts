@@ -221,8 +221,8 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       guardOn = on;
     },
 
-    setTelegraph(on) {
-      telegraph.classList.toggle('kr-on', on && phase === 'fight');
+    setTelegraph(pattern) {
+      telegraph.classList.toggle('kr-on', pattern !== null && phase === 'fight');
     },
 
     setKeyboardMode(on) {
@@ -230,7 +230,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
       hud?.setMode(on ? 'Keyboard mode' : null);
     },
 
-    showRoundEnd(result: RoundResult, onAgain) {
+    showRoundEnd(result: RoundResult, onAgain, onHome) {
       if (phase === 'ended') return;
       phase = 'ended';
       telegraph.classList.remove('kr-on');
@@ -253,7 +253,7 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
           onRematch: () => {
             if (phase === 'ended') onAgain();
           },
-          onHome: opts.onHome ?? (opts.ctx ? undefined : () => location.reload()),
+          onHome: onHome ?? opts.onHome ?? (opts.ctx ? undefined : () => location.reload()),
         });
       }, 1500);
     },
@@ -267,6 +267,23 @@ export function createKineticHud(root: HTMLElement, opts: KineticHudOptions = {}
 
     toggleDebug() {
       debug.hidden = !debug.hidden;
+    },
+
+    setCombo(_count: number) {
+      // No-op: KineticHud already drives its combo meter from flashPunch/callout.
+    },
+
+    setCoachCard(_card) {
+      // No-op: the post-match screen fetches its coach card from the backend.
+    },
+
+    setCameraActive(on) {
+      const stage = document.getElementById('stage');
+      if (stage) stage.style.display = on ? '' : 'none';
+    },
+
+    get playerName() {
+      return playerName;
     },
 
     dispose() {
