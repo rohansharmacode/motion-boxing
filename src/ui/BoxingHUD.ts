@@ -269,6 +269,7 @@ export class BoxingHUD {
     this.guardVal = v;
     this.guardNum.textContent = `${v}%`;
     this.guardFill.style.transform = `scaleX(${v / 100})`;
+    this.guard.style.setProperty('--gp', String(v)); // ring skins read this
     this.guard.setAttribute('aria-valuenow', String(v));
     const tier = v < 35 ? 'low' : v < 65 ? 'mid' : 'ok';
     if (tier !== this.guardTier) {
