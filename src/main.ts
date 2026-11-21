@@ -2,6 +2,7 @@
 import './style.css'
 import './fonts/index.ts'
 import { mountShell } from './shell/index.ts'
+import { mountHandNav } from './handnav/index.ts'
 import type { GameContext, GameSession } from './shell/index.ts'
 import type { BodyTracker } from './pose/body.ts'
 import type { Calibrator } from './pose/calibration.ts'
@@ -474,6 +475,8 @@ const leaderboard = (ctx: GameContext): Promise<GameSession> =>
   import('./ui/LeaderboardScreen.ts').then((m) => m.startLeaderboard(ctx))
 
 mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
+// Every menu works hands-only: point with a raised hand, hold on a button until the ring fills.
+mountHandNav({ video: el('#webcam', HTMLVideoElement) })
 
 // Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
 const prefetch = (): void => {

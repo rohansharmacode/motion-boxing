@@ -1,7 +1,7 @@
 // Shell contract: the home dashboard, game selection and the hand-off to a sport.
 // The shell owns src/shell/* only. Sports plug in through GameLauncher.
 
-export type TileId = 'boxing' | 'goalkeeper' | 'archery' | 'leaderboard'
+export type TileId = 'boxing' | 'goalkeeper' | 'archery' | 'customise' | 'leaderboard'
 
 /** What the shell gives a game when it starts. */
 export interface GameContext {
