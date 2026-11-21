@@ -72,36 +72,36 @@ describe('online 1v1 engine', () => {
     expect(a.hp.player).toBe(100)
   })
 
-  test('an undefended punch lands after the telegraph and both screens agree on health', () => {
+  test('real time: an undefended punch lands at once and both screens agree on health', () => {
     const { a, b, tick } = pair()
     a.engine.onActions(punch('cross'))
-    tick(700)
-    expect(b.hp.player).toBe(100) // still telegraphing (1 s wind-up)
-    tick(500)
+    tick(50)
     expect(b.hp.player).toBe(92)
     expect(a.hp.drone).toBe(92)
   })
 
-  test('a slip dodges a straight and a guard cuts the damage', () => {
+  test('the guard cuts the damage; dodging is decided by glove collision on the attacker screen', () => {
     const { a, b, tick } = pair()
-    b.engine.onActions(hold(false, 'left'))
-    a.engine.onActions(punch('jab'))
-    tick(1300)
-    expect(b.hp.player).toBe(100)
     b.engine.onActions(hold(true, null))
     a.engine.onActions(punch('cross'))
-    tick(1300)
+    tick(50)
     expect(b.hp.player).toBeCloseTo(98.4, 5)
     expect(a.hp.drone).toBeCloseTo(98.4, 5)
+    // A slip that the attacker's glove still reached (fake scene: always a hit) is not a second dodge.
+    b.engine.onActions(hold(false, 'left'))
+    a.engine.onActions(punch('cross'))
+    tick(50)
+    expect(b.hp.player).toBeCloseTo(90.4, 5)
   })
 
-  test('only one punch in flight: spamming does not stack damage', () => {
+  test('punches in quick succession each resolve on their own', () => {
     const { a, b, tick } = pair()
     a.engine.onActions(punch())
     a.engine.onActions(punch())
     a.engine.onActions(punch())
-    tick(1300)
-    expect(b.hp.player).toBe(92)
+    tick(100)
+    expect(b.hp.player).toBe(76)
+    expect(a.hp.drone).toBe(76)
   })
 
   test('KO: the defender loses and the attacker wins', () => {

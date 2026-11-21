@@ -23,6 +23,8 @@ export interface VersusDeps {
   getPuppet?(): OpponentPuppet
   /** Drive the opponent robot from the friend's relayed gloves and lean (null = bot animation). */
   setOpponentPuppet?(p: OpponentPuppet | null): void
+  /** Tight hit spheres while in a room (only a glove that really reaches the friend lands). */
+  setStrictHits?(on: boolean): void
   /** Paired: start the chosen input. Calibration then calls ready() instead of starting a round. */
   onChoose(input: VersusInput): void
   /** Leave the online match (opponent left, connection lost, or the player cancelled mid-match). */
@@ -247,6 +249,7 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
     window.clearInterval(poseTimer)
     poseTimer = 0
     deps.setOpponentPuppet?.(null)
+    deps.setStrictHits?.(false)
     renderBanner(null)
     c?.close()
   }
@@ -326,6 +329,7 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
       }
       client = c
       setPeer(c.peerName)
+      deps.setStrictHits?.(true)
       engine.setVersus({
         sendPunch: (p) => c.send({ k: 'punch', ...p }),
         sendDefence: (d) => c.send({ k: 'defence', ...d }),

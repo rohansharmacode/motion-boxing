@@ -93,7 +93,8 @@ const STAMINA_REST_MS = 450
 const TIRED_DAMAGE = 0.4
 
 /** Online 1v1: a punch telegraphs this long on the other laptop, so it can be read and slipped. */
-const VERSUS_TELEGRAPH_MS = 1000
+/** Online 1v1: no wind-up. The friend's real glove (relayed pose) is the tell; punches resolve on arrival. */
+const VERSUS_TELEGRAPH_MS = 0
 /** Online 1v1: landed damage scale (a round of player punches is much slower than drone attacks). */
 const VERSUS_DAMAGE_SCALE = 1.6
 /** Online 1v1: one punch in flight at a time; forget it after this long without an answer. */
@@ -209,7 +210,8 @@ export function createBoxingEngine(deps: {
   let versus: VersusLink | null = null
   let nextPunchId = 1
   /** Our punch waiting for the other laptop's answer, with the local hit for the impact effect. */
-  let inFlight: { punch: VersusPunch; thrown: Punch; hit: HitResult; sentMs: number } | null = null
+  /** Our punches waiting for the other laptop's answer, by id, with the local hit for the impact effect. */
+  const inFlight = new Map<number, { punch: VersusPunch; thrown: Punch; hit: HitResult; sentMs: number }>()
 
   // Combo chain of landed punches.
   let combo = 0
@@ -254,7 +256,7 @@ export function createBoxingEngine(deps: {
     combo = 0
     maxCombo = 0
     lastLandedMs = 0
-    inFlight = null
+    inFlight.clear()
     playerGuard.reset()
     bot.reset()
   }
@@ -370,7 +372,7 @@ export function createBoxingEngine(deps: {
     }
     scene.punch(punch.hand, punch.kind)
     const stunned = bot.guard.broken
-    const aimed = scene.resolveHit(punch.hand, punch.kind)
+    const aimed = scene.resolveHit(punch.hand, punch.kind, punch.source === 'keyboard')
     // Online 1v1: the other fighter is a person, so the bot never defends.
     const defence: BotDefenceResult = versus ? { kind: 'open' } : bot.onPunch(punch.kind, roundMs, aimed !== null)
     let hit = defence.kind === 'evaded' ? null : aimed
@@ -391,7 +393,7 @@ export function createBoxingEngine(deps: {
 
     if (hit && versus) {
       // Online: the opponent decides on their laptop whether it lands. One punch in flight at a time.
-      if (!inFlight) {
+      {
         const accuracyMult = 0.6 + (0.4 * hit.accuracy) / 100
         const sent: VersusPunch = {
           id: nextPunchId++,
@@ -400,7 +402,7 @@ export function createBoxingEngine(deps: {
           damage: round1(BASE_DAMAGE[punch.kind] * accuracyMult * (counter ? COUNTER_MULT : 1) * VERSUS_DAMAGE_SCALE),
           counter,
         }
-        inFlight = { punch: sent, thrown: punch, hit, sentMs: roundMs }
+        inFlight.set(sent.id, { punch: sent, thrown: punch, hit, sentMs: roundMs })
         versus.sendPunch(sent)
       }
       // The HIT or MISS flash waits for the other laptop's answer (punchResolved).
@@ -516,12 +518,14 @@ export function createBoxingEngine(deps: {
     // Clear first so this attack can never resolve (or deal damage) twice.
     attack = null
     nextAttackMs = roundMs + attackGapMs()
-    scene?.droneStrike(a.pattern)
+    if (!a.remote) scene?.droneStrike(a.pattern) // online, the relayed glove already threw it
     hud.setTelegraph(null)
     let outcome: RoundLog['defences'][number]['outcome']
     const full = a.remote ? a.remote.damage : STRIKE_DAMAGE[a.pattern] * DAMAGE_SCALE
     const hpBefore = playerHp
-    if (isDodge(a.pattern, slip)) {
+    // Online: the attacker's screen already tested the glove against our relayed head and body, so a
+    // slip that made it miss never arrives here. Our side only decides whether the guard caught it.
+    if (!a.remote && isDodge(a.pattern, slip)) {
       outcome = 'dodged'
       dodges++
       telemetry.emit({ event_type: 'DODGE', reaction_ms: a.reactionMs, metrics: { pattern: a.pattern, slip } })
@@ -551,7 +555,7 @@ export function createBoxingEngine(deps: {
       playerHp = Math.max(0, round1(playerHp - full))
       scene?.playerHit(false)
       scene?.hitstop(PLAYER_HITSTOP_MS)
-      hud.callout(slip ? WRONG_DODGE[a.pattern] : guard ? 'GUARD DOWN' : 'HIT', 'bad')
+      hud.callout(slip && !a.remote ? WRONG_DODGE[a.pattern] : guard ? 'GUARD DOWN' : 'HIT', 'bad')
       sfx?.playerHit()
       setCombo(0)
     }
@@ -567,7 +571,7 @@ export function createBoxingEngine(deps: {
       if (roundMs >= attack.startMs + attack.telegraphMs) strike(attack)
     } else if (versus) {
       // Online: attacks come only from the other laptop.
-      if (inFlight && roundMs - inFlight.sentMs > VERSUS_FLIGHT_MS) inFlight = null
+      for (const [id, f] of inFlight) if (roundMs - f.sentMs > VERSUS_FLIGHT_MS) inFlight.delete(id)
     } else if (roundMs >= nextAttackMs && roundMs + TELEGRAPH_MS <= ROUND_MS) {
       telegraph()
     }
@@ -729,7 +733,7 @@ export function createBoxingEngine(deps: {
 
     setVersus(link: VersusLink | null) {
       versus = link
-      inFlight = null
+      inFlight.clear()
     },
 
     incomingPunch(p: VersusPunch) {
@@ -738,16 +742,15 @@ export function createBoxingEngine(deps: {
       if (attack) strike(attack)
       if (!live()) return
       const pattern = VERSUS_PATTERN[p.kind] ?? 'straight'
-      attack = { pattern, startMs: roundMs, reactionMs: null, remote: p, telegraphMs: VERSUS_TELEGRAPH_MS }
-      scene?.droneTelegraph(VERSUS_TELEGRAPH_MS, pattern)
-      hud.setTelegraph(pattern)
-      sfx?.telegraph(pattern)
+      const a: Attack = { pattern, startMs: roundMs, reactionMs: null, remote: p, telegraphMs: VERSUS_TELEGRAPH_MS }
+      // Real time: the punch lands now. The friend's own glove, relayed, is what you saw coming.
+      strike(a)
     },
 
     punchResolved(d: VersusDefence) {
       if (!versus || phase !== 'fighting') return
-      const sent = inFlight && inFlight.punch.id === d.id ? inFlight : null
-      if (sent) inFlight = null
+      const sent = inFlight.get(d.id) ?? null
+      inFlight.delete(d.id)
       droneHp = Math.max(0, Math.min(MAX_HP, d.hp))
       if (koLeftMs > 0) return
       if (d.outcome === 'hit') {

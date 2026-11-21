@@ -144,6 +144,7 @@ async function startBoxing(ctx: GameContext): Promise<GameSession> {
     setOpponentLook: (friend) => scene.setOpponentLook?.(friend),
     getPuppet: () => scene.getPuppet?.() ?? { left: [0, 0, 0], right: [0, 0, 0], lean: [0, 0, 0] },
     setOpponentPuppet: (p) => scene.setOpponentPuppet?.(p),
+    setStrictHits: (on) => scene.setStrictHits?.(on),
     onChoose: (input) => (input === 'camera' ? void startCamera() : startKeyboard()),
     onLeave: () => {
       stopCamera()
