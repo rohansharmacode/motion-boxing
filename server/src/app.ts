@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import express, { type Express } from 'express';
@@ -354,6 +355,12 @@ export function createApp({ repo, cortex, config, log }: AppDeps): AppHandle {
 
   app.use(createPlusRouter({ repo, cortex, config, log }));
   app.use(createAskRouter({ repo, cortex, config, log }));
+
+  // Hosted mode: serve the built front end (../dist) from the same origin as the API and relay.
+  const staticDir = process.env.STATIC_DIR?.trim();
+  if (staticDir) {
+    app.use(express.static(path.resolve(staticDir), { maxAge: '1h', index: 'index.html' }));
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler(log));
