@@ -5,7 +5,7 @@ Source of truth for names shared by `sql/`, `server/`, `streamlit/` and `scripts
 All objects live in `MOTION_DB.PUBLIC`. Everything here is ADDITIVE: no existing table, view,
 column, endpoint or response field is renamed or removed.
 
-Run order (as ACCOUNTADMIN): `setup.sql` -> `analytics.sql` -> `pipelines.sql` -> `cortex.sql` -> `semantic.sql`.
+Run order (as ACCOUNTADMIN): `setup.sql` -> `analytics.sql` -> `pipelines.sql` -> `cortex.sql` -> `semantic.sql` -> `multisport.sql`.
 Each new file is idempotent (CREATE OR REPLACE for derived objects, IF NOT EXISTS + MERGE for seeded data)
 and ends with its own GRANTs to `MOTION_APP_ROLE` and `MOTION_READONLY_ROLE`.
 If a new file fails, the original game keeps working: the server treats every object below as optional.
@@ -88,3 +88,23 @@ Similarity = `VECTOR_COSINE_SIMILARITY` (-1..1); shown to people as `similarity_
   These appear on the front-end response shape and `GET /api/session/:id/coach`; the original `{session_id}` body shape is unchanged.
 - Model default: `mistral-large3` (server `CORTEX_MODEL`, and a literal in the T_SCOUTING task). The structured schema uses only
   type/properties/required/items so every model accepts it; the server enforces 3 tips and a valid focus itself.
+
+## Multi-sport (multisport.sql: goalkeeper now, archery next)
+No DDL change: goalkeeper and archery rows go into `MOTION_EVENTS` with their own `sport`. Every boxing object
+filters `LOWER(COALESCE(sport, 'boxing')) = 'boxing'`, so boxing numbers are unchanged.
+- Event mapping (front-end shape and original API both accepted; the raw event stays in `payload`):
+  - `SAVE` / `GOAL` -> sport `'goalkeeper'`, event_type `'save'` / `'goal'`, `hand` = saving glove (`L`/`R`, NULL for torso or goal),
+    `speed_mps` = peak glove speed (m/s), `reaction_ms`, `accuracy` 0..1, `guard_up` NULL,
+    `points` = save 1000 (+250 if reaction < 450 ms, +150 punch clearance, + accuracy/2), goal 0 (the keeper engine's arcade score),
+    `payload:zone` 0..8 (= row * 3 + col, row 0 = top, col 0 = screen left; falls back to `payload:metrics:zone`, then row/col).
+  - `ARROW_RELEASE` -> sport `'archery'`, event_type `'arrow'`, `points` = ring 0..10 (or `metrics.points`),
+    `accuracy` = accuracy_score / 100 (else ring / 10), `payload:ring`, `payload:dx`, `payload:dy` (hit offset; NULL when not sent).
+  - Original API: `POST /api/session/start {sport:'goalkeeper'|'archery'}`; events use `sport`, event_type `save|goal|arrow`,
+    `hand` and `speed_mps` optional. Session end works for any sport; the coach card uses a goalkeeper or archery prompt.
+- Views: `V_GOALKEEPER_STATS` (per player: shots_faced, saves, goals_conceded, save_pct, avg/best reaction, max glove speed, best_score),
+  `V_GOALKEEPER_ZONES` (player x zone: shots, saves, save_pct, zone_label), `V_ARCHERY_STATS` (per player: arrows, avg_points,
+  best_arrow, best_score, bullseyes, best/avg grouping, aim bias), `V_LEADERBOARD_BY_SPORT` (sport, rank, player_id, name,
+  best_score, score, sessions, max_speed, best_reaction_ms), `V_DECATHLON` (per player: per-sport percentile of best score
+  via CUME_DIST, overall_rating = mean over sports played, sports_played), `MULTISPORT_RATING` DYNAMIC TABLE (V_DECATHLON, 1 minute lag).
+- `GET /api/leaderboard?sport=boxing|goalkeeper|archery` (case-insensitive, default boxing; unknown sport -> 400). Same row shape for
+  every sport; for goalkeeper/archery `fastest_punch` / `max_speed` hold the fastest glove / release speed.

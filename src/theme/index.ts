@@ -8,7 +8,7 @@ export type { ThemeId } from './types.ts'
 export { DEFAULT_THEME, THEME_IDS } from './types.ts'
 
 const STORAGE_KEY = 'kinetic.theme'
-const BRIGHT_FONTS = 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&display=swap'
+const BRIGHT_FONTS = 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&family=Jersey+10&family=Manrope:wght@400;500;600;700;800&display=swap'
 
 const isThemeId = (v: unknown): v is ThemeId => typeof v === 'string' && (THEME_IDS as readonly string[]).includes(v)
 

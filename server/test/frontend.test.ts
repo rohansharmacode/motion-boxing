@@ -61,10 +61,12 @@ describe('mapFrontendEvent', () => {
     const block = mapFrontendEvent({ ...base, event_type: 'BLOCK', metrics: {} }, 0.4)!;
     expect(block).toMatchObject({ event_type: 'block', points: 5, accuracy: null });
   });
-  it('maps DODGE to slip/duck and ignores types the boxing analytics do not model', () => {
+  it('maps DODGE to slip/duck and ignores TICK (SAVE/GOAL/ARROW_RELEASE: test/multisport.test.ts)', () => {
     expect(mapFrontendEvent({ ...base, event_type: 'DODGE', metrics: { kind: 'duck' } }, 0.4)).toMatchObject({ event_type: 'duck', points: 5, accuracy: null });
     expect(mapFrontendEvent({ ...base, event_type: 'DODGE', metrics: { hand: 'R' } }, 0.4)).toMatchObject({ event_type: 'slip', hand: 'R' });
-    for (const t of ['TICK', 'SAVE', 'GOAL']) expect(mapFrontendEvent({ ...base, event_type: t }, 0.4)).toBeNull();
+    expect(mapFrontendEvent({ ...base, event_type: 'TICK' }, 0.4)).toBeNull();
+    expect(mapFrontendEvent({ ...base, event_type: 'SAVE' }, 0.4)).toMatchObject({ sport: 'goalkeeper', event_type: 'save' });
+    expect(mapFrontendEvent({ ...base, event_type: 'GOAL' }, 0.4)).toMatchObject({ sport: 'goalkeeper', event_type: 'goal' });
   });
   it('splits "Name: description" drills', () => {
     expect(splitDrill('Guard-Return Jabs: 3 x 1 min')).toEqual({ name: 'Guard-Return Jabs', description: '3 x 1 min' });

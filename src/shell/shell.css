@@ -245,7 +245,6 @@
   -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   opacity: 0.45;
-  filter: drop-shadow(0 0 18px var(--a));
   will-change: transform;
   animation: shell-spin 14s linear infinite;
   pointer-events: none;
@@ -665,10 +664,11 @@
 
 @media (max-width: 760px), (max-height: 520px) {
   .shell { overflow-y: auto; grid-template-rows: auto auto auto auto; }
-  .shell-grid { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
-  .shell-tile--featured { grid-column: 1 / span 2; grid-row: auto; min-height: 240px; }
+  .shell-grid { grid-template-columns: 1fr 1fr; grid-template-rows: none; min-height: auto; }
+  .shell-tile--featured { grid-column: 1 / span 2; grid-row: auto; }
   .shell-tile--leaderboard { grid-column: 1 / span 2; }
-  .shell-tile { min-height: 160px; }
+  /* Fixed height: the tiles are size containers, so they do not grow with content. */
+  .shell-tile { height: 200px; padding: 18px 22px; }
   .shell-privacy { margin-left: 0; }
 }
 
