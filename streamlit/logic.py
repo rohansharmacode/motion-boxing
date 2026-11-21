@@ -87,7 +87,12 @@ MAX_QUESTION_CHARS = 500
 MAX_PROMPT_CHARS = 6000
 MAX_ANSWER_CHARS = 4000
 COACH_TIMEOUT_S = 25.0
-CORTEX_MODELS = ["mistral-large2", "llama3.1-70b", "snowflake-arctic", "llama3.1-8b"]
+# mistral-large2 and llama3.1-70b became "legacy" on 2026-08-12 and fail on accounts that never used
+# them (docs.snowflake.com bcr-august-model-deprecations), so current models come first.
+CORTEX_MODELS = [
+    "mistral-large3", "llama3.3-70b", "claude-sonnet-4-6",
+    "mistral-large2", "llama3.1-70b", "snowflake-arctic", "llama3.1-8b",
+]
 DEFAULT_CORTEX_MODEL = CORTEX_MODELS[0]
 
 EMPTY = "—"  # em dash for missing values in the UI
