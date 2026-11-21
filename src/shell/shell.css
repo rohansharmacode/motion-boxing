@@ -176,7 +176,6 @@
 }
 
 .shell-tile--featured { grid-column: 1 / span 2; grid-row: 1 / span 2; }
-.shell-tile--leaderboard { grid-column: 3 / span 2; }
 
 .shell-tile {
   --dwell: 0;

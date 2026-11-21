@@ -80,6 +80,8 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
   const zHit = L2 + cfg.length * 0.06
   /** Depth before the hit plane where a swing can connect; its first half aims left (early), past the plane aims right (late). */
   const zone = cfg.length * 0.12
+  /** Serve contact height above the surface. */
+  const serveH = cfg.id === 'tennis' ? 1.4 : 0.3
 
   // ---------- DOM ----------
   const root = document.createElement('div')
@@ -224,6 +226,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
   aiRacket.position.set(0.32, bodyH * 0.75, 0.1)
   ai.add(aiBody, aiHead, visor, aiRacket)
   ai.position.set(0, cfg.id === 'tennis' ? 0 : top - bodyH * 0.55, -zHit - 0.25)
+  if (cfg.id === 'tennis') ai.scale.setScalar(1.8)
   scene.add(ai)
 
   // ---------- state ----------
@@ -380,17 +383,17 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
       ball.live = true
       ball.inPlay = false
       ball.v.set(0, 0, 0)
-      ball.p.set(racketX, top + 0.35, zHit)
+      ball.p.set(racketX, top + serveH, zHit)
     } else {
       aiX = (Math.random() - 0.5) * W2
       ball.live = true
       ball.inPlay = false
-      ball.p.set(aiX, top + 0.35, -zHit)
+      ball.p.set(aiX, top + serveH, -zHit)
       later(900, () => {
         if (phase !== 'serve') return
         phase = 'rally'
         pok()
-        launch(new THREE.Vector3(aiX, top + 0.3, -zHit), 1, 0.25 + Math.random() * 0.3, (Math.random() - 0.5) * 1.4, -1)
+        launch(new THREE.Vector3(aiX, top + serveH, -zHit), 1, 0.25 + Math.random() * 0.3, (Math.random() - 0.5) * 1.4, -1)
         hint()
       })
     }
@@ -431,7 +434,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
     if (phase === 'serve' && server === 1) {
       phase = 'rally'
       pok()
-      launch(new THREE.Vector3(racketX, top + 0.3, zHit), -1, 0.3 + power * 0.6, aim, 1)
+      launch(new THREE.Vector3(racketX, top + serveH, zHit), -1, 0.3 + power * 0.6, aim, 1)
       rally = 0
       hint()
     }
@@ -461,10 +464,10 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
 
   function aiHit(): void {
     if (ball.by !== 1 || !ball.inPlay || ball.bounces < 1 || ball.p.z < -zHit) return
-    if (ball.p.z > -zHit + 0.15) return
+    if (ball.p.z > -zHit + Math.max(0.15, cfg.length * 0.02)) return
     const dx = Math.abs(ball.p.x - aiX)
     const hard = Math.min(1, ball.v.length() / (cfg.length / cfg.flight[0]))
-    const err = cfg.aiError + hard * 0.25 + Math.min(rally, 10) * 0.01
+    const err = cfg.aiError + hard * 0.15 + Math.min(rally, 10) * 0.01
     if (dx > cfg.reach * 1.1 || aiMiss < err) return // too far, or fluffs it: the ball flies past
     rally++
     pok()
@@ -669,7 +672,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
     if (keys.has('ArrowRight')) targetX = Math.min(cfg.travel, targetX + cfg.travel * 1.6 * dt)
     if (autoAim && ball.inPlay) targetX = Math.max(-cfg.travel, Math.min(cfg.travel, ball.p.x))
     racketX += (targetX - racketX) * Math.min(1, dt * 14)
-    if (phase === 'serve' && server === 1) ball.p.set(racketX + 0.05, top + 0.3 + Math.abs(Math.sin(now / 300)) * 0.12, zHit)
+    if (phase === 'serve' && server === 1) ball.p.set(racketX + 0.05, top + serveH + Math.abs(Math.sin(now / 300)) * 0.12, zHit)
     acc += dt * cfg.slowmo
     while (acc >= STEP) {
       step(STEP)
@@ -696,7 +699,7 @@ export async function startRacket(ctx: GameContext, cfg: RacketConfig): Promise<
     swingAnim = simT - swingAt < 0.25 ? 1 : swingAnim * 0.85
     myRacket.position.set(racketX, top + (cfg.id === 'tennis' ? 0.9 : 0.16), zHit + 0.05)
     myRacket.rotation.set(-0.3, 0, swingAnim * 0.9 * (swingAim >= 0 ? -1 : 1))
-    ai.position.x = aiX - 0.3
+    ai.position.x = aiX - 0.3 * ai.scale.x
     aiRacket.rotation.z = Math.sin(now / 250) * 0.15
     // camera eases a little with the player's racket
     camera.position.x += (racketX * 0.25 - camera.position.x) * Math.min(1, dt * 3)
