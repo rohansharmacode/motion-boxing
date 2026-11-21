@@ -3,6 +3,7 @@
 // Two passes: the range through a narrow archer lens, then the first-person bow through its own wide lens.
 
 import * as THREE from 'three'
+import { buildTronArena } from '../shared/tronArena.ts'
 import type { ArcheryScene, Hand, Vec2, Vec3 } from './types.ts'
 import { EYE, LAUNCH_POS, RING_COUNT, RING_WIDTH, TARGET_CENTER, TARGET_RADIUS, TARGET_Z } from './types.ts'
 
@@ -359,6 +360,30 @@ export function createArcheryScene(): ArcheryScene {
   scene.fog = new THREE.Fog(FOG, 36, 150)
 
   const archerLook = new THREE.Vector3(TARGET_CENTER.x, TARGET_CENTER.y, TARGET_Z)
+  // Neon-grid set dressing: floor circuits beside the lane, light runners, towers on the horizon.
+  const tron = buildTronArena({
+    seed: 11,
+    circuits: [
+      { x0: 2.7, x1: 9, z0: -3, z1: -30 },
+      { x0: -9, x1: -2.7, z0: -3, z1: -30 },
+      { x0: -14, x1: 14, z0: -30, z1: -42 },
+    ],
+    tracks: [
+      [3.4, -2, 3.4, -30],
+      [-3.4, -30, -3.4, -2],
+      [-14, -33, 14, -33],
+      [14, -38, -14, -38],
+    ],
+    towers: [
+      { x0: -45, x1: -9, z0: -50, z1: -110 },
+      { x0: 9, x1: 45, z0: -50, z1: -110 },
+    ],
+    towerCount: 26,
+    towerHeight: [10, 40],
+    motes: { x0: -10, x1: 10, z0: -40, z1: -2, y: 5 },
+  })
+  scene.add(tron.group)
+
   const archerCam = new THREE.PerspectiveCamera(ARCHER_FOV, 16 / 9, 0.1, 900)
   archerCam.position.set(EYE.x, EYE.y, EYE.z)
   archerCam.lookAt(archerLook)
@@ -1682,6 +1707,7 @@ export function createArcheryScene(): ArcheryScene {
       updateParticles(sparks, dt)
       updateParticles(dust, dt)
       updateFlashes(dt)
+      tron.update(time)
       haloFlare = Math.max(0, haloFlare - dt * 1.2)
       haloMat.opacity = 0.42 + 0.55 * haloFlare + (reduced ? 0 : Math.sin(time * 1.7) * 0.04)
     },
@@ -1696,6 +1722,7 @@ export function createArcheryScene(): ArcheryScene {
     },
 
     dispose(): void {
+      tron.dispose()
       for (const s of [scene, bowScene]) {
         s.traverse((o) => {
           const m = o as THREE.Mesh

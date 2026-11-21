@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="square">
+<!-- Original circuit-trace mask for the home tiles. Traces hug the edges and the right side so text stays clear. -->
+<path d="M0 14H120L134 28H300L314 14H480"/>
+<path d="M240 28V44H330L344 58H420V90"/>
+<path d="M466 0V60L452 74V180L466 194V300"/>
+<path d="M480 120H452"/>
+<path d="M420 90H440V150L428 162H380"/>
+<path d="M380 162V210H452"/>
+<path d="M0 286H90L104 272H260L274 286H452"/>
+<path d="M330 272V246H400L414 232H452"/>
+<path d="M14 0V40"/><path d="M14 260V300"/>
+<path d="M200 300V286"/><path d="M360 300V286"/>
+<path d="M300 28V8"/><path d="M380 14V0"/>
+<path d="M344 58V100H364"/>
+<g fill="#fff" stroke="none">
+<rect x="236" y="40" width="8" height="8"/><rect x="416" y="86" width="8" height="8"/>
+<rect x="376" y="158" width="8" height="8"/><rect x="326" y="242" width="8" height="8"/>
+<rect x="360" y="96" width="8" height="8"/><rect x="10" y="36" width="8" height="8"/>
+<rect x="10" y="256" width="8" height="8"/><rect x="296" y="4" width="8" height="8"/>
+<circle cx="452" cy="120" r="4"/><circle cx="452" cy="210" r="4"/><circle cx="452" cy="232" r="4"/>
+</g>
+</svg>
