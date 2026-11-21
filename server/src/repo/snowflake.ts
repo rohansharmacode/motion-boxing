@@ -1,0 +1,531 @@
+import { randomUUID } from 'node:crypto';
+import type { Logger } from '../logger';
+import { emptyMix, roundStats } from '../metrics';
+import type { Bind, Row, SqlExecutor } from '../snowflake/executor';
+import {
+  EVENT_TYPES,
+  type Benchmark,
+  type LeaderboardRow,
+  type MotionEvent,
+  type Player,
+  type PlayerMetrics,
+  type SessionAggregate,
+  type SessionRecord,
+  type SessionStats,
+  type SessionSummary,
+  type StoredCoach,
+} from '../types';
+import { errorMessage, num, round, toNtzString } from '../util';
+import type { Repo } from './types';
+
+// All TIMESTAMP_NTZ values are stored in UTC; read them back as ISO-8601 with a Z.
+const TS = `'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'`;
+const PUNCH = `LOWER(event_type) IN ('jab', 'cross', 'hook', 'uppercut')`;
+const EVENT_COLUMNS = 13;
+
+// ---------------------------------------------------------------------------------------------
+// SQL. Every value that comes from a request is a bind variable (?). The only interpolations
+// are server-side constants (column lists, formats, integer limits validated in code).
+// ---------------------------------------------------------------------------------------------
+
+export const SQL = {
+  ping: `SELECT 1 AS ok`,
+
+  insertPlayer: `INSERT INTO PLAYERS (player_id, name, created_at) SELECT ?, ?, TO_TIMESTAMP_NTZ(?)`,
+
+  /** Insert-if-missing; a non-NULL name also renames (front end sends display_name at round end). */
+  upsertPlayer: `
+    MERGE INTO PLAYERS t
+    USING (SELECT CAST(? AS VARCHAR) AS player_id, CAST(? AS VARCHAR) AS name, TO_TIMESTAMP_NTZ(?) AS created_at) s
+    ON t.player_id = s.player_id
+    WHEN MATCHED AND s.name IS NOT NULL AND (t.name IS NULL OR t.name <> s.name) THEN UPDATE SET name = s.name
+    WHEN NOT MATCHED THEN INSERT (player_id, name, created_at) VALUES (s.player_id, COALESCE(s.name, 'Player'), s.created_at)`,
+
+  /** Insert-if-missing for client-generated session ids. */
+  ensureSession: `
+    MERGE INTO SESSIONS t
+    USING (SELECT CAST(? AS VARCHAR) AS session_id, CAST(? AS VARCHAR) AS player_id, CAST(? AS VARCHAR) AS sport,
+                  TO_TIMESTAMP_NTZ(?) AS started_at) s
+    ON t.session_id = s.session_id
+    WHEN NOT MATCHED THEN INSERT (session_id, player_id, sport, started_at)
+      VALUES (s.session_id, s.player_id, s.sport, s.started_at)`,
+
+  getPlayer: `SELECT player_id, name FROM PLAYERS WHERE player_id = ? LIMIT 1`,
+
+  insertSession: `INSERT INTO SESSIONS (session_id, player_id, sport, started_at) SELECT ?, ?, ?, TO_TIMESTAMP_NTZ(?)`,
+
+  getSession: `
+    SELECT session_id, player_id, sport,
+           TO_VARCHAR(started_at, ${TS}) AS started_at,
+           TO_VARCHAR(ended_at, ${TS})   AS ended_at,
+           score, total_punches, avg_speed, max_speed, avg_reaction_ms, best_reaction_ms, accuracy,
+           TO_JSON(ai_coach_json) AS ai_coach_json
+    FROM SESSIONS WHERE session_id = ? LIMIT 1`,
+
+  /** Multi-row INSERT ... SELECT FROM VALUES (VARIANT can't be bound inside INSERT ... VALUES). */
+  insertEvents(rowCount: number, dedupe: boolean): string {
+    const row = `(${Array.from({ length: EVENT_COLUMNS }, () => '?').join(', ')})`;
+    const values = Array.from({ length: rowCount }, () => row).join(',\n      ');
+    return `
+    INSERT INTO MOTION_EVENTS
+      (event_id, session_id, player_id, sport, event_ts, event_type, hand,
+       speed_mps, accuracy, reaction_ms, guard_up, points, payload)
+    SELECT v.event_id, v.session_id, v.player_id, v.sport, TO_TIMESTAMP_NTZ(v.event_ts), v.event_type, v.hand,
+           v.speed_mps::FLOAT, v.accuracy::FLOAT, v.reaction_ms::FLOAT, v.guard_up::BOOLEAN, v.points::NUMBER,
+           TRY_PARSE_JSON(v.payload)
+    FROM VALUES
+      ${values}
+    AS v (event_id, session_id, player_id, sport, event_ts, event_type, hand,
+          speed_mps, accuracy, reaction_ms, guard_up, points, payload)${
+            dedupe
+              ? `
+    WHERE NOT EXISTS (SELECT 1 FROM MOTION_EVENTS e WHERE e.event_id = v.event_id AND e.session_id = v.session_id)`
+              : ''
+          }`;
+  },
+
+  /** Extras for the coach prompt (mix, L/R, quartile speeds); same rules as analytics.sql. */
+  sessionExtrasCte: `
+    x AS (
+      SELECT
+        COUNT(*) AS total_events,
+        COUNT(CASE WHEN LOWER(event_type) = 'jab' THEN 1 END)      AS n_jab,
+        COUNT(CASE WHEN LOWER(event_type) = 'cross' THEN 1 END)    AS n_cross,
+        COUNT(CASE WHEN LOWER(event_type) = 'hook' THEN 1 END)     AS n_hook,
+        COUNT(CASE WHEN LOWER(event_type) = 'uppercut' THEN 1 END) AS n_uppercut,
+        COUNT(CASE WHEN LOWER(event_type) = 'block' THEN 1 END)    AS n_block,
+        AVG(CASE WHEN ${PUNCH} AND guard_up IS NOT NULL THEN CASE WHEN guard_up THEN 100.0 ELSE 0.0 END END) AS x_guard_pct,
+        COUNT(CASE WHEN ${PUNCH} AND UPPER(hand) = 'L' THEN 1 END) AS l_n,
+        COUNT(CASE WHEN ${PUNCH} AND UPPER(hand) = 'R' THEN 1 END) AS r_n,
+        AVG(CASE WHEN ${PUNCH} AND UPPER(hand) = 'L' THEN speed_mps END) AS l_speed,
+        AVG(CASE WHEN ${PUNCH} AND UPPER(hand) = 'R' THEN speed_mps END) AS r_speed
+      FROM MOTION_EVENTS WHERE session_id = ?
+    ),
+    q AS (
+      SELECT
+        AVG(CASE WHEN quartile = 1 THEN speed_mps END) AS q1_speed,
+        AVG(CASE WHEN quartile = 4 THEN speed_mps END) AS q4_speed
+      FROM (
+        SELECT speed_mps,
+               NTILE(4) OVER (ORDER BY event_ts, event_id) AS quartile,
+               COUNT(*) OVER () AS n
+        FROM MOTION_EVENTS
+        WHERE session_id = ? AND ${PUNCH} AND speed_mps IS NOT NULL
+      ) p
+      WHERE n >= 8
+    )`,
+
+  /** Preferred: stats from the V_SESSION_STATS view (sql/analytics.sql) + extras. Binds: id, id, id. */
+  get sessionAggregateFromView(): string {
+    return `
+    WITH v AS (
+      SELECT score, total_punches, avg_speed, max_speed, avg_reaction_ms, best_reaction_ms, accuracy
+      FROM V_SESSION_STATS WHERE session_id = ?
+    ),
+    ${SQL.sessionExtrasCte}
+    SELECT v.*, x.*, q.* FROM x CROSS JOIN q LEFT JOIN v ON TRUE`;
+  },
+
+  /** Fallback when the view is missing: identical definitions, inline. Binds: id, id, id. */
+  get sessionAggregateInline(): string {
+    return `
+    WITH v AS (
+      SELECT
+        COALESCE(SUM(COALESCE(points, 0)), 0)                         AS score,
+        COUNT(CASE WHEN ${PUNCH} THEN 1 END)                          AS total_punches,
+        AVG(CASE WHEN ${PUNCH} THEN speed_mps END)                    AS avg_speed,
+        MAX(CASE WHEN ${PUNCH} THEN speed_mps END)                    AS max_speed,
+        AVG(CASE WHEN reaction_ms > 0 THEN reaction_ms END)           AS avg_reaction_ms,
+        MIN(CASE WHEN reaction_ms > 0 THEN reaction_ms END)           AS best_reaction_ms,
+        AVG(CASE WHEN ${PUNCH} THEN accuracy END)                     AS accuracy
+      FROM MOTION_EVENTS WHERE session_id = ?
+    ),
+    ${SQL.sessionExtrasCte}
+    SELECT v.*, x.*, q.* FROM v CROSS JOIN x CROSS JOIN q`;
+  },
+
+  finalizeSession: `
+    UPDATE SESSIONS SET
+      ended_at = COALESCE(ended_at, SYSDATE()),
+      score = ?, total_punches = ?, avg_speed = ?, max_speed = ?,
+      avg_reaction_ms = ?, best_reaction_ms = ?, accuracy = ?,
+      ai_coach_json = PARSE_JSON(?)
+    WHERE session_id = ? AND ai_coach_json IS NULL`,
+
+  leaderboardFromView(limit: number): string {
+    return `
+    SELECT rank, player_id, name, score, best_score, fastest_punch, best_reaction_ms
+    FROM V_LEADERBOARD ORDER BY rank LIMIT ${limit}`;
+  },
+
+  /** Same logic as V_LEADERBOARD, used if the view is missing. */
+  leaderboardInline(limit: number): string {
+    return `
+    WITH ev AS (
+      SELECT session_id, player_id, speed_mps, reaction_ms, COALESCE(points, 0) AS points,
+             CASE WHEN ${PUNCH} THEN 1 ELSE 0 END AS is_punch
+      FROM MOTION_EVENTS
+      WHERE player_id IS NOT NULL AND LOWER(COALESCE(sport, 'boxing')) = 'boxing'
+    ),
+    s AS (SELECT player_id, session_id, SUM(points) AS score FROM ev GROUP BY player_id, session_id),
+    e AS (
+      SELECT player_id,
+             MAX(CASE WHEN is_punch = 1 THEN speed_mps END) AS fastest_punch,
+             MIN(CASE WHEN reaction_ms > 0 THEN reaction_ms END) AS best_reaction_ms
+      FROM ev GROUP BY player_id
+    ),
+    p AS (
+      SELECT s.player_id, MAX(s.score) AS best_score, MAX(e.fastest_punch) AS fastest_punch,
+             MIN(e.best_reaction_ms) AS best_reaction_ms
+      FROM s JOIN e ON e.player_id = s.player_id GROUP BY s.player_id
+    )
+    SELECT ROW_NUMBER() OVER (ORDER BY p.best_score DESC NULLS LAST, p.fastest_punch DESC NULLS LAST,
+                              p.best_reaction_ms ASC NULLS LAST, p.player_id) AS rank,
+           p.player_id, COALESCE(n.name, 'Unknown') AS name, p.best_score AS score, p.best_score,
+           ROUND(p.fastest_punch, 2) AS fastest_punch, ROUND(p.best_reaction_ms, 1) AS best_reaction_ms
+    FROM p LEFT JOIN (SELECT player_id, MAX(name) AS name FROM PLAYERS GROUP BY player_id) n
+      ON n.player_id = p.player_id
+    ORDER BY rank LIMIT ${limit}`;
+  },
+
+  playerSessions(limit: number): string {
+    return `
+    SELECT session_id,
+           TO_VARCHAR(started_at, ${TS}) AS started_at,
+           TO_VARCHAR(ended_at, ${TS})   AS ended_at,
+           score, total_punches, avg_speed, max_speed, avg_reaction_ms, best_reaction_ms, accuracy,
+           ai_coach_json:badge::STRING AS badge
+    FROM SESSIONS WHERE player_id = ?
+    ORDER BY started_at DESC NULLS LAST LIMIT ${limit}`;
+  },
+
+  /**
+   * PLAYER_FORM (dynamic table, 1 min lag) plus the live punch count, so we can tell whether the
+   * dynamic table has caught up with the player's latest events. Binds: id, id.
+   */
+  playerFormWithLiveCount: `
+    WITH live AS (
+      SELECT COUNT(CASE WHEN ${PUNCH} THEN 1 END) AS live_punches
+      FROM MOTION_EVENTS
+      WHERE player_id = ? AND LOWER(COALESCE(sport, 'boxing')) = 'boxing'
+    )
+    SELECT live.live_punches, f.punches, f.avg_speed, f.avg_reaction_ms, f.accuracy_pct,
+           f.guard_pct, f.symmetry_pct, f.fatigue_drop_pct
+    FROM live LEFT JOIN PLAYER_FORM f ON f.player_id = ?`,
+
+  /** Same metric definitions as PLAYER_FORM, computed live. Binds: id. */
+  playerMetricsInline: `
+    WITH ev AS (
+      SELECT session_id, event_id, event_ts, UPPER(hand) AS hand, speed_mps, accuracy, reaction_ms, guard_up,
+             CASE WHEN ${PUNCH} THEN 1 ELSE 0 END AS is_punch
+      FROM MOTION_EVENTS
+      WHERE player_id = ? AND LOWER(COALESCE(sport, 'boxing')) = 'boxing'
+    ),
+    a AS (
+      SELECT
+        AVG(CASE WHEN is_punch = 1 THEN speed_mps END)            AS avg_speed,
+        AVG(CASE WHEN reaction_ms > 0 THEN reaction_ms END)       AS avg_reaction_ms,
+        AVG(CASE WHEN is_punch = 1 THEN accuracy END) * 100       AS accuracy_pct,
+        AVG(CASE WHEN is_punch = 1 AND guard_up IS NOT NULL
+                 THEN CASE WHEN guard_up THEN 100.0 ELSE 0.0 END END) AS guard_pct,
+        COUNT(CASE WHEN is_punch = 1 AND hand = 'L' THEN 1 END)   AS l_n,
+        COUNT(CASE WHEN is_punch = 1 AND hand = 'R' THEN 1 END)   AS r_n,
+        AVG(CASE WHEN is_punch = 1 AND hand = 'L' THEN speed_mps END) AS l_speed,
+        AVG(CASE WHEN is_punch = 1 AND hand = 'R' THEN speed_mps END) AS r_speed
+      FROM ev
+    ),
+    f AS (
+      SELECT AVG(CASE WHEN quartile = 1 THEN speed_mps END) AS q1_speed,
+             AVG(CASE WHEN quartile = 4 THEN speed_mps END) AS q4_speed
+      FROM (
+        SELECT speed_mps,
+               NTILE(4) OVER (PARTITION BY session_id ORDER BY event_ts, event_id) AS quartile,
+               COUNT(*) OVER (PARTITION BY session_id) AS n
+        FROM ev WHERE is_punch = 1 AND session_id IS NOT NULL AND speed_mps IS NOT NULL
+      ) p
+      WHERE n >= 8
+    )
+    SELECT a.*, f.* FROM a CROSS JOIN f`,
+
+  benchmarks: `
+    SELECT sport, metric, p25, p50, p75, p90, pro_avg, higher_is_better
+    FROM PRO_BENCHMARKS WHERE sport = ?`,
+
+  /** Row-limit wrapper for already-guarded text-to-SQL output. `limit` is a server constant. */
+  readOnlyWrap(innerSql: string, limit: number): string {
+    return `SELECT * FROM (\n${innerSql}\n) LIMIT ${limit}`;
+  },
+};
+
+function safeLimit(n: number, max = 1000): number {
+  const v = Math.trunc(Number(n));
+  if (!Number.isFinite(v) || v < 1) return 1;
+  return Math.min(v, max);
+}
+
+/** Same formula as PLAYER_FORM.symmetry_pct. */
+export function symmetryFromParts(lN: number | null, rN: number | null, lSpeed: number | null, rSpeed: number | null): number | null {
+  const l = lN ?? 0;
+  const r = rN ?? 0;
+  if (l + r === 0) return null;
+  const countSym = (100 * Math.min(l, r)) / Math.max(l, r);
+  let speedSym: number;
+  if (lSpeed === null || rSpeed === null) speedSym = 0;
+  else if (Math.max(lSpeed, rSpeed) <= 0) speedSym = 100;
+  else speedSym = (100 * Math.max(Math.min(lSpeed, rSpeed), 0)) / Math.max(lSpeed, rSpeed);
+  return (countSym + speedSym) / 2;
+}
+
+export function fatigueFromParts(q1: number | null, q4: number | null): number | null {
+  if (q1 === null || q4 === null || q1 <= 0) return null;
+  return (100 * (q1 - q4)) / q1;
+}
+
+function parseCoach(v: unknown): StoredCoach | null {
+  if (v === null || v === undefined || v === '') return null;
+  try {
+    const obj = typeof v === 'string' ? JSON.parse(v) : v;
+    if (obj && typeof obj === 'object' && Array.isArray((obj as StoredCoach).tips)) return obj as StoredCoach;
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
+function str(v: unknown): string | null {
+  return v === null || v === undefined ? null : String(v);
+}
+
+export class SnowflakeRepo implements Repo {
+  readonly mode = 'snowflake' as const;
+
+  constructor(
+    private readonly db: SqlExecutor,
+    private readonly log: Logger,
+    /** Separate executor whose role can only SELECT (POST /api/ask). */
+    private readonly readOnlyDb?: SqlExecutor,
+    private readonly opts: { askQueryTimeoutMs?: number } = {},
+  ) {}
+
+  async ping(): Promise<boolean> {
+    try {
+      await this.db.query(SQL.ping, [], { timeoutMs: 5000 });
+      return true;
+    } catch (err) {
+      this.log.warn('snowflake ping failed', { error: errorMessage(err) });
+      return false;
+    }
+  }
+
+  async createPlayer(name: string): Promise<string> {
+    const id = randomUUID();
+    await this.db.query(SQL.insertPlayer, [id, name, toNtzString(new Date())]);
+    return id;
+  }
+
+  async getPlayer(playerId: string): Promise<Player | null> {
+    const { rows } = await this.db.query(SQL.getPlayer, [playerId]);
+    const r = rows[0];
+    return r ? { player_id: String(r.player_id), name: String(r.name ?? '') } : null;
+  }
+
+  async createSession(playerId: string, sport: string): Promise<string> {
+    const id = randomUUID();
+    await this.db.query(SQL.insertSession, [id, playerId, sport, toNtzString(new Date())]);
+    return id;
+  }
+
+  async ensurePlayer(playerId: string, name: string | null): Promise<void> {
+    await this.db.query(SQL.upsertPlayer, [playerId, name, toNtzString(new Date())]);
+  }
+
+  async ensureSession(sessionId: string, playerId: string, sport: string, startedAt: string | null): Promise<void> {
+    await this.db.query(SQL.ensureSession, [sessionId, playerId, sport, toNtzString(startedAt ?? new Date())]);
+  }
+
+  async getSession(sessionId: string): Promise<SessionRecord | null> {
+    const { rows } = await this.db.query(SQL.getSession, [sessionId]);
+    const r = rows[0];
+    if (!r) return null;
+    const coach = parseCoach(r.ai_coach_json);
+    const hasStats = r.score !== null && r.score !== undefined;
+    return {
+      session_id: String(r.session_id),
+      player_id: String(r.player_id),
+      sport: String(r.sport ?? 'boxing'),
+      started_at: String(r.started_at ?? ''),
+      ended_at: str(r.ended_at),
+      stats: hasStats ? statsFromRow(r) : null,
+      coach,
+    };
+  }
+
+  async insertEvents(events: MotionEvent[], opts: { dedupe?: boolean } = {}): Promise<void> {
+    if (events.length === 0) return;
+    const binds: Bind[] = [];
+    for (const e of events) {
+      binds.push(
+        e.event_id,
+        e.session_id,
+        e.player_id,
+        e.sport,
+        toNtzString(e.event_ts),
+        e.event_type,
+        e.hand,
+        e.speed_mps,
+        e.accuracy,
+        e.reaction_ms,
+        e.guard_up,
+        e.points,
+        e.payload ? JSON.stringify(e.payload) : null,
+      );
+    }
+    await this.db.query(SQL.insertEvents(events.length, Boolean(opts.dedupe)), binds);
+  }
+
+  async aggregateSession(sessionId: string): Promise<SessionAggregate> {
+    const binds = [sessionId, sessionId, sessionId];
+    let row: Row | undefined;
+    try {
+      row = (await this.db.query(SQL.sessionAggregateFromView, binds)).rows[0];
+    } catch (err) {
+      this.log.warn('V_SESSION_STATS query failed; using inline aggregate', { error: errorMessage(err) });
+    }
+    if (!row || row.score === null || row.score === undefined) {
+      row = (await this.db.query(SQL.sessionAggregateInline, binds)).rows[0] ?? {};
+    }
+    const mix = emptyMix();
+    for (const t of EVENT_TYPES) mix[t] = num(row[`n_${t}`]) ?? 0;
+    return {
+      stats: statsFromRow(row),
+      extras: {
+        guard_pct: round(num(row.x_guard_pct), 1),
+        symmetry_pct: round(symmetryFromParts(num(row.l_n), num(row.r_n), num(row.l_speed), num(row.r_speed)), 1),
+        fatigue_drop_pct: round(fatigueFromParts(num(row.q1_speed), num(row.q4_speed)), 1),
+        punch_mix: mix,
+        total_events: num(row.total_events) ?? 0,
+      },
+    };
+  }
+
+  async finalizeSession(sessionId: string, stats: SessionStats, coach: StoredCoach): Promise<boolean> {
+    const { rows, numUpdated } = await this.db.query(SQL.finalizeSession, [
+      stats.score,
+      stats.total_punches,
+      stats.avg_speed,
+      stats.max_speed,
+      stats.avg_reaction_ms,
+      stats.best_reaction_ms,
+      stats.accuracy,
+      JSON.stringify(coach),
+      sessionId,
+    ]);
+    const updated = numUpdated ?? num(rows[0]?.['number of rows updated']) ?? 0;
+    return updated > 0;
+  }
+
+  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
+    const n = safeLimit(limit, 10);
+    let rows: Row[];
+    try {
+      rows = (await this.db.query(SQL.leaderboardFromView(n))).rows;
+    } catch (err) {
+      this.log.warn('V_LEADERBOARD query failed; using inline leaderboard', { error: errorMessage(err) });
+      rows = (await this.db.query(SQL.leaderboardInline(n))).rows;
+    }
+    return rows.map((r) => ({
+      rank: num(r.rank) ?? 0,
+      player_id: String(r.player_id),
+      name: String(r.name ?? 'Unknown'),
+      score: num(r.score ?? r.best_score),
+      fastest_punch: num(r.fastest_punch),
+      best_reaction_ms: num(r.best_reaction_ms),
+    }));
+  }
+
+  async playerSessions(playerId: string, limit: number): Promise<SessionSummary[]> {
+    const { rows } = await this.db.query(SQL.playerSessions(safeLimit(limit, 200)), [playerId]);
+    return rows.map((r) => ({
+      session_id: String(r.session_id),
+      started_at: String(r.started_at ?? ''),
+      ended_at: str(r.ended_at),
+      score: num(r.score),
+      total_punches: num(r.total_punches),
+      avg_speed: num(r.avg_speed),
+      max_speed: num(r.max_speed),
+      avg_reaction_ms: num(r.avg_reaction_ms),
+      best_reaction_ms: num(r.best_reaction_ms),
+      accuracy: num(r.accuracy),
+      badge: str(r.badge),
+    }));
+  }
+
+  async playerMetrics(playerId: string): Promise<PlayerMetrics> {
+    // Prefer the PLAYER_FORM dynamic table when it has caught up with the live event count.
+    try {
+      const r = (await this.db.query(SQL.playerFormWithLiveCount, [playerId, playerId])).rows[0];
+      const live = num(r?.live_punches) ?? 0;
+      if (r && live > 0 && num(r.punches) === live) {
+        return {
+          punch_speed_mps: round(num(r.avg_speed), 2),
+          reaction_ms: round(num(r.avg_reaction_ms), 1),
+          accuracy_pct: round(num(r.accuracy_pct), 1),
+          guard_pct: round(num(r.guard_pct), 1),
+          symmetry_pct: round(num(r.symmetry_pct), 1),
+          fatigue_drop_pct: round(num(r.fatigue_drop_pct), 1),
+        };
+      }
+    } catch (err) {
+      this.log.warn('PLAYER_FORM query failed; computing metrics inline', { error: errorMessage(err) });
+    }
+    const r = (await this.db.query(SQL.playerMetricsInline, [playerId])).rows[0] ?? {};
+    return {
+      punch_speed_mps: round(num(r.avg_speed), 2),
+      reaction_ms: round(num(r.avg_reaction_ms), 1),
+      accuracy_pct: round(num(r.accuracy_pct), 1),
+      guard_pct: round(num(r.guard_pct), 1),
+      symmetry_pct: round(symmetryFromParts(num(r.l_n), num(r.r_n), num(r.l_speed), num(r.r_speed)), 1),
+      fatigue_drop_pct: round(fatigueFromParts(num(r.q1_speed), num(r.q4_speed)), 1),
+    };
+  }
+
+  async benchmarks(sport: string): Promise<Benchmark[]> {
+    const { rows } = await this.db.query(SQL.benchmarks, [sport]);
+    return rows
+      .map((r) => ({
+        sport: String(r.sport),
+        metric: String(r.metric),
+        p25: num(r.p25) ?? NaN,
+        p50: num(r.p50) ?? NaN,
+        p75: num(r.p75) ?? NaN,
+        p90: num(r.p90) ?? NaN,
+        pro_avg: num(r.pro_avg),
+        higher_is_better: r.higher_is_better === true || String(r.higher_is_better).toLowerCase() === 'true',
+      }))
+      .filter((b) => [b.p25, b.p50, b.p75, b.p90].every(Number.isFinite));
+  }
+
+  async runReadOnlyQuery(sql: string, rowLimit: number): Promise<Record<string, unknown>[]> {
+    if (!this.readOnlyDb) throw new Error('read-only Snowflake role is not configured');
+    const { rows } = await this.readOnlyDb.query(SQL.readOnlyWrap(sql, safeLimit(rowLimit)), [], {
+      timeoutMs: this.opts.askQueryTimeoutMs,
+    });
+    return rows;
+  }
+
+  async close(): Promise<void> {
+    await Promise.allSettled([this.db.close(), this.readOnlyDb?.close()]);
+  }
+}
+
+function statsFromRow(r: Row): SessionStats {
+  return roundStats({
+    score: num(r.score) ?? 0,
+    total_punches: num(r.total_punches) ?? 0,
+    avg_speed: num(r.avg_speed),
+    max_speed: num(r.max_speed),
+    avg_reaction_ms: num(r.avg_reaction_ms),
+    best_reaction_ms: num(r.best_reaction_ms),
+    accuracy: num(r.accuracy),
+  });
+}
