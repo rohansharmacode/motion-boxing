@@ -15,7 +15,6 @@ import {
   GridHelper,
   Group,
   IcosahedronGeometry,
-  LatheGeometry,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -29,7 +28,6 @@ import {
   SRGBColorSpace,
   SphereGeometry,
   TorusGeometry,
-  Vector2,
   Vector3,
 } from 'three'
 import type { Texture } from 'three'
@@ -493,22 +491,6 @@ export interface DroneParts {
   telegraphGuide: Mesh<TorusGeometry, MeshBasicMaterial>
 }
 
-/** Arm or leg segment from a to b (body space): a unit-height cylinder stretched and turned in place. */
-const UP = new Vector3(0, 1, 0)
-const span = new Vector3()
-
-/** Glove centre back to its cuff (body space): the forearm ends here. */
-const WRIST_OFFSET = new Vector3(0, -0.01, -0.12)
-
-/** Capsule of unit body length from a to b (its radius stays as built). */
-function stretchCapsule(limb: Mesh, a: Vector3, b: Vector3): void {
-  span.copy(b).sub(a)
-  const len = Math.max(0.02, span.length())
-  limb.position.copy(a).addScaledVector(span, 0.5)
-  limb.quaternion.setFromUnitVectors(UP, span.multiplyScalar(1 / len))
-  // Capsule length = body (scaled) + 2 radii (not scaled along y would distort; accept slight caps stretch).
-  limb.scale.set(1, len, 1)
-}
 
 /**
  * Humanoid sparring robot: small faceted torso, oversized helmet head with a wide visor, fists
@@ -530,72 +512,32 @@ export function buildDrone(glowMap: Texture): DroneParts {
     roughness: 0.7,
   })
 
-  // Humanoid boxing robot (original design): V-shaped sculpted chest, narrow waist, shoulder domes,
-  // jointed arms that reach the gloves, athletic legs. Smooth high-segment shapes, matte retro paint
-  // with thin neon trim lines. The head is a normal-sized helmet in its own group so a KO knocks it off.
+  // Floating-parts robot (original design): a smooth egg torso, a round helmet hovering above it and two
+  // feet hovering below, with clear gaps between them. No arms, no neck, no legs: every part floats.
   const chestShell = armour(SHELL_LIGHT)
-  chestShell.roughness = 0.55
-  chestShell.metalness = 0.25
-  const torsoProfile = [
-    [0.0, -0.3], [0.13, -0.3], [0.15, -0.24], [0.13, -0.14], [0.15, -0.06], [0.2, 0.04],
-    [0.245, 0.13], [0.25, 0.19], [0.21, 0.25], [0.12, 0.29], [0.0, 0.3],
-  ].map(([x, y]) => new Vector2(x, y))
-  const torso = new Mesh(new LatheGeometry(torsoProfile, 72), chestShell)
-  torso.scale.z = 0.62
-  // Pecs and abs: soft plates that give the chest a sculpted, human read.
-  const plateGeo = new SphereGeometry(0.1, 32, 20)
-  for (const side of [-1, 1]) {
-    const pec = new Mesh(plateGeo, chestShell)
-    pec.scale.set(1.05, 0.65, 0.45)
-    pec.position.set(side * 0.095, 0.13, 0.12)
-    pec.rotation.z = side * -0.15
-    body.add(pec)
-  }
-  const absGeo = new SphereGeometry(0.05, 20, 12)
-  for (let row = 0; row < 3; row++) {
-    for (const side of [-1, 1]) {
-      const ab = new Mesh(absGeo, limbShell)
-      ab.scale.set(0.9, 0.55, 0.4)
-      ab.position.set(side * 0.042, 0.0 - row * 0.065, 0.095 - row * 0.004)
-      body.add(ab)
-    }
-  }
+  chestShell.roughness = 0.45
+  chestShell.metalness = 0.2
+  const torso = new Mesh(new SphereGeometry(0.25, 64, 40), chestShell)
+  torso.scale.set(1, 1.22, 0.78)
+  torso.position.y = 0.02
   const orbMat = new MeshBasicMaterial({ color: NEON.core })
   const orb = new Mesh(new SphereGeometry(0.035, 20, 12), orbMat)
-  orb.position.set(0, 0.2, DRONE.orbZ - 0.1)
+  orb.position.set(0, 0.12, DRONE.orbZ - 0.05)
   const chestHalo = additive(COLORS.drone, HALO_OPACITY)
   chestHalo.visible = false
   const chestCenter = new Vector3(0, 0, 0.12)
   const chestSphere = new Mesh(new SphereGeometry(DRONE.chestRadius, 12, 8), chestHalo)
   chestSphere.position.copy(chestCenter)
-  // Retro neon trim: waist band and a line under the pecs.
-  const belt = new Mesh(new TorusGeometry(0.14, 0.008, 6, 48), accentSolid)
+  // One thin neon band around the waist for a retro read.
+  const belt = new Mesh(new TorusGeometry(0.245, 0.008, 6, 64), accentSolid)
   belt.rotation.x = Math.PI / 2
-  belt.scale.y = 0.62
-  belt.position.y = -0.2
-  const chestLine = new Mesh(new TorusGeometry(0.2, 0.006, 6, 48, Math.PI * 0.7), accentSolid)
-  chestLine.rotation.set(Math.PI / 2, 0, Math.PI * 0.15)
-  chestLine.scale.y = 0.62
-  chestLine.position.y = 0.05
-  body.add(torso, orb, chestSphere, belt, chestLine)
-
-  // Shoulder domes.
-  const shoulderGeo = new SphereGeometry(0.085, 32, 20)
-  const shoulders = [-1, 1].map((side) => {
-    const pad = new Mesh(shoulderGeo, chestShell)
-    pad.position.set(side * 0.27, 0.19, 0)
-    pad.scale.set(1.1, 0.95, 1)
-    body.add(pad)
-    return pad.position
-  })
-
-  // Neck: a short smooth column with the neon ring.
-  const neck = new Mesh(new CapsuleGeometry(0.045, 0.06, 8, 16), limbShell)
-  neck.position.y = 0.34
+  belt.scale.y = 0.78
+  belt.position.y = -0.08
+  body.add(torso, orb, chestSphere, belt)
+  // Kept for the scene's spin animation, but hidden: there is no neck.
   const neckRing = new Mesh(new TorusGeometry(0.055, 0.008, 6, 32), accentSolid)
-  neckRing.rotation.x = Math.PI / 2
-  neckRing.position.y = 0.32
-  body.add(neck, neckRing)
+  neckRing.visible = false
+  body.add(neckRing)
 
   // Head: human-sized helmet, jaw guard, a glowing retro visor slit and small cheek fins.
   const headShell = armour(SHELL_LIGHT)
@@ -604,7 +546,8 @@ export function buildDrone(glowMap: Texture): DroneParts {
   const head = new Group()
   head.position.y = DRONE.headY
   const headModel = new Group()
-  headModel.scale.setScalar(0.8) // smaller head so the guard gloves sit in front of it, not inside it
+  headModel.position.y = 0.04 // hovers with a visible gap above the torso
+  headModel.scale.setScalar(0.9)
   head.add(headModel)
   const helmet = new Mesh(new SphereGeometry(0.125, 48, 32), headShell)
   helmet.scale.set(0.92, 1.08, 1)
@@ -650,63 +593,13 @@ export function buildDrone(glowMap: Texture): DroneParts {
     return pod
   })
 
-  // Arms: upper arm and forearm capsules from the shoulder through a bent elbow to the glove cuff,
-  // re-aimed every frame because the scene moves the gloves.
-  const upperGeo = new CylinderGeometry(0.046, 0.05, 1, 32, 1, true)
-  const foreGeo = new CylinderGeometry(0.05, 0.056, 1, 32, 1, true)
-  const elbowGeo = new SphereGeometry(0.055, 24, 16)
-  ;[-1, 1].forEach((side, i) => {
-    const upper = new Mesh(upperGeo, limbShell)
-    const fore = new Mesh(foreGeo, chestShell)
-    const elbow = new Mesh(elbowGeo, limbShell)
-    const wristBall = new Mesh(elbowGeo, limbShell)
-    wristBall.scale.setScalar(0.9)
-    for (const m of [upper, fore, elbow, wristBall]) m.frustumCulled = false
-    const wrist = new Vector3()
-    const joint = new Vector3()
-    const aim = (): void => {
-      const pod = pods[i]!
-      const sh = shoulders[i]!
-      wrist.copy(pod.position).add(WRIST_OFFSET)
-      joint.copy(sh).lerp(wrist, 0.5)
-      joint.x += side * 0.09
-      joint.y -= 0.12
-      joint.z -= 0.04
-      stretchCapsule(upper, sh, joint)
-      stretchCapsule(fore, joint, wrist)
-      elbow.position.copy(joint)
-      wristBall.position.copy(wrist)
-    }
-    aim()
-    upper.onBeforeRender = aim
-    void [upper, fore, elbow, wristBall] // floating gloves: arms are built for the aim hook but not shown
-  })
-
-  // Hips and legs, standing on the floor (body origin sits DRONE.y above it).
-  const hips = new Mesh(new SphereGeometry(0.15, 32, 20), limbShell)
-  hips.scale.set(1, 0.6, 0.75)
-  hips.position.y = -0.33
-  body.add(hips)
-  const thighGeo = new CylinderGeometry(0.052, 0.068, 1, 32, 1, true)
-  const shinGeo = new CylinderGeometry(0.045, 0.056, 1, 32, 1, true)
-  const kneeGeo = new SphereGeometry(0.06, 24, 16)
-  const footGeo = new CapsuleGeometry(0.045, 0.13, 6, 16)
-  footGeo.rotateX(Math.PI / 2)
+  // Two feet hovering under the torso, with a gap (body origin sits DRONE.y above the floor).
+  const footGeo = new SphereGeometry(0.09, 40, 24)
   for (const side of [-1, 1]) {
-    const hip = new Vector3(side * 0.09, -0.36, 0)
-    const knee = new Vector3(side * 0.12, -0.67, 0.05)
-    const ankle = new Vector3(side * 0.12, -DRONE.y + 0.07, -0.01)
-    const thigh = new Mesh(thighGeo, chestShell)
-    stretchCapsule(thigh, hip, knee)
-    const shin = new Mesh(shinGeo, limbShell)
-    stretchCapsule(shin, knee, ankle)
-    const kneePad = new Mesh(kneeGeo, chestShell)
-    kneePad.position.copy(knee)
-    const foot = new Mesh(footGeo, limbShell)
-    foot.position.set(ankle.x, ankle.y - 0.04, ankle.z + 0.05)
-    const hipBall = new Mesh(kneeGeo, limbShell)
-    hipBall.position.copy(hip)
-    body.add(thigh, shin, kneePad, foot, hipBall)
+    const foot = new Mesh(footGeo, chestShell)
+    foot.scale.set(0.95, 0.6, 1.45)
+    foot.position.set(side * 0.13, -0.5, 0.05)
+    body.add(foot)
   }
 
   // Small back thruster (kept for the hover flicker), tucked behind the torso.

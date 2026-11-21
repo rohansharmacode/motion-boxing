@@ -87,6 +87,10 @@ const VIEW = { x: 0.1, y: 0.85, z: 1.5, pitch: -0.34, yaw: 0.025 } as const
  */
 const CAM_OMEGA = 15
 /** Player robot in rig space: a little left of centre so the camera sits over its right shoulder. */
+/** Off: the built-in floating-parts robot reads cleaner. */
+const USE_GLTF_ROBOT = false
+/** Fighters are drawn bigger than the hit layout so they fill the frame. */
+const FIGHTER_SCALE = 1.2
 const PLAYER_TWIN = { x: -0.5, z: 0.35 } as const
 /** Shoulder widths to metres for the mirrored body lean, and its limits. */
 const BODY_LEAN_M = 0.4
@@ -398,6 +402,10 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
   const dressing = look ? null : buildArenaDressing()
   if (dressing) scene.add(dressing.group)
   const drone = look ? look.buildDrone(glowMap) : buildDrone(glowMap)
+  if (!look) {
+    drone.body.scale.setScalar(FIGHTER_SCALE)
+    drone.armour?.slice(0, 2).forEach((m) => m.color.setHex(0xd0386a)) // opponent paint
+  }
   /** The drone's own armour and fist colours, to restore after a 1v1. */
   const droneArmour = drone.armour?.map((m) => m.color.getHex()) ?? []
   const droneFist = drone.fistShell ? { color: drone.fistShell.color.clone(), emissive: drone.fistShell.emissive.clone() } : null
@@ -492,6 +500,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
     const scheme = robot ? schemeOf(robot) : null
     if (scheme) twin.armour?.forEach((m) => m.color.setHex(scheme.armour))
     twin.root.rotation.y = Math.PI
+    twin.body.scale.setScalar(FIGHTER_SCALE)
     twin.root.position.set(PLAYER_TWIN.x, DRONE.y - EYE_Y, PLAYER_TWIN.z)
     ghostPlayer(twin.root, true)
   }
@@ -506,7 +515,8 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
       parts.head.shell = parts.chest.shell = r.paint
       set(r)
     })
-  if (!look) {
+  // The glTF robot looked odd with its arms hidden; the floating-parts procedural robot is used instead.
+  if (!look && USE_GLTF_ROBOT) {
     useRobot(drone, 0xd0386a, (r) => (droneRobot = r))
     if (twin)
       useRobot(twin, 0x1d8fae, (r) => {
@@ -1084,7 +1094,7 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
         drone.pods.forEach((pod, i) => {
           const side = i === 0 ? -1 : 1
           pod.position.x += (side * 0.17 - pod.position.x) * def.guard
-          pod.position.y += (hc.y - 0.06 - pod.position.y) * def.guard - 0.28 * def.stun
+          pod.position.y += (hc.y - 0.24 - pod.position.y) * def.guard // guard at the chin, head stays open - 0.28 * def.stun
           pod.position.z += (hc.z + 0.34 - pod.position.z) * def.guard // gloves stay clear of the head
         })
       }
