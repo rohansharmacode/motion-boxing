@@ -1,5 +1,6 @@
 // Motion Sports entry: mounts the home dashboard. Each sport loads lazily on launch so the dashboard paints fast.
 import './style.css'
+import './fonts/index.ts'
 import { mountShell } from './shell/index.ts'
 import type { GameContext, GameSession } from './shell/index.ts'
 import type { BodyTracker } from './pose/body.ts'
@@ -456,13 +457,6 @@ const leaderboard = (ctx: GameContext): Promise<GameSession> =>
 mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard } })
 
 // Warm the pose tracker download once the dashboard is idle; the camera only starts on the player's choice.
-if (!document.head.querySelector('link[rel="preconnect"][href="https://cdn.jsdelivr.net"]')) {
-  const link = document.createElement('link')
-  link.rel = 'preconnect'
-  link.href = 'https://cdn.jsdelivr.net'
-  link.crossOrigin = ''
-  document.head.append(link)
-}
 const prefetch = (): void => {
   import('./pose/pipeline.ts').then((m) => m.prefetchPoseAssets()).catch(() => {})
   // Three.js is the biggest chunk (about 590 kB): fetch and parse it while the player browses the dashboard.
