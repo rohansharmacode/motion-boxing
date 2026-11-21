@@ -1,0 +1,12 @@
+# Packages for Streamlit in Snowflake (warehouse runtime).
+# Only the Snowflake Anaconda channel is allowed, and Streamlit must be pinned to a
+# version SiS supports (1.50.0 is on the supported list and has st.fragment(run_every=...)).
+# The code also runs on older SiS versions (down to 1.22): auto-refresh falls back to a button.
+name: motion_boxing_dashboard
+channels:
+  - snowflake
+dependencies:
+  - streamlit=1.50.0
+  - pandas
+  - altair
+  - snowflake-snowpark-python
