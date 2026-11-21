@@ -12,8 +12,8 @@
   --amber: #ffb72e;
   --white: #f3f6ff;
   --muted: #8b96c9;
-  --display: var(--font-display, 'Geist Sans'), 'Geist Sans', system-ui, sans-serif;
-  --body: var(--font-body, 'Geist Sans'), system-ui, sans-serif;
+  --display: var(--font-display, 'Bebas Neue'), 'Outfit', system-ui, sans-serif;
+  --body: var(--font-body, 'Outfit'), system-ui, sans-serif;
   --skew: -12deg;
   --glow-cyan: 0 0 12px rgba(34, 229, 255, 0.55), 0 0 32px rgba(34, 229, 255, 0.2);
   --glow-pink: 0 0 12px rgba(255, 46, 136, 0.6), 0 0 32px rgba(255, 46, 136, 0.25);
