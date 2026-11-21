@@ -17,7 +17,7 @@ export interface SportOption {
 export const DEFAULT_SPORTS: SportOption[] = [
   { id: 'BOXING', name: 'Kinetic Ring', sub: 'Boxing. Jab, hook, block, slip.', enabled: true },
   { id: 'GOALKEEPER', name: 'Reflex Keeper', sub: 'Penalty saves. Pure reflex.', enabled: true, tag: 'Beta' },
-  { id: 'ARCHERY', name: 'Aero Bow', sub: 'Archery. Hold steady, release.', enabled: false, tag: 'Soon' },
+  { id: 'ARCHERY', name: 'Aero Bow', sub: 'Archery. Hold steady, release.', enabled: true, tag: 'Beta' },
 ];
 
 const LAST_NAME_KEY = 'kr.lastName';

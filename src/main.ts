@@ -495,7 +495,10 @@ const leaderboard = (ctx: GameContext): Promise<GameSession> =>
 const customise = (ctx: GameContext): Promise<GameSession> =>
   import('./custom/screen.ts').then((m) => m.startCustomise(ctx))
 
-mountShell({ launchers: { boxing: startBoxing, goalkeeper, leaderboard, customise } })
+const archery = (ctx: GameContext): Promise<GameSession> =>
+  import('./sports/archery/index.ts').then((m) => m.startArchery(ctx))
+
+mountShell({ launchers: { boxing: startBoxing, goalkeeper, archery, leaderboard, customise } })
 // Every menu works hands-only: point with a raised hand, hold on a button until the ring fills.
 mountHandNav({ video: el('#webcam', HTMLVideoElement) })
 
