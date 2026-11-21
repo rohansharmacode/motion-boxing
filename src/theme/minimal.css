@@ -1,0 +1,327 @@
+/* Minimal in-game layout, shared by every theme (neon and bright).
+   Goal: the 3D view stays clear. Slim corner health bars, a small timer pill, one small
+   attack-warning pill, short pop words in the lower third, a small practice card and a small
+   webcam thumbnail. Everything else is hidden during the fight.
+
+   Selectors use the `:root:not(#_)` prefix on purpose: the extra id-weight lets these layout
+   rules win over the component CSS and the theme skins without !important. Themes only set the
+   --mh-* colour and font variables below (see src/theme/bright/ui.css for the bright skin). */
+
+:root {
+  --mh-pill-bg: rgba(11, 16, 38, 0.82);
+  --mh-pill-fg: #f4f6ff;
+  --mh-pill-line: rgba(34, 229, 255, 0.35);
+  --mh-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --mh-muted: #8f9bc4;
+  --mh-track: rgba(11, 16, 38, 0.7);
+  --mh-p1: #22e5ff;
+  --mh-p2: #ff8a3d;
+  --mh-low: #ffcc33;
+  --mh-good: #22e5ff;
+  --mh-bad: #ff5a6e;
+  --mh-warn-bg: #ff8a3d;
+  --mh-warn-fg: #0b1026;
+  --mh-name-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  --mh-font-num: 'Bebas Neue', 'Outfit', system-ui, sans-serif;
+  --mh-font-text: 'Outfit', system-ui, sans-serif;
+  --mh-num-size: 22px;
+  --mh-num-weight: 400;
+  --mh-pop-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- HUD frame ---------- */
+
+:root:not(#_) .kr-bhud { animation: mh-fade 0.25s ease-out; }
+:root:not(#_) .kr-bhud-shaker.kr-ko-shake { animation: none; }
+
+:root:not(#_) .kr-hud-top {
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  gap: 16px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+}
+
+/* ---------- health: two slim corner bars ---------- */
+
+:root:not(#_) .kr-fighter { gap: 6px; }
+:root:not(#_) .kr-fighter-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  font: 600 14px/1.2 var(--mh-font-text);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--mh-pill-fg);
+  text-shadow: var(--mh-name-shadow);
+}
+:root:not(#_) .kr-fighter-name > * { transform: none; }
+:root:not(#_) .kr-hp-num {
+  display: inline;
+  font: 600 14px/1.2 var(--mh-font-num);
+  letter-spacing: 0.02em;
+  color: var(--mh-pill-fg);
+  opacity: 0.8;
+}
+
+:root:not(#_) .kr-hp {
+  width: min(300px, 30vw);
+  height: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--mh-track);
+  box-shadow: 0 0 0 2px var(--mh-pill-bg), var(--mh-shadow);
+  transform: none;
+  overflow: hidden;
+}
+:root:not(#_) .kr-hp::after { display: none; }
+:root:not(#_) .kr-hp.kr-hit { animation: none; }
+:root:not(#_) .kr-hp-fill { background: var(--mh-p1); box-shadow: none; border-radius: 999px; }
+:root:not(#_) .kr-right .kr-hp-fill { background: var(--mh-p2); }
+:root:not(#_) .kr-hp.kr-low .kr-hp-fill { background: var(--mh-low); animation: none; }
+:root:not(#_) .kr-hp-lag { background: rgba(255, 255, 255, 0.55); border-radius: 999px; }
+
+/* ---------- timer: small pill ---------- */
+
+:root:not(#_) .kr-timer {
+  min-width: 0;
+  padding: 2px 14px 1px;
+  border: 1px solid var(--mh-pill-line);
+  border-radius: 999px;
+  background: var(--mh-pill-bg);
+  box-shadow: var(--mh-shadow);
+  transform: none;
+}
+:root:not(#_) .kr-timer-value {
+  font: var(--mh-num-weight) var(--mh-num-size)/1.1 var(--mh-font-num);
+  letter-spacing: 0.04em;
+  color: var(--mh-pill-fg);
+  animation: none;
+}
+:root:not(#_) .kr-timer-label { display: none; }
+:root:not(#_) .kr-timer.kr-urgent { border-color: var(--mh-bad); box-shadow: var(--mh-shadow); background: var(--mh-pill-bg); }
+:root:not(#_) .kr-timer.kr-urgent .kr-timer-value { color: var(--mh-bad); animation: none; }
+
+/* ---------- hidden during the fight ---------- */
+
+:root:not(#_) :is(.kr-guard, .kr-combo, .kr-hud-mode, .kr-debug) { display: none; }
+
+/* Punch speed: one tiny line in the bottom-right corner, no card. */
+:root:not(#_) .kr-hud-bottom { display: block; inset: auto 0 0 auto; width: 0; height: 0; }
+:root:not(#_) .kr-speed {
+  position: fixed;
+  right: 18px;
+  bottom: 14px;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+:root:not(#_) :is(.kr-speed-head, .kr-speed-bar, .kr-speed-best) { display: none; }
+:root:not(#_) .kr-speed-value {
+  margin: 0;
+  font: 600 14px/1.2 var(--mh-font-text);
+  color: var(--mh-pill-fg);
+  text-shadow: var(--mh-name-shadow);
+}
+:root:not(#_) .kr-speed-value small { margin-left: 3px; font-size: 12px; color: var(--mh-pill-fg); opacity: 0.75; }
+
+/* Tracking hint ("Keep both fists in view"): compact pill near the bottom centre.
+   The element is styled inline in src/pose/trackingHint.ts, hence !important. */
+:root:not(#_) .pose-hint {
+  bottom: 18px !important;
+  padding: 4px 12px !important;
+  font: 600 13px/1.3 var(--mh-font-text) !important;
+  box-shadow: var(--mh-shadow) !important;
+  white-space: nowrap;
+}
+:root:not(#_) body[data-state='tutorial'] .pose-hint { bottom: 128px !important; }
+
+/* ---------- small pills under the timer ---------- */
+
+/* Attack warning: the red screen edge becomes one small pill. */
+:root:not(#_) .kr-telegraph {
+  inset: 62px auto auto 50%;
+  box-shadow: none;
+  transform: translateX(-50%);
+  transition: opacity 0.12s;
+  animation: none;
+}
+:root:not(#_) .kr-telegraph.kr-on { opacity: 1; animation: none; }
+:root:not(#_) .kr-telegraph::after {
+  content: 'Incoming! Block or dodge';
+  display: block;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--mh-warn-bg);
+  color: var(--mh-warn-fg);
+  font: 700 14px/1.2 var(--mh-font-text);
+  white-space: nowrap;
+  box-shadow: var(--mh-shadow);
+}
+
+/* Combo / counter / round callouts. */
+:root:not(#_) .kr-hud-banner {
+  top: 96px;
+  font: 700 14px/1.2 var(--mh-font-text);
+  font-style: normal;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+:root:not(#_) .kr-hud-banner span {
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--mh-pill-bg);
+  color: var(--mh-bad);
+  border: 1px solid var(--mh-pill-line);
+  box-shadow: var(--mh-shadow);
+  transform: none;
+  animation: mh-pill 0.9s ease-out forwards;
+}
+:root:not(#_) .kr-hud-banner span.kr-good { background: var(--mh-pill-bg); color: var(--mh-good); }
+
+/* Hit feedback: a soft edge tint instead of a heavy vignette. */
+:root:not(#_) .kr-hud-vignette.kr-hurt { box-shadow: inset 0 0 70px 10px rgba(255, 70, 90, 0.28); }
+
+/* ---------- pop words: small, lower third, quick fade ---------- */
+
+:root:not(#_) .kr-pops { place-items: end center; padding-bottom: 22vh; }
+:root:not(#_) .kr-popx {
+  font: 700 36px/1 var(--mh-font-text);
+  font-style: normal;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--mh-pill-fg);
+  text-shadow: var(--mh-pop-shadow);
+  transform: none;
+  filter: none;
+  animation: mh-pop 0.6s ease-out forwards;
+}
+:root:not(#_) .kr-popx::before { display: none; }
+:root:not(#_) .kr-popx-block { color: var(--mh-good); }
+:root:not(#_) .kr-popx-slip { color: var(--mh-good); }
+:root:not(#_) .kr-popx-hit { color: var(--mh-bad); font-size: 36px; }
+:root:not(#_) .kr-popx-custom { color: var(--mh-p2); font-size: 32px; }
+:root:not(#_) .kr-popx-ko { font-size: 72px; color: var(--mh-pill-fg); animation: mh-pop 1.6s ease-out forwards; }
+:root:not(#_) .kr-popx.kr-popx-out { animation: mh-out 0.12s ease-in forwards !important; }
+
+@keyframes mh-fade { from { opacity: 0; } }
+@keyframes mh-pop {
+  0% { opacity: 0; transform: translateY(8px); }
+  15% { opacity: 1; transform: none; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes mh-pill {
+  0% { opacity: 0; }
+  15%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes mh-out { to { opacity: 0; } }
+
+/* ---------- Home button during a game: small round icon, bottom-left above the webcam ---------- */
+
+:root:not(#_) .shell[data-view='game'] .shell-home {
+  top: auto;
+  left: 16px;
+  bottom: 16px;
+  translate: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  font-size: 0;
+  border-radius: 999px;
+  border: 1px solid var(--mh-pill-line);
+  background: var(--mh-pill-bg);
+  color: var(--mh-pill-fg);
+  box-shadow: var(--mh-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  opacity: 0.85;
+}
+/* With a webcam thumbnail in the bottom-left, sit just above it. */
+:root:not(#_) body:not(.bx-no-cam):has(#stage:not([style*='none'])):is([data-state='fighting'], [data-state='tutorial'], [data-state='ended']) .shell[data-view='game'] .shell-home { bottom: 140px; }
+:root:not(#_) .shell[data-view='game'] .shell-home span { font-size: 18px; line-height: 1; }
+:root:not(#_) .shell[data-view='game'] .shell-home:is(:hover, :focus-visible) { opacity: 1; }
+
+/* ---------- webcam thumbnail: small, bottom-left ---------- */
+
+:root:not(#_) body:is([data-state='fighting'], [data-state='tutorial'], [data-state='ended']) #stage {
+  inset: auto auto 16px 16px;
+  width: 150px;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  transform: none;
+  border: 2px solid #fff;
+  border-radius: 12px;
+  box-shadow: var(--mh-shadow);
+}
+:root:not(#_) body:is([data-state='fighting'], [data-state='tutorial']) #stage::after { display: none; }
+
+/* ---------- practice: one small card at the bottom ---------- */
+
+:root:not(#_) .bx-tut {
+  top: auto;
+  bottom: 20px;
+  width: auto;
+  min-width: 240px;
+  max-width: min(440px, calc(100vw - 360px));
+  padding: 8px 18px 6px;
+  border: 1px solid var(--mh-pill-line);
+  border-radius: 14px;
+  background: var(--mh-pill-bg);
+  color: var(--mh-pill-fg);
+  box-shadow: var(--mh-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: translateX(-50%);
+  animation: none;
+}
+:root:not(#_) .bx-tut--pop { animation: none; }
+:root:not(#_) :is(.bx-tut-kicker, .bx-tut-meter) { display: none; }
+:root:not(#_) .bx-tut-title {
+  margin: 0;
+  font: 700 17px/1.2 var(--mh-font-text);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--mh-pill-fg);
+}
+:root:not(#_) .bx-tut-hint { margin-top: 2px; font: 500 13px/1.3 var(--mh-font-text); color: var(--mh-muted); }
+:root:not(#_) .bx-tut-steps { gap: 8px; margin-top: 8px; font-size: 0; }
+:root:not(#_) .bx-tut-step {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mh-track);
+  box-shadow: inset 0 0 0 1px var(--mh-pill-line);
+}
+:root:not(#_) .bx-tut-step::before { content: none; }
+:root:not(#_) .bx-tut-step--now { background: var(--mh-pill-fg); }
+:root:not(#_) .bx-tut-step--done { background: var(--mh-good); box-shadow: none; }
+:root:not(#_) .bx-tut-skip {
+  margin-top: 4px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--mh-muted);
+  font: 600 12px/1.4 var(--mh-font-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  box-shadow: none;
+}
+:root:not(#_) .bx-tut-skip:is(:hover, :focus-visible) { color: var(--mh-pill-fg); }
+
+/* ---------- start / end screens: calmer, fewer badges ---------- */
+
+:root:not(#_) .kr-k-start :is(.kr-live, .kr-chip) { display: none; }

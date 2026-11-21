@@ -29,6 +29,7 @@ import {
   buildArena,
   buildDrone,
   buildGlove,
+  buildPlayerBody,
   createGlowTexture,
   createSparks,
   createVignetteTexture,
@@ -38,9 +39,14 @@ import type { DroneHitPart, GloveParts } from './sceneParts.ts'
 import { STRIKE_TIMING, WIND_MS, blendAttackPose, createPose } from './sceneAttack.ts'
 import { createRenderPipeline } from './scenePost.ts'
 import { brightBoxingLook } from '../../theme/bright/boxing.ts'
+import { buildHumanoid } from '../../theme/bright/avatar.ts'
 
 /** Bright theme look (island arena, bean opponent, cartoon gloves), null under ?theme=neon. */
 const look = brightBoxingLook()
+/** Calm, readable fight: fewer sparks, gentler shake, and the drone lunges less far so it never fills the camera. */
+const FX = 0.35
+const SHAKE = 0.45
+const LUNGE_REACH = 0.6
 
 /** Bot dodge and guard pose, metres and radians. */
 const BOT_SWAY_M = 0.45
@@ -53,7 +59,20 @@ const BOT_RING = { x: 0.44, y: DRONE.headY + 0.1, z: 0.12, radius: 0.1 }
 const PLAYER_RING = { x: -0.34, y: 0.16, z: -0.7, radius: 0.045 }
 
 const EYE_Y = 1.6
-const CAMERA_PITCH = -0.15
+/**
+ * Over-the-shoulder camera in rig metres: behind and above the player's right shoulder, so the
+ * player's own robot sits in the lower left and the opponent stays centred. Hit tests still use
+ * the rig (the player's eyes), so aiming and hit rates do not change with the view.
+ */
+/** Bright theme: the player is a toy figure seen from behind, feet on the floor (rig origin = eyes). */
+function buildBrightPlayer(): Group {
+  const fig = buildHumanoid({ seed: 3, height: 1.4 }).root
+  fig.rotation.y = Math.PI
+  fig.position.set(0, -EYE_Y, 0.12)
+  return fig
+}
+
+const VIEW = { x: 0.1, y: 0.85, z: 1.5, pitch: -0.34, yaw: 0.025 } as const
 const MAX_DT_MS = 50
 /** Critically damped glove spring (rad/s). 60 settles in about 75 ms; untracked gloves ease slower. */
 const TRACK_OMEGA = 60
@@ -286,9 +305,13 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   const rig = new Group()
   rig.position.set(0, EYE_Y, 0)
   scene.add(rig)
-  const camera = new PerspectiveCamera(68, 1, 0.03, 60)
-  camera.rotation.x = CAMERA_PITCH
+  const camera = new PerspectiveCamera(46, 1, 0.03, 60)
+  camera.rotation.order = 'YXZ'
+  camera.position.set(VIEW.x, VIEW.y, VIEW.z)
+  camera.rotation.set(VIEW.pitch, VIEW.yaw, 0)
   rig.add(camera)
+  const player = look ? buildBrightPlayer() : buildPlayerBody()
+  rig.add(player)
   const vignetteMat = new MeshBasicMaterial({
     map: vignetteMap,
     color: COLORS.telegraph,
@@ -318,8 +341,9 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
   const gloveOf = (hand: Hand): Glove => (hand === 'left' ? leftGlove : rightGlove)
 
   const post = createRenderPipeline(renderer, scene, camera, (level) => {
-    sparks.density = nearSparks.density = level === 'high' ? 1 : 0.5
+    sparks.density = nearSparks.density = (level === 'high' ? 1 : 0.5) * FX
   })
+  sparks.density = nearSparks.density = FX
 
   // ---------- state ----------
   let time = 0
@@ -657,7 +681,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
         }
       }
     }
-    blendAttackPose(a ? a.pattern : 'straight', a ? a.side : 1, wind, lunge, pose)
+    blendAttackPose(a ? a.pattern : 'straight', a ? a.side : 1, wind, lunge * LUNGE_REACH, pose)
     pose.x += Math.sin(time * 70) * tremble
     pose.y += Math.sin(time * 53 + 1) * tremble * 0.6
     // The ring follows the wind-up while charging, then holds its place as it fades.
@@ -775,8 +799,9 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     rig.position.set(lean.x, EYE_Y + lean.y, 0)
     rig.rotation.z = -lean.x * 0.4
     shake *= Math.exp(-real * 10)
-    camera.position.set(Math.sin(realTime * 71) * shake, Math.sin(realTime * 53 + 1.3) * shake * 0.8, 0)
-    camera.rotation.set(CAMERA_PITCH + Math.sin(realTime * 41) * shake * 0.5, 0, Math.sin(realTime * 37) * shake * 1.2)
+    const s = shake * SHAKE
+    camera.position.set(VIEW.x + Math.sin(realTime * 71) * s, VIEW.y + Math.sin(realTime * 53 + 1.3) * s * 0.8, VIEW.z)
+    camera.rotation.set(VIEW.pitch + Math.sin(realTime * 41) * s * 0.5, VIEW.yaw, Math.sin(realTime * 37) * s * 1.2)
     redFlash = Math.max(0, redFlash - real / 0.35)
     vignetteMat.opacity = redFlash * HIT_VIGNETTE[post.quality]
     vignette.visible = redFlash > 0
@@ -790,7 +815,7 @@ export function createBoxingScene(container: HTMLElement): BoxingScene {
     resize(width, height) {
       post.setSize(width, height)
       camera.aspect = Math.max(1, width) / Math.max(1, height)
-      camera.fov = camera.aspect < 0.9 ? 80 : 68 // portrait screens need more height to fit the drone
+      camera.fov = camera.aspect < 0.9 ? 62 : 46 // portrait screens need more height to fit the drone
       camera.updateProjectionMatrix()
       const halfH = Math.tan((camera.fov * Math.PI) / 360) * -vignette.position.z * 1.08
       vignette.scale.set(halfH * camera.aspect, halfH, 1)

@@ -116,6 +116,7 @@ export function buildBrightGlove(hand: Hand): GloveParts {
     opacity: 0.08,
     side: BackSide,
     depthWrite: false,
+    visible: false, // minimal look: no glow rim
   })
   const model = gloveModel(0.085, inward, {
     shell,
@@ -276,7 +277,7 @@ export function buildBrightOpponent(glowMap: Texture): DroneParts {
   const chestCenter = new Vector3(0, 0, 0.12)
   const headCenter = new Vector3(0, DRONE.headY, 0.04)
   const rim = (): MeshBasicMaterial =>
-    new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, side: BackSide, depthWrite: false })
+    new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, side: BackSide, depthWrite: false, visible: false })
   const headHalo = rim()
   const chestHalo = rim()
   const headPop = new Mesh(new SphereGeometry(0.255, 24, 16), headHalo)

@@ -3,6 +3,7 @@
 // Neon theme: the hero-tile dashboard. Bright theme: a 4 x 3 channel grid with a preview panel.
 import '../theme/index.ts'
 import './shell.css'
+import './channels.css'
 import '../theme/bright/shell.css'
 import { isBright } from '../theme/index.ts'
 import { TILES, artUrl } from './catalogue.ts'
@@ -243,12 +244,15 @@ const SLOTS = 12
 // ---------- mount ----------
 
 export function mountShell(options: ShellOptions): Shell {
-  const bright = isBright()
+  // Every theme uses the channel grid; the neon tile art is animated SVG, so it is shown as stills.
+  /** Channel-grid layout (all themes). The old hero dashboard is kept behind this flag. */
+  const channels = true as boolean
+  const neon = !isBright()
   const root = options.root ?? document.body
   const sfx = mutable(createSfx())
   const wrap = document.createElement('div')
-  wrap.className = bright ? 'shell shell--channels' : 'shell'
-  wrap.innerHTML = (bright ? BRIGHT_HOME : NEON_HOME) + SHARED
+  wrap.className = channels ? 'shell shell--channels' : 'shell'
+  wrap.innerHTML = (channels ? BRIGHT_HOME : NEON_HOME) + SHARED
   root.append(wrap)
 
   function q<T extends HTMLElement>(selector: string): T {
@@ -363,11 +367,12 @@ export function mountShell(options: ShellOptions): Shell {
     return b
   }
 
-  if (bright) {
+  if (channels) {
     for (const info of TILES) {
       const ready = options.launchers[info.id] !== undefined
-      const img = artImg(info.art, 'ch-tile-img', false)
+      const img = artImg(info.art, 'ch-tile-img', neon)
       const b = buildChannel(info.id, info.title, ready, img)
+      b.style.setProperty('--a', info.accent)
       tileEls.set(info.id, b)
       channelEls.set(info.id, b)
       grid.append(b)
@@ -377,6 +382,7 @@ export function mountShell(options: ShellOptions): Shell {
       glyph.innerHTML = x.glyph // static markup
       glyph.style.setProperty('--tint', x.accent)
       const b = buildChannel(x.id, x.title, x.id === 'settings', glyph)
+      b.style.setProperty('--a', x.id === 'settings' ? '#a98bff' : '#38c8ff')
       channelEls.set(x.id, b)
       grid.append(b)
     }
@@ -399,7 +405,7 @@ export function mountShell(options: ShellOptions): Shell {
   // ---------- clock ----------
   function tickClock(): void {
     const now = new Date()
-    if (!bright) {
+    if (!channels) {
       clock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       return
     }
@@ -446,7 +452,7 @@ export function mountShell(options: ShellOptions): Shell {
   // ---------- preview panel (bright) ----------
   let previewId: ChannelId | null = null
   let flipTimer = 0
-  const preview = bright ? q('.ch-preview') : null
+  const preview = channels ? q('.ch-preview') : null
 
   function previewOpen(): boolean {
     return previewId !== null
@@ -475,8 +481,11 @@ export function mountShell(options: ShellOptions): Shell {
     preview.dataset.id = id
     if (info) {
       const ready = options.launchers[info.id] !== undefined
-      img.src = info.art
+      // Neon: reuse the tile's still bitmap (animated SVGs are the costliest thing to draw).
+      const still = channelEls.get(info.id)?.querySelector<HTMLImageElement>('img')?.dataset.still
+      img.src = neon && still ? still : info.art
       img.hidden = false
+      preview.style.setProperty('--a', info.accent)
       title.textContent = info.title
       how.textContent = info.howTo
       best.textContent = bestLine(info.id, records.get(info.id)) || info.tagline
@@ -524,8 +533,8 @@ export function mountShell(options: ShellOptions): Shell {
       }
       extra.append(
         row('Look', [
-          ['Bright', true, setTheme('bright')],
-          ['Neon', false, setTheme('neon')],
+          ['Neon', neon, setTheme('neon')],
+          ['Bright', !neon, setTheme('bright')],
         ]),
         row('Sound', [
           ['On', soundOn(), setSound(true)],
@@ -592,7 +601,7 @@ export function mountShell(options: ShellOptions): Shell {
     focusTile(id)
   }
 
-  if (bright) {
+  if (channels) {
     q('.ch-btn--back').addEventListener('click', () => closePreview())
     q('.ch-btn--start').addEventListener('click', () => {
       const id = previewId
@@ -609,7 +618,7 @@ export function mountShell(options: ShellOptions): Shell {
   /** Focusable targets for the arrow keys in the current state. */
   function navTargets(): HTMLElement[] {
     if (preview && previewOpen()) return [...preview.querySelectorAll<HTMLButtonElement>('button:not([hidden]):not([disabled])')]
-    return bright ? [...channelEls.values()] : [...tileEls.values()]
+    return channels ? [...channelEls.values()] : [...tileEls.values()]
   }
 
   /** Spatial navigation: nearest target centre in the pressed direction. */
@@ -745,7 +754,7 @@ export function mountShell(options: ShellOptions): Shell {
       if (!info || !tile) return
       if (!launcher) {
         sfx.denied()
-        replay(tile, bright ? 'ch-tile--nope' : 'shell-tile--nope')
+        replay(tile, channels ? 'ch-tile--nope' : 'shell-tile--nope')
         showToast(`${info.title} is coming soon`)
         return
       }
