@@ -115,6 +115,9 @@ function splitNamed(s: string, fallbackName: string) {
   return s.length <= 40 ? { name: s || fallbackName, description: '' } : { name: fallbackName, description: s };
 }
 
+/** Server default SHOULDER_WIDTH_M: it stores speeds in m/s, the UI shows shoulder-widths/s. */
+const SHOULDER_WIDTH_M = 0.4;
+
 /** Server leaderboard rows (or the client's own shape) -> LeaderboardEntry[]. */
 export function parseLeaderboard(v: unknown, sport: Sport): LeaderboardEntry[] | null {
   const rows = isRecord(v) ? v.entries : v;
@@ -127,7 +130,7 @@ export function parseLeaderboard(v: unknown, sport: Sport): LeaderboardEntry[] |
       display_name: String(e.display_name ?? e.name ?? 'Player'),
       sport: typeof e.sport === 'string' && e.sport.toUpperCase() in SERVER_SPORT ? (e.sport.toUpperCase() as Sport) : sport,
       score: Number(e.score ?? 0) || 0,
-      max_speed: speed == null ? null : Number(speed),
+      max_speed: speed == null ? null : Math.round((Number(speed) / SHOULDER_WIDTH_M) * 10) / 10,
     };
   });
 }
