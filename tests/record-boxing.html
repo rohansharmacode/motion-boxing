@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Boxing detector field test and fixture recorder (dev server only: /tests/record-boxing.html).
+     Runs the real camera -> calibrator -> body tracker -> detector chain, tallies detections against
+     what you meant to throw, and saves raw pose clips as JSON fixtures for tests/unit/boxing-replay.test.ts. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Boxing detector recorder</title>
+    <style>
+      body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #0d1220; color: #e6ecff; display: grid; grid-template-columns: 480px 1fr; gap: 16px; padding: 16px; }
+      video { width: 480px; transform: scaleX(-1); border-radius: 8px; background: #000; }
+      button, select, input { font: inherit; padding: 6px 10px; margin: 2px; border-radius: 6px; border: 1px solid #39456b; background: #1b2440; color: inherit; }
+      button.on { background: #c0392b; }
+      table { border-collapse: collapse; margin-top: 8px; }
+      td, th { border: 1px solid #39456b; padding: 3px 8px; text-align: right; }
+      th:first-child, td:first-child { text-align: left; }
+      #live { font: 13px ui-monospace, monospace; white-space: pre; background: #141b30; padding: 8px; border-radius: 6px; min-height: 140px; }
+      #log { font: 12px ui-monospace, monospace; max-height: 220px; overflow: auto; background: #141b30; padding: 8px; border-radius: 6px; }
+      .muted { color: #8b97bd; }
+    </style>
+  </head>
+  <body>
+    <div>
+      <video id="video" playsinline muted></video>
+      <div><button id="start">Start camera</button> <span id="status" class="muted">idle</span></div>
+      <div id="live"></div>
+    </div>
+    <div>
+      <h3>1. Session</h3>
+      <label>Lighting <input id="light" value="room light" size="12" /></label>
+      <label>Distance (m) <input id="dist" value="1.5" size="4" /></label>
+      <p class="muted">Calibrate (guard up, hold still). For fixture clips, start each recording with about 2 s of guard so the replay learns the same baselines. Then for each test: pick what you will do, press Start, do it N times, press Stop and type how many you threw.</p>
+      <h3>2. Count test</h3>
+      <select id="intent">
+        <option>jab</option><option>cross</option><option>hook</option><option>uppercut</option>
+        <option>guard</option><option>slip</option><option>duck</option><option value="idle">idle (no punches)</option>
+      </select>
+      <button id="trial">Start</button>
+      <table id="tally"><thead><tr><th>lighting / dist / intent</th><th>thrown</th><th>jab</th><th>cross</th><th>hook</th><th>uppercut</th><th>guard</th><th>slip</th><th>duck</th><th>correct</th></tr></thead><tbody></tbody></table>
+      <button id="csv">Download counts (CSV)</button>
+      <h3>3. Fixture clip</h3>
+      <select id="clip">
+        <option value="jab">jab (3 jabs)</option><option value="hook">hook (3 hooks)</option><option value="idle-sway">idle sway (no punches)</option>
+        <option value="cross">cross</option><option value="uppercut">uppercut</option>
+      </select>
+      <button id="rec">Record</button> <span class="muted">Records raw pose frames until you press Stop. Save the file to tests/fixtures/boxing/.</span>
+      <h3>Log</h3>
+      <div id="log"></div>
+    </div>
+    <script type="module" src="./record-boxing.ts"></script>
+  </body>
+</html>
