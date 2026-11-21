@@ -6,6 +6,8 @@
 //
 // Refreshes every refreshMs, rotates every rotateMs, hides itself when there is nothing to show.
 
+import './styles.css';
+import './components.css';
 import { getHighlights } from '../api/client';
 import type { Highlight, ApiSource } from '../api/types';
 import { el, html, prefersReducedMotion } from './dom';

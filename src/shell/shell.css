@@ -686,3 +686,10 @@
 
 /* The wide leaderboard tile is too short for its icon: it sat on top of the title. */
 .shell-tile--leaderboard .shell-tile-icon { display: none; }
+
+/* "Live from Snowflake" highlights ticker (src/ui/HighlightsTicker.ts), between the grid and the hints. */
+.shell-ticker { display: flex; justify-content: center; min-height: 0; }
+.shell-ticker:empty { display: none; }
+.shell-ticker .kr-hl { max-width: min(720px, 92vw); }
+.shell:has(> .shell-ticker) { grid-template-rows: auto auto 1fr auto auto; }
+@media (max-width: 760px), (max-height: 520px) { .shell:has(> .shell-ticker) { grid-template-rows: auto auto auto auto auto; } }
