@@ -30,8 +30,10 @@ import {
 } from 'three'
 import type { Texture } from 'three'
 import type { Hand } from '../../pose/types.ts'
+import { isBright } from '../../theme/index.ts'
+import { BOXING as BRIGHT_COLORS } from '../../theme/bright/palette.ts'
 
-export const COLORS = {
+const NEON_COLORS = {
   bg: 0x07080c,
   left: 0x38c8ff,
   right: 0xff5a1f,
@@ -40,6 +42,9 @@ export const COLORS = {
   telegraph: 0xff2a3d,
   counter: 0xffc83a,
 } as const
+
+/** Scene colours for the active theme (bright is the default, ?theme=neon is the original look). */
+export const COLORS: { readonly [K in keyof typeof NEON_COLORS]: number } = isBright() ? BRIGHT_COLORS : NEON_COLORS
 
 /**
  * Drone layout in metres. The chest centre floats at (0, y, z); the head sits headY above it.
@@ -64,7 +69,7 @@ export const DRONE = {
 export const HALO_OPACITY = 0.07
 
 /** A colour pushed above 1 so it crosses the bloom threshold. On low quality it just clips. */
-export const hdr = (hex: number, k: number): Color => new Color(hex).multiplyScalar(k)
+export const hdr = (hex: number, k: number): Color => new Color(hex).multiplyScalar(isBright() ? 1 : k) // no bloom in bright: keep colours in range
 
 /** Neon colours the scene animates from. Copy them, never mutate them. */
 export const NEON = {

@@ -1,4 +1,6 @@
 // Tiny synthesised UI sounds (WebAudio, no files). Original tones.
+import { isBright } from '../theme/index.ts'
+import { createBrightUiSfx } from '../theme/bright/sfx.ts'
 
 export interface Sfx {
   hover(): void
@@ -8,6 +10,7 @@ export interface Sfx {
 }
 
 export function createSfx(): Sfx {
+  if (isBright()) return createBrightUiSfx()
   let ctx: AudioContext | null = null
 
   function audio(): AudioContext | null {

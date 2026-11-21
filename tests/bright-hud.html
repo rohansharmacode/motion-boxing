@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Boxing HUD theme preview (dev server only: /tests/bright-hud.html?theme=bright|neon&view=start|loading|error|calibrating|fighting|warn|ko-win|ko-loss|time).
+     Mounts the real HUD over a flat sky backdrop and drives it through its public API. No camera, no 3D scene. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bright HUD preview</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;800&display=swap" />
+    <style>
+      /* Stand-in for the 3D scene: a sunny beach gradient (bright) or plain dark (neon). */
+      #arena { background: linear-gradient(180deg, #3fa7ee 0%, #8fd3fb 50%, #46c7d9 62%, #f6dfa4 63%, #e9c983 100%) !important; }
+      html[data-theme='neon'] #arena { background: #0b0c0f !important; }
+    </style>
+  </head>
+  <body>
+    <main id="app">
+      <div id="arena"></div>
+      <section id="stage"><video id="webcam" playsinline muted></video><canvas id="overlay"></canvas></section>
+      <div id="ui"></div>
+    </main>
+    <script type="module">
+      import '/src/theme/index.ts'
+      import '/src/style.css'
+      import { createBoxingHud } from '/src/sports/boxing/hud.ts'
+      const hud = createBoxingHud(document.getElementById('ui'))
+      window.__hud = hud
+      const view = new URLSearchParams(location.search).get('view') || 'start'
+      const noop = () => {}
+      const set = (s) => (document.body.dataset.state = s)
+      const counts = { jab: 7, cross: 5, hook: 3, uppercut: 2, landed: 11, total: 17 }
+      if (view === 'start') { set('start'); hud.showStart(noop, noop) }
+      else if (view === 'loading') { set('loading'); hud.showLoading('Loading tracker') }
+      else if (view === 'error') { set('error'); hud.showError('camera-denied', noop, noop) }
+      else if (view === 'calibrating') { set('calibrating'); hud.showCalibration(0.6, 'holding') }
+      else if (view === 'fighting') {
+        set('fighting'); hud.showFight(); hud.setKeyboardMode(true)
+        hud.setHp(100, 100); hud.setHp(64, 38); hud.setTimer(42000); hud.setCounts(counts); hud.setGuard(true)
+        hud.setCombo(2); hud.setCombo(4)
+        hud.flashPunch({ kind: 'cross', hand: 'right', peakVelocity: 6.4 }, true, true)
+        hud.callout('Blocked!', 'good')
+      } else if (view === 'warn') {
+        set('fighting'); hud.showFight(); hud.setCameraActive(false)
+        hud.setHp(100, 100); hud.setHp(80, 70); hud.setTimer(31000); hud.setCounts(counts)
+        hud.setTelegraph(new URLSearchParams(location.search).get('pattern') || 'hook')
+      } else {
+        set('ended'); hud.showFight(); hud.setHp(view === 'ko-loss' ? 0 : 40, view === 'ko-win' ? 0 : 55); hud.setTimer(0); hud.setCounts(counts)
+        hud.showRoundEnd({ outcome: view, counts, playerHp: 40, droneHp: 55, accuracyPct: 64.7, bestSpeed: 7.2, blocks: 4, dodges: 3, hitsTaken: 6, maxCombo: 5 }, noop, noop)
+        if (view !== 'time') hud.setCoachCard({ badge: 'Pressure artist', headline: 'You kept the drone on the back foot all round.', tips: ['Mix in more hooks to open the guard.', 'Reset your guard after every combo.', 'Slip right when you see the glow.'], drill: '3 rounds: jab, cross, slip, repeat.', source: view === 'ko-win' ? 'cortex' : 'local' })
+      }
+    </script>
+  </body>
+</html>
