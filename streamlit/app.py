@@ -124,8 +124,11 @@ def get_backend() -> Backend:
     if L.demo_forced(env):
         return Backend("demo", detail="MOTION_DEMO / SNOWFLAKE_MOCK is set")
     try:
+        import _snowflake  # noqa: F401 - only exists inside Streamlit in Snowflake
         from snowflake.snowpark.context import get_active_session
 
+        # Without the _snowflake check, a local run would pick up the Snowpark session
+        # another page created and wrongly report it as Streamlit in Snowflake.
         return Backend("snowflake", get_active_session(), "Streamlit in Snowflake session")
     except Exception:  # noqa: BLE001 - not running in SiS (or Snowpark missing)
         pass
