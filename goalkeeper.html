@@ -2,7 +2,7 @@
 <!--
   TEMPORARY dev entry for the goalkeeper sport (Reflex Keeper).
   Served by Vite in dev at /goalkeeper.html. Not part of `npm run build` (only index.html is bundled).
-  Remove this file (and src/sports/goalkeeper/dev.ts, dev-camera.ts) once main.ts has a sport switcher.
+  Boots the same startGoalkeeper() the shell launches. Remove with src/sports/goalkeeper/dev.ts once the shell is in main.ts.
 -->
 <html lang="en">
   <head>
@@ -17,12 +17,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;800&display=swap" />
   </head>
   <body class="gk-page">
-    <main id="app">
-      <section id="stage">
-        <video id="webcam" playsinline muted></video>
-      </section>
-      <div id="ui"></div>
-    </main>
+    <main id="app"></main>
     <script type="module" src="/src/sports/goalkeeper/dev.ts"></script>
   </body>
 </html>

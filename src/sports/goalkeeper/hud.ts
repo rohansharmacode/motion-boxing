@@ -54,8 +54,23 @@ function fmtMs(ms: number | null): string {
   return ms === null ? '—' : `${Math.round(ms)}`
 }
 
-export function createKeeperHud(root: HTMLElement): KeeperHud {
+export interface KeeperHudOptions {
+  /** Adds Home buttons (start, error, end, play corner) that call this. */
+  onHome?: () => void
+  /** Called on every HUD button press (UI click sound). */
+  onButton?: () => void
+}
+
+export function createKeeperHud(root: HTMLElement, opts: KeeperHudOptions = {}): KeeperHud {
+  function homeButton(): HTMLButtonElement {
+    const b = button('Home', true)
+    b.addEventListener('click', () => opts.onHome?.())
+    return b
+  }
   const hud = el('div', 'gk-hud')
+  hud.addEventListener('click', (e) => {
+    if (e.target instanceof HTMLElement && e.target.closest('button')) opts.onButton?.()
+  })
   hud.dataset.view = 'start'
   const backdrop = el('div', 'gk-backdrop')
 
@@ -71,6 +86,7 @@ export function createKeeperHud(root: HTMLElement): KeeperHud {
   const startCamera = button('Play with camera')
   const startMouse = button('Play with mouse', true)
   startActions.append(startCamera, startMouse)
+  if (opts.onHome) startActions.append(homeButton())
   const startNote = el('p', 'gk-note')
   startNote.append(
     el('span', 'gk-kbd', 'D'),
@@ -98,6 +114,7 @@ export function createKeeperHud(root: HTMLElement): KeeperHud {
   const errRetry = button('Retry')
   const errMouse = button('Play with mouse', true)
   errActions.append(errRetry, errMouse)
+  if (opts.onHome) errActions.append(homeButton())
   error.append(errKicker, errMsg, errActions)
 
   // ---------- calibration ----------
@@ -138,6 +155,16 @@ export function createKeeperHud(root: HTMLElement): KeeperHud {
   const badge = el('p', 'gk-badge', 'CAMERA')
   badge.dataset.mode = 'camera'
   play.append(topbar, badge)
+  if (opts.onHome) {
+    const corner = homeButton()
+    corner.className = 'gk-home-corner'
+    corner.textContent = '⌂ Home'
+    corner.setAttribute('aria-label', 'Home')
+    play.append(corner)
+  }
+  const telegraph = el('div', 'gk-telegraph')
+  telegraph.setAttribute('aria-hidden', 'true')
+  play.append(telegraph)
 
   const callouts = el('div', 'gk-callouts')
   callouts.setAttribute('aria-live', 'assertive')
@@ -153,6 +180,7 @@ export function createKeeperHud(root: HTMLElement): KeeperHud {
   const endActions = el('div', 'gk-actions')
   const again = button('Again')
   endActions.append(again)
+  if (opts.onHome) endActions.append(homeButton())
   end.append(endKicker, endSaves, stats, kicksTable, endActions)
 
   // ---------- debug ----------
@@ -267,6 +295,10 @@ export function createKeeperHud(root: HTMLElement): KeeperHud {
         node.remove()
       }, CALLOUT_MS)
       timers.add(id)
+    },
+
+    setTelegraph(on: boolean) {
+      telegraph.classList.toggle('gk-on', on)
     },
 
     setInputMode(mode: InputMode) {

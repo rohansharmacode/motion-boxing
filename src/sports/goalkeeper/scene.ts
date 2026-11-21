@@ -34,7 +34,7 @@ const LINE = 0xcfe8ff
 
 // ---------- camera ----------
 const CAM_FOV = 50
-const CAM_Y = 1.35
+const CAM_Y = 2.2
 /** Half width at the goal plane that must stay on screen (posts at 3.66 plus glove reach margin). */
 const FIT_HALF_WIDTH = 4.3
 const CAM_MIN_D = 4.4
@@ -203,7 +203,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   scene.fog = new THREE.Fog(BG, 20, 60)
 
   const camera = new THREE.PerspectiveCamera(CAM_FOV, 16 / 9, 0.05, 200)
-  const lookTarget = new THREE.Vector3(0, 1.05, PENALTY_Z)
+  const lookTarget = new THREE.Vector3(0, 0.85, PENALTY_Z)
   const shakeOffset = new THREE.Vector3()
 
   const textures: THREE.Texture[] = []
@@ -327,7 +327,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   const frameGlowMat = new THREE.MeshBasicMaterial({
     color: CYAN,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.16,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
@@ -336,7 +336,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   const flashRed = new THREE.Color(RED)
   {
     const postGeo = new THREE.CylinderGeometry(0.06, 0.06, GOAL_HEIGHT + 0.06, 12)
-    const postGlowGeo = new THREE.CylinderGeometry(0.16, 0.16, GOAL_HEIGHT + 0.16, 12, 1, true)
+    const postGlowGeo = new THREE.CylinderGeometry(0.12, 0.12, GOAL_HEIGHT + 0.12, 12, 1, true)
     for (const sx of [-1, 1]) {
       const p = new THREE.Mesh(postGeo, frameMat)
       p.position.set(sx * GOAL_HALF_WIDTH, (GOAL_HEIGHT + 0.06) / 2, GOAL_Z)
@@ -346,7 +346,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
       scene.add(pg)
     }
     const barGeo = new THREE.CylinderGeometry(0.06, 0.06, GOAL_HALF_WIDTH * 2 + 0.12, 12)
-    const barGlowGeo = new THREE.CylinderGeometry(0.16, 0.16, GOAL_HALF_WIDTH * 2 + 0.3, 12, 1, true)
+    const barGlowGeo = new THREE.CylinderGeometry(0.12, 0.12, GOAL_HALF_WIDTH * 2 + 0.24, 12, 1, true)
     const bar = new THREE.Mesh(barGeo, frameMat)
     bar.rotation.z = Math.PI / 2
     bar.position.set(0, GOAL_HEIGHT, GOAL_Z)
@@ -401,7 +401,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     netGeo.setAttribute('position', new THREE.BufferAttribute(netPos, 3))
     netGeo.setIndex(idx)
   }
-  const netMat = new THREE.LineBasicMaterial({ color: 0x6fdcff, transparent: true, opacity: 0.2, depthWrite: false })
+  const netMat = new THREE.LineBasicMaterial({ color: 0x6fdcff, transparent: true, opacity: 0.28, depthWrite: false })
   scene.add(new THREE.LineSegments(netGeo, netMat))
   {
     // static side nets
@@ -622,7 +622,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     const haloMat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.16,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     })
@@ -680,8 +680,8 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   const segDir = new THREE.Vector3()
 
   // ---------- striker bot ----------
-  const botBodyMat = new THREE.MeshStandardMaterial({ color: 0x2b3142, roughness: 0.55, metalness: 0.35 })
-  const botDarkMat = new THREE.MeshStandardMaterial({ color: 0x161a24, roughness: 0.7, metalness: 0.2 })
+  const botBodyMat = new THREE.MeshStandardMaterial({ color: 0x56607a, roughness: 0.5, metalness: 0.3 })
+  const botDarkMat = new THREE.MeshStandardMaterial({ color: 0x262b38, roughness: 0.6, metalness: 0.2 })
   const botAccentMat = new THREE.MeshBasicMaterial({ color: AMBER })
   const visorMat = new THREE.MeshBasicMaterial({ color: AMBER })
   const kickFootMat = new THREE.MeshStandardMaterial({ color: 0x3a3f50, emissive: AMBER, emissiveIntensity: 0, roughness: 0.4 })
@@ -776,6 +776,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
   const armR = makeArm(-0.31) // bot's right (world -x)
   const armL = makeArm(0.31)
   botRoot.position.set(STRIKER_START_X, 0, STRIKER_START_Z)
+  botRoot.scale.setScalar(1.12)
   scene.add(botRoot)
 
   // striker animation state
@@ -1010,7 +1011,7 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     ghostTopCap.position.copy(torsoTop)
     ghostBotCap.position.copy(torsoBottom)
     torsoGlow = Math.max(0, torsoGlow - dt * 3)
-    ghostMat.opacity = (keeperPresent ? 0.08 : 0.045) * keeperDim + 0.35 * torsoGlow
+    ghostMat.opacity = (keeperPresent ? 0.06 : 0.035) * keeperDim + 0.3 * torsoGlow
   }
 
   const updateBall = (dt: number): void => {
@@ -1140,9 +1141,9 @@ export function createKeeperScene(canvas?: HTMLCanvasElement): KeeperScene {
     const f = frameFlash
     frameMat.color.copy(frameBase).lerp(flashRed, f)
     frameGlowMat.color.copy(frameGlowBase).lerp(flashRed, f)
-    frameGlowMat.opacity = 0.22 + 0.5 * f
+    frameGlowMat.opacity = 0.16 + 0.5 * f
     netMat.color.setHex(0x6fdcff).lerp(flashRed, f * 0.8)
-    netMat.opacity = 0.2 + 0.25 * f
+    netMat.opacity = 0.28 + 0.25 * f
   }
 
   const updateZone = (dt: number): void => {

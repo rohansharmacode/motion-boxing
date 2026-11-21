@@ -167,6 +167,8 @@ export interface KeeperEngine extends SportEngine<KeeperScene> {
   /** Called on every striker phase change, for HUD cues. */
   onStrikerPhase(cb: (phase: StrikerPhase, kick: number) => void): void
   onShootoutEnd(cb: (r: ShootoutResult) => void): void
+  /** Game-world speed, below 1 during the save/goal slow-mo. Hosts pass dt * timeScale to scene.update. */
+  readonly timeScale: number
   readonly debug: Record<string, number | string>
 }
 
@@ -237,6 +239,8 @@ export interface KeeperHud {
   /** Short callout such as SAVED!, GOAL, PUNCHED CLEAR, GET READY. */
   callout(text: string, tone: 'good' | 'bad' | 'info'): void
   setInputMode(mode: InputMode): void
+  /** Faint edge pulse while the striker telegraphs (the 0.5 s stance tell). */
+  setTelegraph(on: boolean): void
   showEnd(result: ShootoutResult, onAgain: () => void): void
   setDebug(values: Record<string, number | string>): void
   toggleDebug(): void

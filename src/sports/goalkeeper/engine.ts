@@ -58,6 +58,12 @@ const MAX_SUBSTEPS = 8
 const UNTRACKED_GRACE_MS = 400
 /** Glove speed (m/s) that counts as a decisive reaction. */
 const REACTION_SPEED = 1.8
+/** Faster than this after the telegraph starts is anticipation, not reaction, ms. */
+const MIN_REACTION_MS = 100
+/** Game-world speed during the save/goal slow-mo, and how long it lasts in real ms. */
+const SLOWMO_SCALE = 0.3
+const SLOWMO_SAVE_MS = 700
+const SLOWMO_GOAL_MS = 550
 /** Glove speed (m/s) toward the ball for a punch clearance. */
 const PUNCH_SPEED = 2.5
 const TICK_MS = 200
@@ -226,6 +232,20 @@ export function createKeeperEngine(opts?: {
 
   // ---- per-kick metrics ----
   let reactionMs: number | null = null
+  let reactionArmed = false
+
+  // ---- slow-mo (real ms) ----
+  let slowMoLeft = 0
+  let slowMoTotal = 1
+  let timeScale = 1
+  /** Holds SLOWMO_SCALE, then eases back to 1 over the last 40% of the window. */
+  function slowMoScale(): number {
+    if (slowMoLeft <= 0) return 1
+    const u = slowMoLeft / slowMoTotal // 1 at the start, 0 at the end
+    if (u > 0.4) return SLOWMO_SCALE
+    const k = u / 0.4
+    return SLOWMO_SCALE + (1 - SLOWMO_SCALE) * (1 - k * k)
+  }
   let peakMs = 0 // m/s
   let lastGloveSpeed = 0 // m/s, max of both gloves, current
 
@@ -291,6 +311,7 @@ export function createKeeperEngine(opts?: {
     launchSpin = 0
     physAcc = 0
     reactionMs = null
+    reactionArmed = false
     peakMs = 0
     restBall()
     ballVisible = true
@@ -342,6 +363,7 @@ export function createKeeperEngine(opts?: {
     results.push(result)
     stage = 'result'
     stageMs = 0
+    slowMoTotal = slowMoLeft = outcome === 'save' ? SLOWMO_SAVE_MS : SLOWMO_GOAL_MS
     for (const cb of kickCbs) cb(result)
     telemetry.emit({
       event_type: outcome === 'save' ? 'SAVE' : 'GOAL',
@@ -403,6 +425,26 @@ export function createKeeperEngine(opts?: {
     }
     telemetry.flush()
     flushAcc = 0
+    // Round summary for the shell dashboard's personal bests (src/shell/records.ts reads TICK +
+    // metrics.summary). counts.total feeds its "best" counter, so for the keeper it is saves.
+    const total = results.length
+    telemetry.emit({
+      event_type: 'TICK',
+      peak_velocity: best,
+      reaction_ms: summary.avgReactionMs,
+      accuracy_score: total > 0 ? (saves / total) * 100 : 0,
+      symmetry_ratio: symmetry(),
+      metrics: {
+        summary: true,
+        outcome: saves > goals ? 'win' : 'loss',
+        counts: { total: saves, saves, goals, kicks: total },
+        accuracyPct: total > 0 ? Math.round((saves / total) * 100) : 0,
+        bestSpeed: best,
+        score: summary.score,
+        avgReactionMs: summary.avgReactionMs,
+        source: source(),
+      },
+    })
     for (const cb of endCbs) cb(summary)
   }
 
@@ -565,7 +607,10 @@ export function createKeeperEngine(opts?: {
     lastGloveSpeed = Math.max(ls, rs)
     if (phase !== 'playing' || !plan || resolved || telegraphStart < 0) return
     if (lastGloveSpeed > peakMs) peakMs = lastGloveSpeed
-    if (reactionMs === null && lastGloveSpeed > REACTION_SPEED) {
+    // A glove already moving at the telegraph is not a reaction: wait until it has been below the
+    // threshold once, and ignore anything faster than human reaction time (anticipation).
+    if (lastGloveSpeed <= REACTION_SPEED) reactionArmed = true
+    if (reactionMs === null && reactionArmed && lastGloveSpeed > REACTION_SPEED && clock - telegraphStart >= MIN_REACTION_MS) {
       const tx = plan.target.x
       const side = tx < -0.6 ? -1 : tx > 0.6 ? 1 : 0
       const ok =
@@ -739,6 +784,8 @@ export function createKeeperEngine(opts?: {
     startShootout() {
       if (disposed) return
       results = []
+      slowMoLeft = 0
+      timeScale = 1
       leftSaves = 0
       rightSaves = 0
       telemetry.startRound()
@@ -767,10 +814,14 @@ export function createKeeperEngine(opts?: {
       updatePointerVel(dtS)
       updateMetrics()
 
+      // Slow-mo after a save or goal scales only the game world (striker, ball). Pose velocities and
+      // reaction timing stay on real time.
+      timeScale = slowMoScale()
+      if (slowMoLeft > 0) slowMoLeft = Math.max(0, slowMoLeft - dt)
       if (phase === 'playing') {
-        advanceStage(dt)
+        advanceStage(dt * timeScale)
         // advanceStage may end the shootout; physics only while playing.
-        if (phase === 'playing') runPhysics(dtS)
+        if (phase === 'playing') runPhysics(dtS * timeScale)
       }
 
       // Remember the active glove positions for next update's swept interpolation.
@@ -789,6 +840,10 @@ export function createKeeperEngine(opts?: {
 
     flushTelemetry() {
       telemetry.flush()
+    },
+
+    get timeScale() {
+      return timeScale
     },
 
     onKickResult(cb: (r: KickResult) => void) {

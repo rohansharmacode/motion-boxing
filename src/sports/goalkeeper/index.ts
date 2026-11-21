@@ -1,0 +1,333 @@
+// Reflex Keeper entry for the shell: startGoalkeeper(ctx) builds the game inside ctx.host and returns a
+// GameSession. Camera path uses the shared PosePipeline + calibrator + body tracker from src/pose;
+// mouse path (D toggles any time) needs no camera. Research doc section 3 (Sport 2) and 4.
+import { startPosePipeline } from '../../pose/pipeline.ts'
+import type { PosePipeline } from '../../pose/pipeline.ts'
+import { createCalibrator } from '../../pose/calibration.ts'
+import { createBodyTracker } from '../../pose/body.ts'
+import type { BodyTracker } from '../../pose/body.ts'
+import { StartupError } from '../../pose/types.ts'
+import type { StartupErrorKind } from '../../pose/types.ts'
+import type { GameContext, GameSession } from '../../shell/types.ts'
+import { createSfx } from '../../shell/sfx.ts'
+import { createKeeperScene } from './scene.ts'
+import { createKeeperEngine } from './engine.ts'
+import { createKeeperTelemetry } from './telemetry.ts'
+import { createKeeperHud } from './hud.ts'
+import { createKeeperInput } from './input.ts'
+import { createKeeperSfx } from './sfx.ts'
+import { KICKS_PER_SHOOTOUT } from './types.ts'
+import type { Calibration, KickResult } from './types.ts'
+
+/** Goalkeeper 1-euro tuning from the doc (minimal lag for reflex lunges). body.ts filters in pixels. */
+const KEEPER_FILTER = { minCutoff: 1.2, beta: 0.12, dCutoff: 1.0 }
+/** Pause on the "Ready!" calibration screen before the first kick, ms. */
+const READY_PAUSE_MS = 450
+
+const CAMERA_COPY: Record<StartupErrorKind, string> = {
+  'camera-denied': 'Camera access was blocked. Allow it in the address bar, then retry.',
+  'camera-not-found': 'No camera found. Plug one in and retry.',
+  'camera-in-use': 'The camera is busy in another app or tab. Close it and retry.',
+  'camera-unsupported': 'This browser cannot use the camera here (it needs https or localhost).',
+  'camera-other': 'The camera could not start.',
+  'tracker-failed': 'The pose tracker failed to load. Check your connection and retry.',
+}
+
+export interface GoalkeeperOptions {
+  /** Skip the start screen: 'mouse' or 'camera'. */
+  auto?: 'mouse' | 'camera'
+  /** Open the debug panel. */
+  debug?: boolean
+}
+
+export async function startGoalkeeper(ctx: GameContext, opts: GoalkeeperOptions = {}): Promise<GameSession> {
+  if (ctx.signal.aborted) return { dispose() {} }
+
+  // ---------- DOM ----------
+  const root = document.createElement('div')
+  root.className = 'gk-root gk-page'
+  const stage = document.createElement('div')
+  stage.className = 'gk-stage'
+  const video = document.createElement('video')
+  video.className = 'gk-webcam'
+  video.playsInline = true
+  video.muted = true
+  const ui = document.createElement('div')
+  ui.className = 'gk-ui'
+  root.append(stage, ui)
+  ctx.host.append(root)
+
+  const uiSfx = createSfx()
+  const sfx = createKeeperSfx()
+  const scene = createKeeperScene()
+  stage.append(scene.canvas, video)
+  const hud = createKeeperHud(ui, {
+    onHome: () => {
+      uiSfx.back()
+      ctx.exit()
+    },
+    onButton: () => {
+      uiSfx.select()
+      sfx.startCrowd()
+    },
+  })
+  const telemetry = createKeeperTelemetry()
+  const engine = createKeeperEngine({ telemetry })
+
+  let disposed = false
+  let initialized = false
+  let pipeline: PosePipeline | null = null
+  let unsubscribe: (() => void) | null = null
+  let tracker: BodyTracker | null = null
+  let starting = false
+  let debugOpen = false
+  let muted = false
+  let inStartMouse = false
+  const timers = new Set<number>()
+
+  const later = (ms: number, fn: () => void): void => {
+    const id = window.setTimeout(() => {
+      timers.delete(id)
+      if (!disposed) fn()
+    }, ms)
+    timers.add(id)
+  }
+
+  const input = createKeeperInput({
+    canvas: scene.canvas,
+    screenToGoal: (x, y) => scene.screenToGoal(x, y),
+    onToggle: (on) => {
+      hud.setInputMode(on ? 'mouse' : 'camera')
+      // D on the start screen starts a mouse game (startMouse itself also lands here: skip that).
+      if (on && !initialized && !inStartMouse && !starting) startMouse()
+      else if (!on && !tracker && initialized) hud.callout('NO CAMERA · PRESS D', 'info')
+    },
+  })
+
+  // ---------- sizing ----------
+  function resize(): void {
+    const r = stage.getBoundingClientRect()
+    scene.resize(Math.max(1, Math.round(r.width)), Math.max(1, Math.round(r.height)))
+  }
+  const ro = new ResizeObserver(resize)
+  ro.observe(stage)
+  resize()
+
+  // ---------- engine wiring ----------
+  function resultCallout(r: KickResult): void {
+    if (r.outcome === 'goal') hud.callout('GOAL', 'bad')
+    else if (r.punch) hud.callout('PUNCHED CLEAR!', 'good')
+    else if (r.part === null) hud.callout('WIDE!', 'good')
+    else hud.callout('SAVED!', 'good')
+  }
+
+  engine.onKickResult((r) => {
+    hud.setTelegraph(false)
+    hud.setScoreboard(engine.results, KICKS_PER_SHOOTOUT)
+    resultCallout(r)
+    sfx.setTension(0)
+    if (r.outcome === 'goal') {
+      sfx.net()
+      sfx.groan()
+    } else {
+      if (r.part !== null) sfx.save(r.punch)
+      sfx.roar()
+    }
+  })
+
+  engine.onStrikerPhase((phase, kick) => {
+    switch (phase) {
+      case 'idle':
+        hud.setScoreboard(engine.results, KICKS_PER_SHOOTOUT)
+        hud.callout(kick === KICKS_PER_SHOOTOUT - 1 ? 'LAST KICK' : `KICK ${kick + 1}`, 'info')
+        sfx.setTension(0.25)
+        break
+      case 'runup':
+        sfx.whistle()
+        sfx.setTension(0.6)
+        break
+      case 'telegraph':
+        hud.setTelegraph(true)
+        sfx.setTension(1)
+        break
+      case 'kick':
+        hud.setTelegraph(false)
+        sfx.kick(1)
+        break
+      case 'recover':
+        break
+    }
+  })
+
+  engine.onShootoutEnd((result) => {
+    hud.setTelegraph(false)
+    sfx.setTension(0)
+    sfx.fullTime(result.saves > result.goals)
+    hud.showEnd(result, () => startShootout())
+  })
+
+  function begin(calibration: Calibration | null): void {
+    if (disposed) return
+    engine.init(scene, calibration)
+    initialized = true
+    startShootout()
+  }
+
+  function startShootout(): void {
+    sfx.startCrowd()
+    hud.setScoreboard([], KICKS_PER_SHOOTOUT)
+    hud.showPlay()
+    engine.startShootout()
+  }
+
+  // ---------- camera path (shared PosePipeline) ----------
+  function stopCamera(): void {
+    unsubscribe?.()
+    unsubscribe = null
+    pipeline?.stop()
+    pipeline = null
+    tracker = null
+    video.classList.remove('gk-live')
+  }
+
+  async function startCamera(): Promise<void> {
+    if (starting || disposed) return
+    starting = true
+    stopCamera()
+    input.setMouse(false)
+    hud.setInputMode('camera')
+    hud.showLoading('Starting camera…')
+    try {
+      const p = await startPosePipeline(video)
+      if (disposed || ctx.signal.aborted) {
+        p.stop()
+        return
+      }
+      pipeline = p
+      video.classList.add('gk-live')
+      const calibrator = createCalibrator()
+      const aspect = p.videoWidth > 0 && p.videoHeight > 0 ? p.videoWidth / p.videoHeight : 4 / 3
+      let calibrated = false
+      hud.showCalibration(0, 'no-pose')
+      unsubscribe = p.subscribe((frame) => {
+        if (disposed) return
+        if (tracker) {
+          engine.onPoseFrame(tracker.push(frame))
+          return
+        }
+        if (calibrated) return
+        const c = calibrator.push(frame, aspect)
+        hud.showCalibration(c.progress, c.status)
+        if (c.status === 'done' && c.calibration) {
+          calibrated = true
+          const cal = c.calibration
+          later(READY_PAUSE_MS, () => {
+            tracker = createBodyTracker(cal, KEEPER_FILTER)
+            begin(cal)
+          })
+        }
+      })
+    } catch (err) {
+      if (disposed) return
+      const kind = err instanceof StartupError ? err.kind : 'camera-other'
+      console.warn('[goalkeeper] camera failed', err)
+      hud.showError(CAMERA_COPY[kind], () => void startCamera(), startMouse)
+    } finally {
+      starting = false
+    }
+  }
+
+  // ---------- mouse path ----------
+  function startMouse(): void {
+    if (disposed) return
+    inStartMouse = true
+    input.setMouse(true)
+    inStartMouse = false
+    hud.setInputMode('mouse')
+    if (!tracker) begin(null)
+    else startShootout()
+  }
+
+  hud.showStart(() => void startCamera(), startMouse)
+
+  // ---------- keys ----------
+  function onKey(e: KeyboardEvent): void {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
+    const t = e.target
+    if (t instanceof HTMLElement && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return
+    if (e.code === 'Backquote') {
+      hud.toggleDebug()
+      debugOpen = !debugOpen
+    } else if (e.code === 'KeyR' && initialized) {
+      startShootout()
+    } else if (e.code === 'KeyM') {
+      muted = !muted
+      sfx.setMuted(muted)
+      hud.callout(muted ? 'SOUND OFF' : 'SOUND ON', 'info')
+    }
+  }
+  window.addEventListener('keydown', onKey)
+
+  const onPageHide = (): void => engine.flushTelemetry()
+  window.addEventListener('pagehide', onPageHide)
+
+  // ---------- frame loop ----------
+  let raf = 0
+  let last = performance.now()
+  let fps = 60
+  function frame(now: number): void {
+    if (disposed) return
+    raf = requestAnimationFrame(frame)
+    const dt = Math.min(Math.max(now - last, 0), 250)
+    last = now
+    if (dt > 0) fps += (1000 / dt - fps) * 0.05
+
+    engine.setPointer(input.mouseOn ? input.target() : null)
+    engine.update(dt)
+    scene.update(dt * engine.timeScale)
+    scene.render()
+
+    if (debugOpen) {
+      hud.setDebug({
+        fps: Math.round(fps),
+        input: input.mouseOn ? 'mouse' : tracker ? 'camera' : 'none',
+        inferenceMs: pipeline ? Math.round(pipeline.inferenceMs) : '-',
+        delegate: pipeline?.delegate ?? '-',
+        timeScale: engine.timeScale,
+        kickIndex: engine.kickIndex,
+        ...engine.debug,
+      })
+    }
+  }
+  raf = requestAnimationFrame(frame)
+
+  // ---------- dispose ----------
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    cancelAnimationFrame(raf)
+    for (const id of timers) window.clearTimeout(id)
+    timers.clear()
+    window.removeEventListener('keydown', onKey)
+    window.removeEventListener('pagehide', onPageHide)
+    ctx.signal.removeEventListener('abort', dispose)
+    ro.disconnect()
+    stopCamera()
+    input.dispose()
+    engine.dispose()
+    hud.dispose()
+    scene.dispose()
+    sfx.dispose()
+    root.remove()
+  }
+  ctx.signal.addEventListener('abort', dispose, { once: true })
+
+  if (opts.debug) {
+    hud.toggleDebug()
+    debugOpen = true
+  }
+  if (opts.auto === 'mouse') startMouse()
+  else if (opts.auto === 'camera') void startCamera()
+
+  return { dispose }
+}
