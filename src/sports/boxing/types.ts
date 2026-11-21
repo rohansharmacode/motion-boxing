@@ -154,6 +154,8 @@ export interface BoxingScene {
   setOpponentLook?(look: RobotLook | null): void
   /** Reset the drone and effects for a new round. */
   resetRound(): void
+  /** Camera shot: wide for the countdown, fight otherwise (the scene picks tight and KO shots itself). */
+  setShot?(name: 'wide' | 'fight'): void
   /** Freeze scene animation for ms milliseconds (impact feel). */
   hitstop(ms: number): void
   /** Advance animations by real elapsed time. */

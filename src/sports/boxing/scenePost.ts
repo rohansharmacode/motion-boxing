@@ -13,7 +13,7 @@ import { isBright } from '../../theme/index.ts'
 const BLOOM_ON = !isBright()
 
 /** A small radius keeps the glow on the neon instead of hazing the whole frame. */
-const BLOOM = { strength: 0.6, radius: 0.2, threshold: 0.62 } as const
+const BLOOM = { strength: 0.38, radius: 0.18, threshold: 0.7 } as const
 /** Auto-drop when the mean frame time over the last WINDOW_MS is above this. */
 const SLOW_FRAME_MS = 24
 const WINDOW_MS = 2000

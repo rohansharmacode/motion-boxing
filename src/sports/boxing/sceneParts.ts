@@ -457,10 +457,12 @@ export function buildPlayerBody(hands: readonly Object3D[] = [], robot?: RobotLo
     }
     aim()
     arm.onBeforeRender = aim
-    body.add(arm)
+    if (!FLOATING_HANDS) body.add(arm)
   })
   return body
 }
+/** Family-console style: gloves float free of the body, no arm pistons. */
+const FLOATING_HANDS = true
 /** From a glove's centre back to its cuff, in rig space (the gloves' cuffs point at the camera). */
 const WRIST_BACK = new Vector3(0, -0.01, 0.07)
 
@@ -645,7 +647,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
     }
     aim()
     arm.onBeforeRender = aim
-    body.add(arm)
+    if (!FLOATING_HANDS) body.add(arm)
     return pod
   })
 
