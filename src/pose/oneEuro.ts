@@ -10,6 +10,9 @@ export interface OneEuroParams {
   dCutoff: number
 }
 
+const MIN_DT_S = 1 / 240
+const MAX_DT_S = 1 / 15
+
 /** Smoothing factor of a one-pole low-pass filter with this cutoff (Hz) at this step (s). */
 function alpha(cutoffHz: number, dtS: number): number {
   const tau = 1 / (2 * Math.PI * cutoffHz)
@@ -36,13 +39,16 @@ export class OneEuroFilter {
       this.lastT = tMs
       return value
     }
-    const dt = (tMs - this.lastT) / 1000
+    const rawDt = (tMs - this.lastT) / 1000
     // Same or older timestamp: nothing to integrate, keep the current estimate.
-    if (!(dt > 0)) return this.x
+    if (!(rawDt > 0)) return this.x
     this.lastT = tMs
+    // Clamp the step to the 15 to 240 fps range: a duplicate-ish timestamp must not freeze the filter, and a
+    // hitch must not let one sample jump straight through. Speeds still use the true step.
+    const dt = Math.min(MAX_DT_S, Math.max(MIN_DT_S, rawDt))
 
     const { minCutoff, beta, dCutoff } = this.params
-    const rawDx = (value - this.x) / dt
+    const rawDx = (value - this.x) / rawDt
     const aD = alpha(dCutoff, dt)
     this.dx = aD * rawDx + (1 - aD) * this.dx
     const a = alpha(minCutoff + beta * Math.abs(this.dx), dt)

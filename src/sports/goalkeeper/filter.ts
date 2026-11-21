@@ -28,9 +28,11 @@ export class OneEuroFilter {
       this.tPrev = tSeconds
       return value
     }
-    const dt = tSeconds - this.tPrev
-    if (!(dt > 0)) return this.xPrev
-    const dx = (value - this.xPrev) / dt
+    const rawDt = tSeconds - this.tPrev
+    if (!(rawDt > 0)) return this.xPrev
+    // Clamp to the 15 to 240 fps range so frame-rate hitches neither freeze nor overshoot the filter.
+    const dt = Math.min(1 / 15, Math.max(1 / 240, rawDt))
+    const dx = (value - this.xPrev) / rawDt
     const ad = alpha(this.dCutoff, dt)
     const dxHat = ad * dx + (1 - ad) * this.dxPrev
     const cutoff = this.minCutoff + this.beta * Math.abs(dxHat)

@@ -52,7 +52,14 @@ export interface Calibration {
   torsoCenter: { x: number; y: number }
   /** N0 = P0, aspect-corrected image units. */
   neutralNose: { x: number; y: number }
+  /**
+   * Lead side read from the hold stance: orthodox leads with the left hand, southpaw with the right.
+   * Missing means unknown (keyboard play), treated as orthodox.
+   */
+  stance?: Stance
 }
+
+export type Stance = 'orthodox' | 'southpaw'
 
 /**
  * no-pose: nobody in view. shoulders-hidden: shoulders not both visible. too-close: the player fills the frame,
