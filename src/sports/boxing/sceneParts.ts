@@ -632,7 +632,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
   body.add(head)
 
   // Gloves (the pods): slightly oversized, smooth, knuckles toward the opponent, with a trim cuff.
-  const fistGeo = new SphereGeometry(0.12, 40, 24)
+  const fistGeo = new SphereGeometry(0.17, 40, 24) // big gloves read from across the ring
   const cuffGeo = new CylinderGeometry(0.07, 0.075, 0.06, 32)
   cuffGeo.rotateX(Math.PI / 2)
   const cuffMat = new MeshStandardMaterial({ color: 0xeeeef0, roughness: 0.6 })
@@ -678,7 +678,7 @@ export function buildDrone(glowMap: Texture): DroneParts {
     }
     aim()
     upper.onBeforeRender = aim
-    body.add(upper, fore, elbow, wristBall)
+    void [upper, fore, elbow, wristBall] // floating gloves: arms are built for the aim hook but not shown
   })
 
   // Hips and legs, standing on the floor (body origin sits DRONE.y above it).
