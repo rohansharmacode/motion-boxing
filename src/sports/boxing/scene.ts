@@ -1071,9 +1071,9 @@ export function createBoxingScene(container: HTMLElement, opts: BoxingSceneOptio
         const hc = drone.head.center
         drone.pods.forEach((pod, i) => {
           const side = i === 0 ? -1 : 1
-          pod.position.x += (side * 0.14 - pod.position.x) * def.guard
+          pod.position.x += (side * 0.17 - pod.position.x) * def.guard
           pod.position.y += (hc.y - 0.06 - pod.position.y) * def.guard - 0.28 * def.stun
-          pod.position.z += (hc.z + 0.22 - pod.position.z) * def.guard
+          pod.position.z += (hc.z + 0.34 - pod.position.z) * def.guard // gloves stay clear of the head
         })
       }
     }

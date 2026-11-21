@@ -89,7 +89,7 @@ export function loadRobotBody(parent: Object3D, floorY: number, tint: number, on
         if ((o as { isBone?: boolean }).isBone && o.name === 'Head') bones.push(o)
       })
       const headBone = bones[0]
-      const HEAD_SCALE = 0.72
+      const HEAD_SCALE = 0.58
       if (headBone) headBone.scale.setScalar(HEAD_SCALE)
 
       let detached: Mesh | null = null
