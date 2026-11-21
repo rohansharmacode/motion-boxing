@@ -5,6 +5,8 @@ import './lobby.css'
 import type { BoxingEngine } from '../types.ts'
 import { connectVersus, defaultRelayAddress, relayUrl, saveRelayAddress } from './client.ts'
 import type { GameMsg, RelayError, VersusClient } from './client.ts'
+import { sanitizeLook } from '../../../custom/look.ts'
+import type { RobotLook } from '../../../custom/look.ts'
 
 export type VersusInput = 'camera' | 'keyboard'
 
@@ -13,6 +15,10 @@ export interface VersusDeps {
   /** Puts the friend's name on the opponent health bar (null = back to the drone). */
   setOpponentName?(name: string | null): void
   playerName(): string
+  /** This player's customised robot, sent to the friend so they see it. */
+  playerLook?(): RobotLook
+  /** Dress the opponent in the friend's robot look (null = back to the drone). */
+  setOpponentLook?(look: RobotLook | null): void
   /** Paired: start the chosen input. Calibration then calls ready() instead of starting a round. */
   onChoose(input: VersusInput): void
   /** Leave the online match (opponent left, connection lost, or the player cancelled mid-match). */
@@ -105,9 +111,12 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
     renderBanner(`You <b>vs</b> ${esc(peerName ?? 'Friend')}`, 'corner')
   }
 
+  const hello = (): GameMsg => ({ k: 'hello', name: deps.playerName() || 'Player', look: deps.playerLook?.() })
+
   function setPeer(name: string | null): void {
     peerName = name
     deps.setOpponentName?.(name)
+    if (!name) deps.setOpponentLook?.(null)
   }
 
   function menu(error: string | null = null): void {
@@ -184,6 +193,7 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
     switch (msg.k) {
       case 'hello':
         setPeer(String(msg.name).slice(0, 24) || 'Friend')
+        if (msg.look) deps.setOpponentLook?.(sanitizeLook(msg.look))
         if (!inMatch && !panel.hidden) paired()
         else if (inMatch) matchBanner()
         break
@@ -235,7 +245,7 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
       const c = await connectVersus(address, room, deps.playerName() || 'Player', {
         onPeerJoined(name) {
           setPeer(name)
-          c.send({ k: 'hello', name: deps.playerName() || 'Player' })
+          c.send(hello())
           if (!inMatch) paired()
         },
         onPeerLeft() {
@@ -263,7 +273,7 @@ export function createVersus(ui: HTMLElement, deps: VersusDeps): Versus {
         sendDefence: (d) => c.send({ k: 'defence', ...d }),
       })
       if (peerName) {
-        c.send({ k: 'hello', name: deps.playerName() || 'Player' })
+        c.send(hello())
         paired()
       } else {
         waiting()

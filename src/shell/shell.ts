@@ -182,6 +182,7 @@ function playArt(tile: HTMLElement, on: boolean): void {
 }
 
 function bestLine(id: TileId, r: ReturnType<ReturnType<typeof createRecords>['get']>): string {
+  if (id === 'customise') return ''
   if (r.rounds === 0) return id === 'leaderboard' ? '' : 'No rounds yet'
   const parts = [`${r.rounds} round${r.rounds === 1 ? '' : 's'}`]
   if (r.wins > 0) parts.push(`${r.wins} KO${r.wins === 1 ? '' : 's'}`)

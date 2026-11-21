@@ -1,4 +1,5 @@
 // Boxing contract. Change only with the orchestrator.
+import type { RobotLook } from '../../custom/look.ts'
 import type { BodyFrame, Calibration, CalibrationStatus, Hand, StartupErrorKind } from '../../pose/types.ts'
 import type { BotStance } from './botDefence.ts'
 
@@ -145,6 +146,8 @@ export interface BoxingScene {
   setGuardMeters?(player: GuardMeterView, bot: GuardMeterView): void
   /** Bot guard and dodge pose, with its tell. Called every frame. */
   setBotStance?(stance: BotStance): void
+  /** Online 1v1: dress the opponent in the friend's customised robot look (null = the drone's own). */
+  setOpponentLook?(look: RobotLook | null): void
   /** Reset the drone and effects for a new round. */
   resetRound(): void
   /** Freeze scene animation for ms milliseconds (impact feel). */

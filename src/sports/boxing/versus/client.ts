@@ -1,9 +1,11 @@
 // Online 1v1 transport: one WebSocket to the room relay in server/src/versus.ts.
 // The relay only pairs two players and forwards { t: 'msg', d } between them.
 
-/** Game messages between the two laptops (the relay never reads them). */
+import type { RobotLook } from '../../../custom/look.ts'
+
+/** Game messages between the two laptops (the relay never reads them). look: the sender's customised robot (untrusted: sanitise). */
 export type GameMsg =
-  | { k: 'hello'; name: string }
+  | { k: 'hello'; name: string; look?: RobotLook }
   | { k: 'ready' }
   | { k: 'start' }
   | { k: 'punch'; id: number; kind: 'jab' | 'cross' | 'hook' | 'uppercut'; hand: 'left' | 'right'; damage: number; counter: boolean }

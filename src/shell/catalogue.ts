@@ -32,6 +32,11 @@ const TARGET = svg(`
   <circle cx="28" cy="36" r="4"/>
   <path d="M28 36L54 10M47 10h7v7M54 10l-4 1" />`)
 
+const ROBOT = svg(`
+  <path d="M14 30a18 18 0 0 1 36 0v8a12 12 0 0 1-12 12H26a12 12 0 0 1-12-12z"/>
+  <path d="M20 33h24" stroke-width="5"/>
+  <path d="M32 12V6"/>`)
+
 const PODIUM = svg(`
   <path d="M8 54h48"/>
   <rect x="24" y="26" width="16" height="28" rx="2"/>
@@ -80,5 +85,15 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#38c8ff', '#8fd3fb'),
     icon: PODIUM,
     art: artUrl('tile-leaderboard'),
+  },
+  {
+    id: 'customise',
+    title: 'Customise',
+    tagline: 'Make the robot yours',
+    howTo: 'Pick colours, a head and gloves, and name your robot. Shows in boxing and online 1v1.',
+    accent: pick('#38c8ff', '#2f9bff'),
+    accent2: pick('#a47bff', '#8fd3fb'),
+    icon: ROBOT,
+    art: artUrl('tile-customise'),
   },
 ]
