@@ -175,3 +175,21 @@ describe('grades, combo and results in the engine', () => {
     expect(['S', 'A', 'B', 'C']).toContain(summary.metrics.grade)
   })
 })
+
+describe('seeded replays', () => {
+  const replay = (seed: number, level: 'easy' | 'normal' | 'hard') => {
+    const h = setup(seed)
+    h.engine.setDifficulty(level)
+    h.engine.startShootout()
+    run(h, keeper(300))
+    return h.kicks.map((k) => [k.shot, k.zone, k.grade, k.fake, k.outcome])
+  }
+
+  test.each(['easy', 'normal', 'hard'] as const)('same seed, same %s shootout', (level) => {
+    expect(replay(77, level)).toEqual(replay(77, level))
+  })
+
+  test('different seeds give a different shootout', () => {
+    expect(replay(77, 'hard')).not.toEqual(replay(78, 'hard'))
+  })
+})
