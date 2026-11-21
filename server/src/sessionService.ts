@@ -6,7 +6,7 @@ import type { Logger } from './logger';
 import { sessionMetrics } from './metrics';
 import { computePercentiles } from './percentile';
 import type { Repo } from './repo/types';
-import type { Benchmark, CoachCard, Percentiles, SessionEndResult, SessionRecord, StoredCoach } from './types';
+import type { Benchmark, CoachCard, CoachMeta, Percentiles, SessionEndResult, SessionRecord, StoredCoach } from './types';
 import { errorMessage, raceTimeout } from './util';
 
 /** PRO_BENCHMARKS rarely change; cache them and keep serving the last good copy on errors. */
@@ -37,12 +37,24 @@ function publicCard(c: CoachCard): CoachCard {
   return { tips: [c.tips[0], c.tips[1], c.tips[2]], drill: c.drill, badge: c.badge, summary: c.summary };
 }
 
+/** Extras stored next to the card (absent on cards written before they existed). */
+function storedMeta(c: StoredCoach): CoachMeta | undefined {
+  if (!c.grounding || typeof c.grounding !== 'object' || !Array.isArray(c.grounding.drills)) return undefined;
+  return {
+    focus: typeof c.focus === 'string' ? c.focus : null,
+    grounding: c.grounding,
+    structured: c.structured === true,
+    ...(c.headline ? { headline: c.headline } : {}),
+  };
+}
+
 function fromStored(s: SessionRecord): SessionEndResult | null {
   if (!s.coach || !s.stats) return null;
   // ai_coach_json may have been written by something else; never return a malformed card.
   const card = normalizeCard(s.coach);
   if (!card) return { session_id: s.session_id, stats: s.stats, coach: fallbackCard(s.stats), fallback: true };
-  return { session_id: s.session_id, stats: s.stats, coach: card, fallback: Boolean(s.coach.fallback) };
+  const meta = storedMeta(s.coach);
+  return { session_id: s.session_id, stats: s.stats, coach: card, fallback: Boolean(s.coach.fallback), ...(meta ? { coach_meta: meta } : {}) };
 }
 
 export interface SessionServiceDeps {
@@ -55,6 +67,11 @@ export interface SessionServiceDeps {
   flushWaitMs: number;
   /** See AppConfig.coachFastMs. Only used when 0 < coachFastMs < coachTimeoutMs. */
   coachFastMs?: number;
+  /** AI_COMPLETE structured output (CORTEX_STRUCTURED). Default true. */
+  coachStructured?: boolean;
+  /** Cortex Search grounding (COACH_GROUNDING). Default true. */
+  coachGrounding?: boolean;
+  coachSearchTimeoutMs?: number;
 }
 
 export type CoachStatus =
@@ -113,7 +130,18 @@ export class SessionService {
       log.warn('session end: percentiles unavailable', { error: errorMessage(err) });
     }
 
-    const full = generateCoachCard({ cortex: this.d.cortex, timeoutMs: this.d.coachTimeoutMs, log }, agg, percentiles);
+    const full = generateCoachCard(
+      {
+        cortex: this.d.cortex,
+        timeoutMs: this.d.coachTimeoutMs,
+        log,
+        structured: this.d.coachStructured !== false,
+        search: this.d.coachGrounding === false ? undefined : (q, o) => repo.searchDrills(q, o),
+        searchTimeoutMs: this.d.coachSearchTimeoutMs,
+      },
+      agg,
+      percentiles,
+    );
     const fastMs = this.d.coachFastMs ?? 0;
     if (fastMs > 0 && fastMs < this.d.coachTimeoutMs) {
       const early = await raceTimeout(full, fastMs, 'slow' as const);
@@ -142,7 +170,7 @@ export class SessionService {
   private async finish(
     sessionId: string,
     agg: Awaited<ReturnType<Repo['aggregateSession']>>,
-    { card, fallback, reason }: CoachResult,
+    { card, fallback, reason, meta }: CoachResult,
     client?: Record<string, unknown>,
   ): Promise<SessionEndResult> {
     const { repo, log } = this.d;
@@ -151,6 +179,9 @@ export class SessionService {
       fallback,
       model: fallback ? 'fallback' : this.d.cortex.model,
       generated_at: new Date().toISOString(),
+      ...(meta
+        ? { focus: meta.focus, grounding: meta.grounding, structured: meta.structured, ...(meta.headline ? { headline: meta.headline } : {}) }
+        : {}),
       ...(client ? { client } : {}),
     };
 
@@ -166,6 +197,6 @@ export class SessionService {
       log.error('session end: could not store results in SESSIONS', { sessionId, error: errorMessage(err) });
     }
     if (fallback) log.info('session end used fallback coach card', { sessionId, reason });
-    return { session_id: sessionId, stats: agg.stats, coach: publicCard(card), fallback };
+    return { session_id: sessionId, stats: agg.stats, coach: publicCard(card), fallback, ...(meta ? { coach_meta: meta } : {}) };
   }
 }

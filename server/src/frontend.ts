@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { IdSchema } from './schemas';
-import { PUNCH_TYPES, SPORT, type CoachCard, type LeaderboardRow, type MotionEvent, type SessionStats } from './types';
+import { PUNCH_TYPES, SPORT, type CoachCard, type CoachGrounding, type CoachMeta, type LeaderboardRow, type MotionEvent, type SessionStats } from './types';
 
 const num = z.number().finite();
 
@@ -141,6 +141,10 @@ export interface FrontendCoachCard {
   drill: { name: string; description: string };
   badge: { name: string; description: string };
   summary: string;
+  /** Optional (sql/PLUS_CONTRACT.md); the UI ignores unknown fields. */
+  focus?: string | null;
+  grounding?: CoachGrounding;
+  structured?: boolean;
 }
 
 function firstSentence(text: string, max = 140): string {
@@ -155,9 +159,9 @@ export function splitDrill(drill: string): { name: string; description: string }
   return { name: 'Coach Drill', description: drill };
 }
 
-export function toFrontendCoach(card: CoachCard, stats: SessionStats): FrontendCoachCard {
+export function toFrontendCoach(card: CoachCard, stats: SessionStats, meta?: CoachMeta): FrontendCoachCard {
   return {
-    headline: firstSentence(card.summary),
+    headline: meta?.headline || firstSentence(card.summary),
     tips: [...card.tips],
     drill: splitDrill(card.drill),
     badge: {
@@ -165,6 +169,7 @@ export function toFrontendCoach(card: CoachCard, stats: SessionStats): FrontendC
       description: `Earned this round: ${stats.score} points from ${stats.total_punches} punches.`,
     },
     summary: card.summary,
+    ...(meta ? { focus: meta.focus, grounding: meta.grounding, structured: meta.structured } : {}),
   };
 }
 

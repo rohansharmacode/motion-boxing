@@ -2,7 +2,7 @@
 // Usage: npx tsx src/cortex-latency.ts [model] [runs]
 import { connect, loadServerEnv } from './sf';
 
-const model = process.argv[2] ?? loadServerEnv().CORTEX_MODEL ?? 'mistral-large2';
+const model = process.argv[2] ?? loadServerEnv().CORTEX_MODEL ?? 'mistral-large3';
 const runs = Number(process.argv[3] ?? 3);
 const prompt =
   'You are a boxing coach. Round stats: {"score":420,"total_punches":38,"avg_speed_mps":6.4,"accuracy":0.71,"guard_up_pct":58}. ' +

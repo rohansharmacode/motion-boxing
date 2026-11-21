@@ -1,8 +1,27 @@
 import { randomUUID } from 'node:crypto';
+import { mockDrillSearch, type DrillSearchOptions, type DrillSearchResult } from '../drills';
 import { aggregatePlayer, aggregateSession, isPunch } from '../metrics';
+import {
+  classifyStyle,
+  cosine,
+  deriveHighlights,
+  proComponents,
+  regrSlope,
+  roundComponents,
+  scoutingReport,
+  sessionSummaries,
+  similarityPct,
+  styleComponents,
+  styleVector,
+} from '../style';
 import type {
   Benchmark,
+  HighlightsFeed,
   LeaderboardRow,
+  PlayerProgress,
+  PlayerStyle,
+  RepoFeatureProbes,
+  StyleComponents,
   MotionEvent,
   Player,
   PlayerMetrics,
@@ -187,6 +206,106 @@ export class MemoryRepo implements Repo {
 
   async benchmarks(sport: string): Promise<Benchmark[]> {
     return this.benchmarkRows.filter((b) => b.sport === sport).map((b) => ({ ...b }));
+  }
+
+  /** Rounded components per player with punches (V_PLAYER_STYLE rows). */
+  private styleRows(): Map<string, StyleComponents> {
+    const byPlayer = new Map<string, MotionEvent[]>();
+    for (const e of this.events) {
+      const list = byPlayer.get(e.player_id) ?? [];
+      list.push(e);
+      byPlayer.set(e.player_id, list);
+    }
+    const out = new Map<string, StyleComponents>();
+    for (const [pid, evs] of byPlayer) {
+      if (!evs.some((e) => isPunch(e) && String(e.sport ?? 'boxing').toLowerCase() === 'boxing')) continue;
+      out.set(pid, roundComponents(styleComponents(aggregatePlayer(evs))));
+    }
+    return out;
+  }
+
+  async playerStyle(playerId: string): Promise<PlayerStyle> {
+    const rows = this.styleRows();
+    const c = rows.get(playerId);
+    const empty: PlayerStyle = { player_id: playerId, available: true, components: null, pro_similarity_pct: null, twin: null, scouting: null };
+    if (!c) return empty;
+    const vec = styleVector(c);
+    const proSim = cosine(vec, styleVector(proComponents(await this.benchmarks('boxing'))));
+    let twin: PlayerStyle['twin'] = null;
+    let bestSim = -Infinity;
+    const isNeutral = (v: number[]) => v.every((x) => x === 0);
+    if (!isNeutral(vec)) {
+      for (const [other, oc] of [...rows.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+        const ov = styleVector(oc);
+        if (other === playerId || isNeutral(ov)) continue;
+        const sim = cosine(vec, ov);
+        if (sim !== null && sim > bestSim) {
+          bestSim = sim;
+          twin = { player_id: other, name: this.players.get(other)?.name ?? 'Unknown', similarity_pct: similarityPct(sim) };
+        }
+      }
+    }
+    const name = this.players.get(playerId)?.name ?? 'Unknown';
+    const punches = this.events.filter((e) => e.player_id === playerId && isPunch(e)).length;
+    const style = classifyStyle(c);
+    return {
+      ...empty,
+      components: c,
+      pro_similarity_pct: proSim === null ? null : similarityPct(proSim),
+      twin,
+      // T_SCOUTING only scans players with >= 10 punches.
+      scouting: punches >= 10 ? { fighting_style: style, scouting_report: scoutingReport(name, style, c), updated_at: new Date().toISOString() } : null,
+    };
+  }
+
+  async playerProgress(playerId: string, historyLimit: number): Promise<PlayerProgress> {
+    const rows = sessionSummaries(
+      this.events.filter((e) => e.player_id === playerId),
+      (sid) => this.sessions.get(sid)?.started_at ?? null,
+    );
+    const n = rows.length;
+    const trend = (pick: (r: (typeof rows)[number]) => number | null, dp: number) =>
+      n >= 2 ? round(regrSlope(rows.map((r) => ({ x: r.session_index, y: pick(r) }))), dp) : null;
+    const scoreTrend = trend((r) => r.score, 2);
+    return {
+      player_id: playerId,
+      available: true,
+      sessions: n,
+      best_score: n ? Math.max(...rows.map((r) => r.score ?? -Infinity)) : null,
+      last_score: n ? rows[n - 1]!.score : null,
+      speed_trend_mps_per_session: trend((r) => r.avg_speed, 3),
+      score_trend_per_session: scoreTrend,
+      accuracy_trend_pct_per_session: trend((r) => r.accuracy_pct, 2),
+      reaction_trend_ms_per_session: trend((r) => r.avg_reaction_ms, 2),
+      improving: n >= 2 && (scoreTrend ?? 0) > 0,
+      history: rows.slice(-Math.max(1, historyLimit)).map(({ session_index, session_id, score, avg_speed, accuracy_pct }) => ({
+        session_index,
+        session_id,
+        score,
+        avg_speed,
+        accuracy_pct,
+      })),
+    };
+  }
+
+  async highlights(limit: number): Promise<HighlightsFeed> {
+    const all = deriveHighlights(this.events, (pid) => this.players.get(pid)?.name ?? 'Unknown');
+    return { available: true, highlights: all.slice(0, Math.min(50, Math.max(1, limit))) };
+  }
+
+  async probeFeatures(): Promise<RepoFeatureProbes> {
+    const detail = 'mock mode (in-memory equivalent)';
+    return {
+      dynamic_tables: { status: 'mock', detail },
+      cortex_search: { status: 'mock', detail: 'keyword search over the drill catalogue' },
+      streams_tasks: { status: 'mock', detail: 'highlights derived from events on read' },
+      vectors: { status: 'mock', detail: 'cosine similarity in JavaScript' },
+      player_form_last_refresh: null,
+    };
+  }
+
+  async searchDrills(query: string, opts: DrillSearchOptions): Promise<DrillSearchResult> {
+    return { available: true, source: 'mock', results: mockDrillSearch(query, opts) };
   }
 
   /**
