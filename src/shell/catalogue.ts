@@ -43,6 +43,12 @@ const PADDLE = svg(`
   <path d="M37 37l13 13" stroke-width="5"/>
   <circle cx="48" cy="16" r="4"/>`)
 
+const RACKET = svg(`
+  <ellipse cx="26" cy="24" rx="14" ry="17"/>
+  <path d="M35 37l15 15" stroke-width="5"/>
+  <path d="M16 18h20M14 26h24M26 8v32" stroke-width="1.4" opacity=".6"/>
+  <circle cx="50" cy="14" r="5"/>`)
+
 const VERSUS = svg(`
   <circle cx="18" cy="26" r="10"/>
   <circle cx="46" cy="26" r="10"/>
@@ -111,6 +117,16 @@ export const TILES: readonly TileInfo[] = [
     accent2: pick('#ff2e88', '#ff6b6b'),
     icon: PADDLE,
     art: `${import.meta.env.BASE_URL}art/tile-tabletennis.svg`,
+  },
+  {
+    id: 'tennis',
+    title: 'Tennis',
+    tagline: 'Serve, swing, smash',
+    howTo: 'Reach toward the ball and swing hard as it arrives. First to 2 games beats the robot.',
+    accent: pick('#b8ff00', '#35c26b'),
+    accent2: pick('#22e5ff', '#46c7d9'),
+    icon: RACKET,
+    art: `${import.meta.env.BASE_URL}art/tile-tennis.svg`,
   },
   {
     id: 'customise',
